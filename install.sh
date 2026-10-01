@@ -24,6 +24,7 @@ link() {
 mkdir -p "$TARGET/skills"
 link "$REPO/CLAUDE.md" "$TARGET/CLAUDE.md"
 link "$REPO/CODING_STANDARDS.md" "$TARGET/CODING_STANDARDS.md"
+link "$REPO/languages" "$TARGET/languages"
 for skill in "$REPO"/skills/*/; do
   name="$(basename "$skill")"
   link "${skill%/}" "$TARGET/skills/$name"
