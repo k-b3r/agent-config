@@ -6,6 +6,7 @@ Personal Claude Code setup: global instructions, general coding standards, own s
 CLAUDE.md            -> ~/.claude/CLAUDE.md (imports CODING_STANDARDS.md)
 CODING_STANDARDS.md  -> ~/.claude/CODING_STANDARDS.md (language-agnostic)
 languages/           -> ~/.claude/languages (read on demand per language)
+standards/           -> ~/.claude/standards (do/don't examples per section, read on demand)
 skills/<name>/       -> ~/.claude/skills/<name>
 ```
 
