@@ -4,6 +4,21 @@ Language-agnostic rules for every project. A repo's own `CODING_STANDARDS.md` wi
 
 ## Philosophy
 
+Ousterhout (*A Philosophy of Software Design*) for what to build, Fowler (*Refactoring*) for how to change it.
+
+- Complexity is the enemy: anything that makes code hard to understand or change. Symptoms: change amplification, cognitive load, unknown unknowns.
+- Strategic over tactical. Working code isn't enough; spend a little on every change to leave the design better.
+- Deep modules: simple interface, substantial functionality behind it. Avoid shallow pass-through layers and wrappers that add an interface without hiding anything.
+- Deep modules win over Fowler-style small functions. Don't split a function just to make it shorter; split only when the piece is a coherent abstraction. Small private helpers inside a module are fine.
+- Hide information. Each module owns its decisions; callers never depend on internals.
+- Pull complexity downward: the module absorbs hard cases so callers stay simple.
+- Define errors out of existence where possible (APIs whose normal semantics cover the edge case) instead of adding exceptions callers must handle.
+- Design it twice: consider one alternative before committing to an interface.
+- Refactor in small, behavior-preserving steps with tests green between each. Separate refactoring commits from behavior changes.
+- Code smells (duplication, long parameter lists, feature envy, shotgun surgery) trigger refactoring; fix when touching the code, not in big-bang rewrites.
+- YAGNI: build for today's need, keep it easy to change tomorrow.
+- Comments carry what code can't: interface contracts, intent, and *why*. If a comment explains *what*, improve the names instead.
+
 ## Design
 
 - Low ceremony. Design in conversation, implement directly, commit. Write a spec only when the design has real ambiguity. Full plans and multi-agent review only for large, parallel, or risky work.
