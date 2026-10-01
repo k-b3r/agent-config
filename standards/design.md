@@ -83,6 +83,42 @@ Before committing to an interface, sketch one alternative and pick deliberately:
 // B wins: one place to get the transaction right, callers can't forget the history.
 ```
 
+## Minimize parameters
+
+Don't: make the caller pass what the function can derive.
+```ts
+availableVacation(employee, employee.grade)
+```
+
+Do: derive it from what was passed.
+```ts
+availableVacation(employee) // reads employee.grade inside
+```
+
+Don't: cut parameters by reaching for ambient state.
+```ts
+function markSold(id: string) {
+  const db = createDbPool(process.env.DATABASE_URL!) // hidden dependency, untestable
+}
+```
+
+Do: inject the outside world, derive the rest, including through injected deps.
+```ts
+async function refreshPrice(deps: { db: DbClient; llm: LlmClient }, listing: Listing) {
+  const area = listing.floorAreaSqm // derived from the entity
+  const settings = await loadSettings(deps.db, ['price.max_age_days']) // derived via an injected dep
+}
+```
+
+Whole object vs single value:
+```ts
+refreshPrice(deps, listing) // works on the listing entity: pass the whole object
+parsePrice(listing.priceText) // small utility: pass only what it needs, not the Listing type
+```
+
+Don't: hide a long list in an options bag. `f({ a, b, c, d, e, f })` still has six parameters.
+Group only values that belong together, like a deps object.
+
 ## Gate new behavior
 
 ```ts

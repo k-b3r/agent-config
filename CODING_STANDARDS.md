@@ -24,6 +24,7 @@ Language-agnostic rules for every project. Sections marked *Examples* link to do
 - Pull complexity downward: the module absorbs hard cases so callers stay simple.
 - Define errors out of existence where possible (APIs whose normal semantics cover the edge case) instead of adding exceptions callers must handle.
 - Design it twice: consider one alternative before committing to an interface.
+- Minimize parameters: derive any value the function can work out from what it's given. Inject outside-world dependencies; never derive from ambient state (globals, singletons, env). Pass a whole object when the function works on that entity, a single value when it's a utility.
 - New behavior is gated behind a setting that defaults to today's behavior. Shipping a feature must not disrupt existing flows.
 
 *Examples:* `~/.claude/standards/design.md`
