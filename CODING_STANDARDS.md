@@ -89,7 +89,7 @@ Read the matching file before writing code in that language:
 
 - Be a polite, low-volume client. Pace requests against rate-sensitive targets: no rapid ad-hoc probing, batch checks into one run.
 - Respect robots.txt and ToS. Don't scrape sources that forbid it.
-- ₱0 budget default: prefer free tiers, self-hosting, and round-robin keys over paid services.
+- $0 budget default: prefer free tiers, self-hosting, and round-robin keys over paid services.
 
 ## Data
 
