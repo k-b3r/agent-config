@@ -1,0 +1,119 @@
+# Reusable PR review: an agent reviews against the coding standards, then a
+# gate decides whether the PR can merge or needs a human.
+#
+# Labels drive the gate:
+#   agent-changes-requested  agent found blocking issues (it removes it once fixed)
+#   needs-human              agent wants a human decision (business logic, money, data loss, ...)
+#   human-approved           a human reviewed a needs-human PR and signs off
+#
+# Caller:
+#   on:
+#     pull_request:
+#       types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
+#   jobs:
+#     review:
+#       uses: k-b3r/agent-config/.github/workflows/pr-review.yml@main
+#       permissions: { contents: read, pull-requests: write, issues: write, id-token: write }
+#       secrets: inherit
+
+name: pr-review
+
+on:
+  workflow_call:
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN:
+        required: true
+      AGENT_CONFIG_TOKEN:
+        description: Read-only token for k-b3r/agent-config, so the review also sees the global standards
+        required: false
+
+jobs:
+  agent-review:
+    # Label changes only re-run the gate; reviewing again would just repeat itself.
+    if: github.event.action != 'labeled' && github.event.action != 'unlabeled' && !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+    concurrency:
+      group: agent-review-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    env:
+      HAS_AGENT_CONFIG_TOKEN: ${{ secrets.AGENT_CONFIG_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Fetch global standards
+        if: env.HAS_AGENT_CONFIG_TOKEN == 'true'
+        uses: actions/checkout@v7
+        with:
+          repository: k-b3r/agent-config
+          token: ${{ secrets.AGENT_CONFIG_TOKEN }}
+          path: .agent-config
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            Review this pull request's diff (`gh pr diff`).
+
+            Standards, in priority order (earlier wins on conflict):
+            1. CODING_STANDARDS.md and CLAUDE.md in this repo, if present
+            2. .agent-config/CODING_STANDARDS.md and .agent-config/languages/*.md, if present
+
+            Look for: correctness bugs, violations of the standards, missing or weak tests
+            for changed behavior, security problems. Skip style nits that a formatter or
+            linter would catch; CI runs those separately.
+
+            Output:
+            - Inline comments for specific problems (one comment per problem, say what
+              breaks and how to fix it).
+            - One summary comment via `gh pr comment` listing blocking issues, then
+              non-blocking suggestions. If there is nothing to say, say "No issues found."
+
+            Labels (use `gh pr edit --add-label` / `--remove-label`):
+            - Blocking issues found: add `agent-changes-requested`. None: remove it.
+            - Add `needs-human` when correctness depends on a judgment you can't verify
+              from the code: business rules, pricing or money, irreversible data changes
+              or migrations, security trade-offs, product intent. Say in the summary
+              exactly what the human must decide. Never remove `needs-human` or
+              `human-approved`; only a human does.
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh pr edit:*),Read,Glob,Grep"
+
+  gate:
+    needs: agent-review
+    # Runs after a review, and on its own when a human changes labels.
+    if: always() && !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    steps:
+      - name: Check review result and labels
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVIEW_RESULT: ${{ needs.agent-review.result }}
+        run: |
+          if [ "$REVIEW_RESULT" = "failure" ] || [ "$REVIEW_RESULT" = "cancelled" ]; then
+            echo "::error::agent review did not complete ($REVIEW_RESULT)"
+            exit 1
+          fi
+          # Read labels fresh: the agent's own label edits don't trigger workflows.
+          labels=$(gh pr view ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --json labels -q '.labels[].name')
+          has() { printf '%s\n' "$labels" | grep -qx "$1"; }
+          if has agent-changes-requested; then
+            echo "::error::agent requested changes, see the review comments"
+            exit 1
+          fi
+          if has needs-human && ! has human-approved; then
+            echo "::error::needs a human decision, see the review summary; add the human-approved label once reviewed"
+            exit 1
+          fi
+          echo "gate passed"

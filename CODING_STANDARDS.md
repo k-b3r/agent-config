@@ -11,6 +11,10 @@ Language-agnostic rules for every project. A repo's own `CODING_STANDARDS.md` wi
 ## Workflow
 
 - Low ceremony. Design in conversation, implement directly, commit. Write a spec only when the design has real ambiguity. Full plans and multi-agent review only for large, parallel, or risky work.
+- Every change reaches `main` through a pull request. Never push to `main` directly.
+- Run the project's canonical check (e.g. `pnpm check`) before opening or updating a PR.
+- A PR merges only when CI is green: format, lint, typecheck, unit, integration, e2e, agent review, and the review gate.
+- When the agent review labels a PR `needs-human`, stop and get the human decision; never add `human-approved` yourself.
 
 ## Design
 
@@ -60,6 +64,7 @@ Read the matching file before writing code in that language:
 - Real sleeps go through an injectable delay; tests pass a no-op.
 - Test names are full sentences describing behavior: `'loadSettings falls back to defaults for a key missing from the table'`.
 - Assert on query shape and params where the query itself is the contract.
+- Integration and e2e tests run against a disposable database from a test-only env var, never the one apps use, so a test can't touch prod.
 
 ## Debugging
 
