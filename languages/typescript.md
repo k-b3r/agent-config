@@ -17,3 +17,8 @@ Tags as in `CODING_STANDARDS.md`.
 - ESLint `no-restricted-syntax` on `ExportAllDeclaration`: bans `export *`.
 - `dependency-cruiser` (or `eslint-plugin-boundaries`): forbid domain/shared code importing heavy deps (e.g. `playwright`, `sharp`) outside their own entry module; forbid deep imports past a folder's `index.ts` from outside it.
 - `import/no-cycle` (or dependency-cruiser `no-circular`): no import cycles.
+- `@typescript-eslint/ban-ts-comment`: ban `@ts-ignore` and `@ts-nocheck`; `@ts-expect-error` only with a description.
+- `eslint-comments/no-unlimited-disable` + `require-description`: every `eslint-disable` names the rule and says why.
+- Fail CI when the count of disable comments, `as any`, or `@ts-expect-error` grows versus `main` (ratchet).
+- Test the lint config: keep `tests/lint-fixtures/` with one deliberately violating file per rule and assert each check fails on it, so a mis-scoped glob can't silently check nothing.
+- Adopt rules on existing code by ratchet: block new violations, fix old ones when touching the code.
