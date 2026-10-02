@@ -20,6 +20,10 @@ Language-agnostic rules for every project. Sections marked *Examples* link to do
 
 - Deep modules: simple interface, substantial functionality behind it. Avoid shallow pass-through layers and wrappers that add an interface without hiding anything.
 - Prefer deep modules over many small functions. Don't split a function just to make it shorter; split only when the piece is a coherent abstraction. Small private helpers inside a module are fine.
+- Deep is not big. One module owns one concern; when a file mixes unrelated features (e.g. every query for every page), split it by feature.
+- Group code by feature, not by technical layer, so one change lives in one folder.
+- Importing a module must be cheap and side-effect free: no connections, network calls, or heavy work at import time.
+- Enforce module boundaries with tooling in CI, not prose alone: ban wildcard re-exports, forbid heavy deps leaking into shared entry points, forbid import cycles. Tool specifics in the language guide.
 - Hide information. Each module owns its decisions; callers never depend on internals.
 - Pull complexity downward: the module absorbs hard cases so callers stay simple.
 - Define errors out of existence where possible (APIs whose normal semantics cover the edge case) instead of adding exceptions callers must handle.
