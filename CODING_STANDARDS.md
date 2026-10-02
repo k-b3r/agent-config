@@ -68,6 +68,9 @@ Read the matching file before writing code in that language:
 ## Testing
 
 - TDD by default: red, green, refactor. Every module gets a test file.
+- Test placement (default, unless the language's tooling dictates otherwise):
+  - Unit tests sit next to the module they test (`foo.ts` + `foo.test.ts`), so they move and die with it.
+  - Integration and e2e tests (real DB, several modules, full flows) live in top-level `tests/integration/` and `tests/e2e/`; they belong to no single file.
 - Inject dependencies as params (db client, logger, delay fn, API clients). No hidden singletons.
 - Keep injected interfaces minimal (a db client is one `query` method) so tests fake them in a few lines.
 - Real sleeps go through an injectable delay; tests pass a no-op.
