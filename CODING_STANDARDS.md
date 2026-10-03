@@ -13,6 +13,7 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR. `hint` = 
 ## Workflow
 
 - `process` Low ceremony. Design in conversation, implement directly, commit. Write a spec only when the design has real ambiguity. Full plans and multi-agent review only for large, parallel, or risky work.
+- `process` New features with unclear shape (new data model, several modules, unknown APIs) go through `/spike-and-rebuild`: plan as committed stubs, throwaway spike, fresh-context review from git evidence, then TDD rebuild. Bug fixes and small changes skip it.
 - `tool` Every change reaches `main` through a pull request. Never push to `main` directly. _(branch protection; needs paid plan on private repos)_
 - `tool` Run the project's canonical check (e.g. `pnpm check`) before opening or updating a PR. _(pre-push hook)_
 - `tool` A PR merges only when CI is green: format, lint, typecheck, unit, integration, e2e, agent review, and the review gate. _(required status checks)_
