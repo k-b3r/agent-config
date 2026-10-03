@@ -11,3 +11,7 @@ In repositories indexed by CodeGraph (a `.codegraph/` directory at the repo root
 - Before an edit that changes a signature or shared type, check impact (callers, dependents) with CodeGraph rather than grep.
 
 No `.codegraph/` directory: skip CodeGraph. Indexing a repo (`codegraph init`, plus `.codegraph/` in `.gitignore`) is the user's decision.
+
+## Diagram Design
+
+Third-party plugin (`cathrynlavery/diagram-design`), installed **disabled** so its skill description stays out of every session. When a diagram is needed (architecture, flowchart, sequence, ER, timeline, ...), ask the user to run `claude plugin enable diagram-design@diagram-design` and start a new session; disable again after.
