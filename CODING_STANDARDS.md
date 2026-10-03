@@ -18,6 +18,7 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR. `hint` = 
 - `tool` Run the project's canonical check (e.g. `pnpm check`) before opening or updating a PR. _(pre-push hook)_
 - `tool` A PR merges only when CI is green: format, lint, typecheck, unit, integration, e2e, agent review, and the review gate. _(required status checks)_
 - `process` When the agent review labels a PR `needs-human`, stop and get the human decision; never add `human-approved` yourself.
+- `process` Review findings are fixed on the PR's own branch (never a sub-PR), one commit per finding, via `/address-pr-review`: verify each first, fix what the PR introduced, ticket the rest, reply on and resolve every thread.
 
 ## Architecture
 
