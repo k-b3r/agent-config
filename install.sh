@@ -24,9 +24,19 @@ link() {
 mkdir -p "$TARGET/skills"
 link "$REPO/CLAUDE.md" "$TARGET/CLAUDE.md"
 link "$REPO/CODING_STANDARDS.md" "$TARGET/CODING_STANDARDS.md"
+link "$REPO/TOOLS.md" "$TARGET/TOOLS.md"
 link "$REPO/languages" "$TARGET/languages"
 link "$REPO/standards" "$TARGET/standards"
 for skill in "$REPO"/skills/*/; do
   name="$(basename "$skill")"
   link "${skill%/}" "$TARGET/skills/$name"
 done
+
+# Tools: each tools/<name>.sh defines install_<name>; skip with AGENT_CONFIG_SKIP_TOOLS=1.
+if [ "${AGENT_CONFIG_SKIP_TOOLS:-0}" != "1" ]; then
+  for tool in "$REPO"/tools/*.sh; do
+    # shellcheck source=/dev/null
+    . "$tool"
+    "install_$(basename "$tool" .sh)"
+  done
+fi
