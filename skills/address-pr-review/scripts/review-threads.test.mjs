@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
+import { mkdtempSync, symlinkSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { test } from 'node:test'
+import { fileURLToPath } from 'node:url'
 import { summarizeReview } from './review-threads.mjs'
 
 const comment = (login, body, extra = {}) => ({ databaseId: 1, author: { login }, body, url: `u/${body}`, ...extra })
@@ -60,4 +65,13 @@ test('summarizeReview reports branch and labels so a needs-human PR can stop the
   assert.equal(result.branch, 'feature')
   assert.deepEqual(result.labels, ['needs-human'])
   assert.equal(result.summary, null)
+})
+
+test('the script runs when invoked through a symlink, as ~/.claude/skills links it', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'review-threads-'))
+  const link = join(dir, 'review-threads.mjs')
+  symlinkSync(fileURLToPath(new URL('./review-threads.mjs', import.meta.url)), link)
+  const run = spawnSync(process.execPath, [link], { encoding: 'utf8' })
+  assert.equal(run.status, 2)
+  assert.match(run.stderr, /usage:/)
 })
