@@ -19,6 +19,19 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR. `hint` = 
 - `tool` A PR merges only when CI is green: format, lint, typecheck, unit, integration, e2e, agent review, and the review gate. _(required status checks)_
 - `process` When the agent review labels a PR `needs-human`, stop and get the human decision; never add `human-approved` yourself.
 
+## Architecture
+
+- `process` Default: modular monolith. One codebase, one deploy, modules split by feature, each owning its logic, data access, and queries behind one public entry point. Several processes (workers, server, UI) can share it as entry points.
+- `process` Before applying the default, run the fit check; the first yes picks the shape:
+  1. Fewer than 3 distinct features with their own data? Flat: one module, no boundaries.
+  2. Mostly a library or SDK? Design the public API first; internals follow it.
+  3. Mostly a framework app (UI routes, components)? Follow the framework's conventions.
+  4. Any part that must scale, deploy, fail, or run on a different runtime independently? Split out only that part as a service; the rest stays a monolith.
+  5. Several teams with separate release cycles? Align module or service boundaries with teams.
+  6. Event-driven or realtime core (chat, games, live trading)? Event or actor model for that core.
+- `process` Data flowing through stages (collect, enrich, notify) is a runtime shape, not a reason to drop modules: stages become thin entry points that call feature modules.
+- `review` Record the choice and the fit-check answer in the repo (ADR or `CONTEXT.md`) so it isn't relitigated.
+
 ## Design
 
 - `review` Deep modules: simple interface, substantial functionality behind it. Avoid shallow pass-through layers and wrappers that add an interface without hiding anything.
