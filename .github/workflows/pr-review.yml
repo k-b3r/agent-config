@@ -72,6 +72,11 @@ jobs:
             for changed behavior, security problems. Skip style nits that a formatter or
             linter would catch; CI runs those separately.
 
+            Stale docs: if the diff changes behavior, commands, file layout, or setup that
+            a living doc describes (README.md, CONTEXT.md, other top-level *.md) and the PR
+            doesn't update it, that's a finding. Dated docs (plans, specs, reviews with a
+            date in the name or path) are snapshots; skip them.
+
             Output:
             - Inline comments for specific problems (one comment per problem, say what
               breaks and how to fix it).
@@ -82,7 +87,8 @@ jobs:
             - Blocking issues found: add `agent-changes-requested`. None: remove it.
             - Add `needs-human` when correctness depends on a judgment you can't verify
               from the code: business rules, pricing or money, irreversible data changes
-              or migrations, security trade-offs, product intent. Say in the summary
+              or migrations, security trade-offs, product intent, stale docs (name the
+              doc and section; the human updates it or approves as is). Say in the summary
               exactly what the human must decide. Never remove `needs-human` or
               `human-approved`; only a human does.
           claude_args: |
