@@ -5,6 +5,9 @@
   "description": "Shared lint and boundary configs that enforce CODING_STANDARDS.md tool rules",
   "type": "module",
   "packageManager": "pnpm@10.33.3",
+  "bin": {
+    "repo-checks": "./scripts/repo-checks.mjs"
+  },
   "exports": {
     "./eslint": "./configs/eslint.mjs",
     "./dependency-cruiser": "./configs/dependency-cruiser.cjs"
@@ -23,7 +26,9 @@
     "typescript-eslint": ">=8"
   },
   "peerDependenciesMeta": {
-    "dependency-cruiser": { "optional": true }
+    "dependency-cruiser": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@eslint-community/eslint-plugin-eslint-comments": "^4.8.1",
