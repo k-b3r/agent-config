@@ -1,0 +1,38 @@
+{
+  "name": "@k-b3r/agent-config",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared lint and boundary configs that enforce CODING_STANDARDS.md tool rules",
+  "type": "module",
+  "packageManager": "pnpm@10.33.3",
+  "exports": {
+    "./eslint": "./configs/eslint.mjs",
+    "./dependency-cruiser": "./configs/dependency-cruiser.cjs"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "peerDependencies": {
+    "@eslint-community/eslint-plugin-eslint-comments": ">=4.4",
+    "@eslint/js": ">=9",
+    "dependency-cruiser": ">=16",
+    "eslint": ">=9",
+    "eslint-config-prettier": ">=9",
+    "globals": ">=15",
+    "typescript": ">=5",
+    "typescript-eslint": ">=8"
+  },
+  "peerDependenciesMeta": {
+    "dependency-cruiser": { "optional": true }
+  },
+  "devDependencies": {
+    "@eslint-community/eslint-plugin-eslint-comments": "^4.8.1",
+    "@eslint/js": "^10.0.1",
+    "dependency-cruiser": "^18.5.0",
+    "eslint": "^10.11.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.13.0",
+    "typescript": "^5.6.0",
+    "typescript-eslint": "^8.71.0"
+  }
+}
