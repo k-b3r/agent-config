@@ -4,16 +4,23 @@
 # Labels drive the gate:
 #   agent-changes-requested  agent found blocking issues (it removes it once fixed)
 #   needs-human              agent wants a human decision (business logic, money, data loss, ...)
-#   human-approved           a human reviewed a needs-human PR and signs off
+#   human-approved           a human reviewed a needs-human PR and signs off; dropped on
+#                            every push so an approval only covers the code the human saw
+#
+# Approve by label, or by commenting `/approve` on the PR (repo owner only): that adds
+# `human-approved` and re-runs the failed gate. Labels set with the workflow token
+# don't trigger workflows, hence the explicit re-run.
 #
 # Caller:
 #   on:
 #     pull_request:
 #       types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
+#     issue_comment:
+#       types: [created]
 #   jobs:
 #     review:
 #       uses: k-b3r/agent-config/.github/workflows/pr-review.yml@main
-#       permissions: { contents: read, pull-requests: write, issues: write, id-token: write }
+#       permissions: { contents: read, pull-requests: write, issues: write, id-token: write, actions: write }
 #       secrets: inherit
 
 name: pr-review
@@ -27,7 +34,7 @@ on:
 jobs:
   agent-review:
     # Label changes only re-run the gate; reviewing again would just repeat itself.
-    if: github.event.action != 'labeled' && github.event.action != 'unlabeled' && !github.event.pull_request.draft
+    if: github.event_name == 'pull_request' && github.event.action != 'labeled' && github.event.action != 'unlabeled' && !github.event.pull_request.draft
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -38,6 +45,18 @@ jobs:
       group: agent-review-${{ github.event.pull_request.number }}
       cancel-in-progress: true
     steps:
+      - name: Drop approval of older commits
+        if: github.event.action == 'synchronize'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          if gh pr view "$PR" --repo "$REPO" --json labels -q '.labels[].name' | grep -qx human-approved; then
+            gh pr edit "$PR" --repo "$REPO" --remove-label human-approved
+            gh pr comment "$PR" --repo "$REPO" --body "New commits pushed: removed \`human-approved\`. Re-approve if the review still needs a human."
+          fi
+
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
@@ -98,7 +117,7 @@ jobs:
   gate:
     needs: agent-review
     # Runs after a review, and on its own when a human changes labels.
-    if: always() && !github.event.pull_request.draft
+    if: always() && github.event_name == 'pull_request' && !github.event.pull_request.draft
     runs-on: ubuntu-latest
     permissions:
       pull-requests: read
@@ -124,3 +143,36 @@ jobs:
             exit 1
           fi
           echo "gate passed"
+
+  approve:
+    # `/approve` from the repo owner only; anyone else's comment is ignored.
+    if: >-
+      github.event_name == 'issue_comment' && github.event.issue.pull_request &&
+      github.event.comment.author_association == 'OWNER' &&
+      startsWith(github.event.comment.body, '/approve')
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Label and re-run the failed gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.issue.number }}
+          # In a called workflow this is the caller's file: owner/repo/<path>@<ref>.
+          WORKFLOW_REF: ${{ github.workflow_ref }}
+        run: |
+          gh pr edit "$PR" --repo "$REPO" --add-label human-approved
+          sha=$(gh pr view "$PR" --repo "$REPO" --json headRefOid -q .headRefOid)
+          path=${WORKFLOW_REF#*/*/}
+          path=${path%@*}
+          run_id=$(gh api "repos/$REPO/actions/runs?head_sha=$sha&event=pull_request&per_page=100" \
+            -q "[.workflow_runs[] | select(.path == \"$path\")][0] | select(.conclusion == \"failure\") | .id")
+          if [ -n "$run_id" ]; then
+            gh run rerun "$run_id" --repo "$REPO" --failed
+            gh pr comment "$PR" --repo "$REPO" --body "Approved via \`/approve\`: added \`human-approved\`, re-running the gate."
+          else
+            gh pr comment "$PR" --repo "$REPO" --body "Approved via \`/approve\`: added \`human-approved\` (no failed gate run to re-run)."
+          fi
