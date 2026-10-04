@@ -65,6 +65,10 @@ test('baseConfig allows a default export in tool config files', async () => {
   assert.deepEqual(await errors('tool.config.ts'), [])
 })
 
+test('baseConfig lets CommonJS config files use require', async () => {
+  assert.deepEqual(await errors('tool.cjs'), [])
+})
+
 test('baseConfig reports long parameter lists as a warning, not an error', async () => {
   assert.deepEqual(await lint('src/many-params.ts'), [{ rule: 'max-params', severity: 'warn' }])
 })
