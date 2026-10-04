@@ -10,6 +10,7 @@ tools/<name>.sh      -> sourced by install.sh: installs + wires one tool (pinned
 languages/           -> ~/.claude/languages (read on demand per language)
 standards/           -> ~/.claude/standards (do/don't examples per section, read on demand)
 skills/<name>/       -> ~/.claude/skills/<name>
+configs/             -> shared lint/boundary configs, installed into each repo as a git dependency
 ```
 
 ## Install
@@ -20,6 +21,26 @@ git clone git@github.com:k-b3r/agent-config.git ~/Develop/agent-config
 ```
 
 Symlinks config, then installs each tool in `tools/` (pinned version, user-scope MCP, telemetry off). Existing non-linked files are moved to `~/.claude/backup-<timestamp>/`. Rerun after adding a skill or tool; `AGENT_CONFIG_SKIP_TOOLS=1` links only.
+
+## Shared configs
+
+`tool` rules need a check in each repo. `configs/` holds the shared part so repos reference it instead of copying (copies drift):
+
+```bash
+pnpm add -D github:k-b3r/agent-config   # lockfile pins the commit; `pnpm update @k-b3r/agent-config` pulls changes
+```
+
+```js
+// eslint.config.js
+import { baseConfig } from '@k-b3r/agent-config/eslint'
+export default [...baseConfig({ tsconfigRootDir: import.meta.dirname, entryPoints: ['src/workers/*/index.ts'], delayModules: ['src/platform/delay.ts'] }), /* repo blocks */]
+
+// .dependency-cruiser.cjs
+const { baseRules, baseOptions } = require('@k-b3r/agent-config/dependency-cruiser')
+module.exports = { forbidden: [...baseRules({ publicApis: ['src/modules/catalog'], heavyDeps: [{ packages: ['playwright'], owner: 'src/modules/collection/browser.ts' }], inner: ['src/modules'], entryPoints: ['src/workers'] })], options: baseOptions() }
+```
+
+Each config's options are documented in its file. `pnpm test` runs a violating fixture per rule plus a clean control.
 
 ## Editing
 
