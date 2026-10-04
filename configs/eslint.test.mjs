@@ -16,6 +16,7 @@ const eslint = new ESLint({
     tsconfigRootDir: fixtures,
     entryPoints: ['src/entry.ts'],
     delayModules: ['src/delay.ts'],
+    defaultExportAllowed: ['tests/integration/global-setup.ts'],
   }),
 })
 
@@ -63,6 +64,14 @@ test('baseConfig lets tests sleep and read env', async () => {
 
 test('baseConfig allows a default export in tool config files', async () => {
   assert.deepEqual(await errors('tool.config.ts'), [])
+})
+
+test('baseConfig lets tool config files read process.env', async () => {
+  assert.deepEqual(await errors('env.config.ts'), [])
+})
+
+test('baseConfig lets defaultExportAllowed override the test-file rules', async () => {
+  assert.deepEqual(await errors('tests/integration/global-setup.ts'), [])
 })
 
 test('baseConfig lets CommonJS config files use require', async () => {

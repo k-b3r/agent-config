@@ -36,7 +36,7 @@ const AMBIENT_ENV = {
  * @param {string[]} [options.allowDefaultProject] TS files outside every tsconfig (root scripts, configs)
  * @param {string[]} [options.entryPoints] composition roots that may read process.env (workers, server index, scripts)
  * @param {string[]} [options.delayModules] the injectable delay util, the only place allowed to sleep
- * @param {string[]} [options.defaultExportAllowed] framework files that must default-export (e.g. Next.js pages)
+ * @param {string[]} [options.defaultExportAllowed] framework files that must default-export (Next.js pages, Playwright global setup), tests included
  * @param {string[]} [options.ignores]
  */
 export function baseConfig({
@@ -82,11 +82,14 @@ export function baseConfig({
     },
     entryPoints.length ? { files: entryPoints, rules: { 'no-restricted-properties': 'off' } } : {},
     delayModules.length ? { files: delayModules, rules: syntax(EXPORT_ALL, DEFAULT_EXPORT) } : {},
-    { files: [...TOOL_CONFIG_FILES, ...defaultExportAllowed], rules: syntax(EXPORT_ALL, INLINE_SLEEP) },
     {
       files: TEST_FILES,
       rules: { 'no-restricted-properties': 'off', 'max-lines': 'off', ...syntax(EXPORT_ALL, DEFAULT_EXPORT) },
     },
+    // Tool configs are composition roots too (CI flags, test DB URLs), so they may read env.
+    { files: TOOL_CONFIG_FILES, rules: { 'no-restricted-properties': 'off' } },
+    // After the test block, so a test file the framework needs default-exported can be listed.
+    { files: [...TOOL_CONFIG_FILES, ...defaultExportAllowed], rules: syntax(EXPORT_ALL, INLINE_SLEEP) },
     { files: ['**/*.{js,mjs}'], languageOptions: { globals: { ...globals.node } } },
     {
       files: ['**/*.cjs'],
