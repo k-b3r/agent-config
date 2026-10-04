@@ -66,6 +66,13 @@ jobs:
             for changed behavior, security problems. Skip style nits that a formatter or
             linter would catch; CI runs those separately.
 
+            Rule tags decide what you check:
+            - `review`, and the judgment half of `tool`+`review`: check every one against the diff.
+            - `tool`: skip when this repo's CI or lint config wires the check (the repo's
+              CODING_STANDARDS.md names it); otherwise treat it as `review`.
+            - `hint`: mention only when the diff makes the smell clearly worse.
+            - `process`: flag only when the diff itself shows the rule was broken.
+
             Stale docs: if the diff changes behavior, commands, file layout, or setup that
             a living doc describes (README.md, CONTEXT.md, other top-level *.md) and the PR
             doesn't update it, that's a finding. Dated docs (plans, specs, reviews with a
