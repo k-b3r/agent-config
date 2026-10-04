@@ -129,6 +129,14 @@ const wiredRepo = {
   }),
 }
 
+test('testDbEnvLeaks ignores the app env var named only in comments', () => {
+  const files = [
+    { path: 'tests/integration/setup.ts', text: '// Deliberately not DATABASE_URL: it points at prod\nconst u = 1' },
+    { path: 'tests/e2e/env.ts', text: '/* not DATABASE_URL\n   either */ export {}' },
+  ]
+  assert.deepEqual(testDbEnvLeaks(files, 'DATABASE_URL'), [])
+})
+
 test('auditWiring passes a fully wired repo', () => {
   assert.deepEqual(auditWiring(wiredRepo), [])
 })
