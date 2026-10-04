@@ -21,6 +21,16 @@ git clone git@github.com:k-b3r/agent-config.git ~/Develop/agent-config
 
 Symlinks config, then installs each tool in `tools/` (pinned version, user-scope MCP, telemetry off). Existing non-linked files are moved to `~/.claude/backup-<timestamp>/`. Rerun after adding a skill or tool; `AGENT_CONFIG_SKIP_TOOLS=1` links only.
 
+## Editing
+
+`~/.claude` links into this checkout's working tree, so whatever branch it has checked out is live in every session. Keep `~/Develop/agent-config` on `main` and pull after each merge. Make changes in a sibling worktree, one per branch:
+
+```bash
+git -C ~/Develop/agent-config worktree add ../agent-config-<branch> -b <branch> main
+```
+
+Remove it once the PR merges: `git -C ~/Develop/agent-config worktree remove ../agent-config-<branch>`. A new skill or rule goes live only after its PR merges (rerun `install.sh` for a new skill).
+
 ## Scope
 
 - Here: rules that apply to every project, skills written by me.
