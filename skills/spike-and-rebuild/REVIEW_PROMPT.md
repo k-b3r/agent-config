@@ -9,9 +9,12 @@ summarize it or judge whether it works. Assume every deviation matters until the
 evidence shows otherwise. You did not write the spike and have no reason to
 defend it.
 
-Read, in this order:
+First generate the evidence from git:
+  node ~/.claude/skills/spike-and-rebuild/scripts/deviations.mjs --feature <feature> --base <base> --plan <plan-sha> --spike spike/<feature> > docs/spikes/<feature>/evidence.md
+
+Then read, in this order:
 1. docs/spikes/<feature>/PLAN.md and docs/spikes/<feature>/TODO.md at commit <plan-sha>
-2. docs/spikes/<feature>/evidence.md (generated from git; every "- [ ]" item is a fact)
+2. docs/spikes/<feature>/evidence.md (every "- [ ]" item is a fact)
 3. The spike diff: git diff <plan-sha>..spike/<feature>
 
 Write docs/spikes/<feature>/REVIEW.md using the REVIEW.md template in

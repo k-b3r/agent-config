@@ -5,8 +5,6 @@
 ```md
 # <feature>: plan
 
-Plan commit: <sha> (filled in at step 5)
-
 ## 1. Data structures
 <each type: fields, units, nullability, where it lives (table/file)>
 
@@ -26,7 +24,7 @@ Plan commit: <sha> (filled in at step 5)
 # <feature>: touch points
 
 ## Before
-<added at step 10: approved preparatory refactors, in order; behavior-preserving>
+<added in phase 4: approved preparatory refactors, in order; behavior-preserving>
 - `src/domains/x/listings.ts`: split query builder out of the upsert
 
 ## Touch points
