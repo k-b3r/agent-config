@@ -10,6 +10,7 @@ tools/<name>.sh      -> sourced by install.sh: installs + wires one tool (pinned
 languages/           -> ~/.claude/languages (read on demand per language)
 standards/           -> ~/.claude/standards (do/don't examples per section, read on demand)
 skills/<name>/       -> ~/.claude/skills/<name>
+hooks/guard.mjs      -> ~/.claude/hooks/agent-config-guard.mjs (PreToolUse; install.sh adds it to settings.json)
 configs/             -> shared lint/boundary configs, installed into each repo as a git dependency
 ```
 
@@ -20,7 +21,7 @@ git clone git@github.com:k-b3r/agent-config.git ~/Develop/agent-config
 ~/Develop/agent-config/install.sh
 ```
 
-Symlinks config, then installs each tool in `tools/` (pinned version, user-scope MCP, telemetry off). Existing non-linked files are moved to `~/.claude/backup-<timestamp>/`. Rerun after adding a skill or tool; `AGENT_CONFIG_SKIP_TOOLS=1` links only.
+Symlinks config, adds the guard hook to `~/.claude/settings.json` (blocks pushes to main, `--no-verify`, AI attribution in commits/PRs, edits to lockfiles and `@generated` files, before CI would catch them), then installs each tool in `tools/` (pinned version, user-scope MCP, telemetry off). Existing non-linked files are moved to `~/.claude/backup-<timestamp>/`. Rerun after adding a skill or tool; `AGENT_CONFIG_SKIP_TOOLS=1` links only.
 
 ## Shared configs
 
