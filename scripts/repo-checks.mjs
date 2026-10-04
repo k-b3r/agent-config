@@ -136,12 +136,16 @@ export function entriesWithoutScript(paths, scripts, entryGlobs) {
     .filter((path) => !commands.includes(path) && !commands.includes(path.replace(/\/index\.[cm]?tsx?$/, '')))
 }
 
+// Rough strip (ignores comment markers inside strings): good enough to let
+// tests explain why they avoid the app's env var.
+const withoutComments = (text) => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
+
 export function testDbEnvLeaks(files, appDbEnv) {
   // \b keeps TEST_DATABASE_URL from matching DATABASE_URL: `_` is a word character.
   const reads = new RegExp(`\\b${appDbEnv}\\b`)
   return files
     .filter(({ path }) => path.startsWith('tests/integration/') || path.startsWith('tests/e2e/'))
-    .filter(({ text }) => reads.test(text))
+    .filter(({ text }) => reads.test(withoutComments(text)))
     .map(({ path }) => path)
 }
 
