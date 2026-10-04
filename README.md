@@ -40,7 +40,9 @@ const { baseRules, baseOptions } = require('@k-b3r/agent-config/dependency-cruis
 module.exports = { forbidden: [...baseRules({ publicApis: ['src/modules/catalog'], heavyDeps: [{ packages: ['playwright'], owner: 'src/modules/collection/browser.ts' }], inner: ['src/modules'], entryPoints: ['src/workers'] })], options: baseOptions() }
 ```
 
-Each config's options are documented in its file. `repo-checks` (bin) covers the `tool` rules no linter fits: commit subjects, escape-hatch and untested-module ratchets, test placement, entry scripts, test DB env, and `audit` (fails on any shared check the repo hasn't wired). Settings: `package.json` `"agentConfig"`; commands: header of `scripts/repo-checks.mjs`. `pnpm test` runs a violating fixture per rule plus a clean control.
+Each config's options are documented in its file. `repo-checks` (bin) covers the `tool` rules no linter fits: commit subjects, escape-hatch and untested-module ratchets, test placement, entry scripts, test DB env, and `audit` (fails on any shared check the repo hasn't wired). Settings: `package.json` `"agentConfig"`; commands: header of `scripts/repo-checks.mjs`.
+
+CI: `.github/workflows/ci-typescript.yml` is a reusable workflow running all of it (format, lint, depcruise, typecheck, knip, `repo-checks all`, gitleaks, unit/integration/e2e); caller examples in its header. `pr-review.yml` adds the agent review and gate. `pnpm test` runs a violating fixture per rule plus a clean control.
 
 ## Editing
 

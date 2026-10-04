@@ -1,0 +1,184 @@
+# Reusable CI for TypeScript + pnpm repos: the `tool` checks of CODING_STANDARDS.md.
+# The repo provides the pnpm scripts it runs (format:check, lint, depcruise,
+# typecheck, knip, test, test:integration, test:e2e) and has
+# @k-b3r/agent-config as a dev dependency (repo-checks).
+#
+# Caller (path filters stay in the caller: reusable workflows can't declare them):
+#   # .github/workflows/ci.yml
+#   on: pull_request
+#   concurrency: { group: ci-${{ github.ref }}, cancel-in-progress: true }
+#   jobs:
+#     ci:
+#       uses: k-b3r/agent-config/.github/workflows/ci-typescript.yml@main
+#       with: { jobs: static unit }
+#   # .github/workflows/integration.yml: same, with `on: pull_request: paths: [...]`
+#   # and `jobs: integration` (likewise e2e.yml with `jobs: e2e`).
+
+name: ci-typescript
+
+on:
+  workflow_call:
+    inputs:
+      jobs:
+        description: 'Space-separated subset of: static unit integration e2e'
+        type: string
+        default: static unit
+      node-version:
+        type: string
+        default: '22'
+      install-dirs:
+        description: 'Space-separated folders with their own pnpm-lock.yaml (e.g. ". dashboard")'
+        type: string
+        default: .
+      static-extra:
+        description: 'Extra static commands, one per line (e.g. pnpm docs:check)'
+        type: string
+        default: ''
+      postgres-image:
+        description: 'Service for integration/e2e; empty string starts none'
+        type: string
+        default: postgres:17
+      e2e-setup:
+        type: string
+        default: pnpm exec playwright install --with-deps chromium
+
+permissions:
+  contents: read
+
+env:
+  # Disposable service DB; tests read only this var, never the app's.
+  TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/test
+  GITLEAKS_VERSION: 8.30.1
+
+jobs:
+  static:
+    if: contains(format(' {0} ', inputs.jobs), ' static ')
+    name: static checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: pnpm
+          cache-dependency-path: '**/pnpm-lock.yaml'
+      - id: install
+        env:
+          DIRS: ${{ inputs.install-dirs }}
+        run: for dir in $DIRS; do (cd "$dir" && pnpm install --frozen-lockfile); done
+      # Every check runs even after one fails, so a single push reports them all.
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm format:check
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm lint
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm depcruise
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm typecheck
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm knip
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm exec repo-checks all "origin/$BASE"
+        env:
+          BASE: ${{ github.base_ref || github.event.repository.default_branch }}
+      - name: secret scan
+        if: ${{ !cancelled() }}
+        env:
+          BASE: ${{ github.base_ref || github.event.repository.default_branch }}
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar xz -C "$RUNNER_TEMP" gitleaks
+          "$RUNNER_TEMP/gitleaks" git --redact --no-banner --log-opts="origin/$BASE..HEAD" .
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' && inputs.static-extra != '' }}
+        env:
+          EXTRA: ${{ inputs.static-extra }}
+        run: |
+          status=0
+          while IFS= read -r cmd; do
+            [ -z "$cmd" ] && continue
+            echo "::group::$cmd"
+            bash -c "$cmd" || status=1
+            echo "::endgroup::"
+          done <<< "$EXTRA"
+          exit $status
+
+  unit:
+    if: contains(format(' {0} ', inputs.jobs), ' unit ')
+    name: unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: pnpm
+          cache-dependency-path: '**/pnpm-lock.yaml'
+      - env:
+          DIRS: ${{ inputs.install-dirs }}
+        run: for dir in $DIRS; do (cd "$dir" && pnpm install --frozen-lockfile); done
+      - run: pnpm test
+
+  integration:
+    if: contains(format(' {0} ', inputs.jobs), ' integration ')
+    name: integration tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: ${{ inputs.postgres-image }}
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: pnpm
+          cache-dependency-path: '**/pnpm-lock.yaml'
+      - env:
+          DIRS: ${{ inputs.install-dirs }}
+        run: for dir in $DIRS; do (cd "$dir" && pnpm install --frozen-lockfile); done
+      - run: pnpm test:integration
+
+  e2e:
+    if: contains(format(' {0} ', inputs.jobs), ' e2e ')
+    name: e2e tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: ${{ inputs.postgres-image }}
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: pnpm
+          cache-dependency-path: '**/pnpm-lock.yaml'
+      - env:
+          DIRS: ${{ inputs.install-dirs }}
+        run: for dir in $DIRS; do (cd "$dir" && pnpm install --frozen-lockfile); done
+      - env:
+          SETUP: ${{ inputs.e2e-setup }}
+        run: bash -c "$SETUP"
+      - run: pnpm test:e2e
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: |
+            playwright-report
+            test-results
+          retention-days: 7
