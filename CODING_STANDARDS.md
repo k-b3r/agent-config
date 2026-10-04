@@ -13,6 +13,7 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR. `hint` = 
 ## Workflow
 
 - `process` Low ceremony. Design in conversation, implement directly, commit. Write a spec only when the design has real ambiguity. Full plans and multi-agent review only for large, parallel, or risky work.
+- `process` Ambiguous request: present the interpretations and ask; don't pick one silently.
 - `process` New features with unclear shape (new data model, several modules, unknown APIs) go through `/spike-and-rebuild`: plan as committed stubs, throwaway spike, fresh-context review from git evidence, then TDD rebuild. Bug fixes and small changes skip it.
 - `tool` Every change reaches `main` through a pull request. Never push to `main` directly. _(branch protection; needs paid plan on private repos)_
 - `tool` Run the project's canonical check (e.g. `pnpm check`) before opening or updating a PR. _(pre-push hook)_
@@ -73,6 +74,7 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR. `hint` = 
 
 - `review` Refactor in small, behavior-preserving steps with tests green between each. Separate refactoring commits from behavior changes.
 - `hint` Code smells (duplication, long parameter lists, feature envy, shotgun surgery) trigger refactoring; fix when touching the code, not in big-bang rewrites. _(jscpd, complexity, max-params)_
+- `review` Cleanup scope: fix smells only in files the change already touches, in a separate commit. Unrelated dead code elsewhere: mention it or ticket it, don't delete it. Do remove what your own change orphaned.
 
 *Examples:* `~/.claude/standards/refactoring.md`
 
