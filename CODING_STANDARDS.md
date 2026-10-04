@@ -54,6 +54,7 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR once the r
 - `review` Functional core, imperative shell: pure logic takes data and returns data; I/O stays at the edges.
 - `review` Inject only I/O (db, network, clock, delay, model clients); pure logic takes plain data. Wire dependencies in one composition root per entry point. No DI containers, service locators, singletons, or in-process event buses.
 - `review` Interfaces only at I/O boundaries (adapters); no one-implementation interfaces elsewhere. Strategies are plain functions. Composition over inheritance.
+- `review` Use a design pattern when the code already has its shape (rule of three), not in advance. Simplest form first: a function before a class, a class before a hierarchy.
 - `review` Make operations idempotent wherever retries or reruns can happen.
 - `review` New behavior is gated behind a setting that defaults to today's behavior. Shipping a feature must not disrupt existing flows.
 

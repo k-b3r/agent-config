@@ -168,6 +168,21 @@ type ShippingRule = (order: Order) => number
 const rules: ShippingRule[] = [flatRate, freeOverThreshold]
 ```
 
+## Patterns: our form
+
+Reach for one only when the code already has its shape. Simplest form first.
+
+| Pattern | Our form |
+|---|---|
+| Strategy, Command | function, or array of functions |
+| Factory | function returning an object |
+| Decorator | higher-order function (`withRetry(fn)`) |
+| Adapter | interface at an I/O boundary |
+| Repository | deep module functions (`getOrder(db, id)`), no class |
+| Observer, pub-sub | explicit call or callback param; no in-process bus |
+| Singleton | none: built once in the composition root, injected |
+| State machine | discriminated union + pure `transition(state, event)` |
+
 ## Idempotent operations
 
 Don't: a rerun after a crash double-charges.
