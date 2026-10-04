@@ -24,8 +24,11 @@ const DEFAULTS = {
   appDbEnv: null,
 }
 
-// Footer match is unanchored: Claude Code's footer starts with an emoji.
-const ATTRIBUTION = /^co-authored-by:.*\b(claude|anthropic)\b|generated with \[?claude/im
+// Unanchored: Claude Code's footer starts with an emoji, and hooks see the
+// trailer inline in a `git commit -m` command. Shared with hooks/guard.mjs.
+const ATTRIBUTION = /co-authored-by:[^\n]*\b(claude|anthropic)\b|generated with \[?claude/i
+
+export const hasAiAttribution = (text) => ATTRIBUTION.test(text)
 
 export function checkCommitMessage(message) {
   const subject = message.split('\n')[0]
@@ -33,7 +36,7 @@ export function checkCommitMessage(message) {
   if (!/^[a-z0-9]/.test(subject)) problems.push('subject must start lowercase')
   if (subject.endsWith('.')) problems.push('subject must not end with a period')
   if (subject.length > MAX_SUBJECT) problems.push(`subject must be at most ${MAX_SUBJECT} characters`)
-  if (ATTRIBUTION.test(message)) problems.push('no AI attribution (Co-Authored-By / Generated with)')
+  if (hasAiAttribution(message)) problems.push('no AI attribution (Co-Authored-By / Generated with)')
   return problems
 }
 
