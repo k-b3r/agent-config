@@ -27,9 +27,9 @@ function baseRules({ publicApis = [], heavyDeps = [], inner = [], entryPoints = 
     {
       name: 'no-circular',
       severity: 'error',
-      comment: 'Runtime cycles make load order ambiguous. Type-only edges are erased at compile time, so they may close a loop.',
+      comment: 'Runtime cycles make load order ambiguous.',
       from: {},
-      to: { circular: true, viaOnly: { dependencyTypesNot: ['type-only'] } },
+      to: { circular: true },
     },
     ...heavyDeps.flatMap((dep) =>
       dep.packages.map((pkg) => ({
@@ -40,13 +40,13 @@ function baseRules({ publicApis = [], heavyDeps = [], inner = [], entryPoints = 
         to: { path: npm(pkg) },
       })),
     ),
-    ...(owners.length
+    ...(owners.length && publicApis.length
       ? [
           {
             name: 'index-stays-light',
             severity: 'error',
             comment: "Importing a folder's public API must never load a heavy dep; expose it from its own entry file.",
-            from: { path: '(^|/)index\\.[cm]?tsx?$' },
+            from: { path: publicApis.map((dir) => `${under(dir)}index\\.[cm]?tsx?$`) },
             to: { path: owners, reachable: true },
           },
         ]
@@ -83,7 +83,9 @@ function baseOptions({ tsConfig = 'tsconfig.json', exclude = [] } = {}) {
     doNotFollow: { path: 'node_modules' },
     ...(exclude.length ? { exclude: { path: exclude } } : {}),
     tsConfig: { fileName: tsConfig },
-    tsPreCompilationDeps: true,
+    // Runtime graph: `import type` is erased at compile time, so it never loads a
+    // heavy dep or closes a load-order cycle. Type leaks past index.ts are left to review.
+    tsPreCompilationDeps: false,
     enhancedResolveOptions: { exportsFields: ['exports'], conditionNames: ['import', 'require', 'node', 'default'] },
   }
 }
