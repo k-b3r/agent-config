@@ -24,6 +24,6 @@ Symlinks config, then installs each tool in `tools/` (pinned version, user-scope
 ## Scope
 
 - Here: rules that apply to every project, skills written by me.
-- Not here: third-party skills (install via their own tooling so they keep updating), project-specific rules (live in each repo's `CODING_STANDARDS.md` / `CLAUDE.md`).
+- Not here: third-party skills (install via their own tooling so they keep updating; a `tools/<name>.sh` step may run that tooling), project-specific rules (live in each repo's `CODING_STANDARDS.md` / `CLAUDE.md`).
 - Add a skill once a workflow has repeated 3+ times or the agent needed the same correction twice.
 - Add a tool to `tools/` only if it should be on in every project; per-project tools go in that repo's `.mcp.json`.
