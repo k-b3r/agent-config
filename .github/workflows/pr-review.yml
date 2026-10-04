@@ -114,6 +114,23 @@ jobs:
           claude_args: |
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh pr edit:*),Read,Glob,Grep"
 
+      # claude-code-action skips (and still succeeds) when the PR changes the
+      # workflow that runs it, so the gate would pass unreviewed code.
+      # Confirmed live 2026-10-05 on k-b3r/buy-and-sell-ai#10.
+      - name: Flag a skipped review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          WORKFLOW_REF: ${{ github.workflow_ref }}
+        run: |
+          path=${WORKFLOW_REF#*/*/}
+          path=${path%@*}
+          if gh pr diff "$PR" --repo "$REPO" --name-only | grep -qxF "$path"; then
+            gh pr edit "$PR" --repo "$REPO" --add-label needs-human
+            gh pr comment "$PR" --repo "$REPO" --body "Agent review skipped: this PR changes \`$path\`, and the review action only runs a workflow identical to the default branch's. A human reviews this one."
+          fi
+
   gate:
     needs: agent-review
     # Runs after a review, and on its own when a human changes labels.
