@@ -2,7 +2,7 @@
 
 Language-agnostic rules for every project. Sections marked *Examples* link to do/don't snippets in `~/.claude/standards/`; read the file before working in that area. A repo's own `CODING_STANDARDS.md` wins on conflict. When in doubt, match surrounding code.
 
-Tags (what CI can check): `tool` = deterministic check, blocks the PR. `hint` = tool proxy, warns only. `review` = judgment, agent or human review. `process` = how the agent works, not checkable from code. `tool`+`review` = part checkable, part judgment. Untagged principles (Philosophy) guide review.
+Tags (what CI can check): `tool` = deterministic check, blocks the PR once the repo wires it; the parenthetical names the kind of check, the repo's own `CODING_STANDARDS.md` names the actual tool. Until wired, treat it as `review`. `hint` = tool proxy, warns only. `review` = judgment, agent or human review. `process` = how the agent works, not checkable from code. `tool`+`review` = part checkable, part judgment. Untagged principles (Philosophy) guide review.
 
 ## Philosophy
 
@@ -12,10 +12,15 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR. `hint` = 
 
 ## Workflow
 
-- `process` Low ceremony. Design in conversation, implement directly, commit. Write a spec only when the design has real ambiguity. Full plans and multi-agent review only for large, parallel, or risky work.
+- `process` Ceremony scales with risk. Pick the lowest tier that fits:
+  1. Bug fix or small change: implement directly with TDD, commit, PR.
+  2. Design has real ambiguity: short spec first, then tier 1.
+  3. Unclear shape (new data model, several modules, unknown APIs): `/spike-and-rebuild`.
+  4. Large, parallel, or risky: full plan and multi-agent review.
+  Every tier gets the same automatic gates (canonical check, CI, agent review); those are not ceremony you add.
 - `process` Ambiguous request: present the interpretations and ask; don't pick one silently.
-- `process` New features with unclear shape (new data model, several modules, unknown APIs) go through `/spike-and-rebuild`: plan as committed stubs, throwaway spike, fresh-context review from git evidence, then TDD rebuild. Bug fixes and small changes skip it.
-- `tool` Every change reaches `main` through a pull request. Never push to `main` directly. _(branch protection; needs paid plan on private repos)_
+- `process` `/spike-and-rebuild`: plan as committed stubs, throwaway spike, fresh-context review from git evidence, then TDD rebuild.
+- `tool` Every change reaches `main` through a pull request. Never push to `main` directly. _(branch protection where the plan allows it, else `review`)_
 - `tool` Run the project's canonical check (e.g. `pnpm check`) before opening or updating a PR. _(pre-push hook)_
 - `tool` A PR merges only when CI is green: format, lint, typecheck, unit, integration, e2e, agent review, and the review gate. _(required status checks)_
 - `process` When the agent review labels a PR `needs-human`, stop and get the human decision; never add `human-approved` yourself.
@@ -47,6 +52,10 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR. `hint` = 
 - `review` Define errors out of existence where possible (APIs whose normal semantics cover the edge case) instead of adding exceptions callers must handle.
 - `review` Design it twice: consider one alternative before committing to an interface.
 - `tool`+`review` Minimize parameters: derive any value the function can work out from what it's given. Inject outside-world dependencies; never derive from ambient state (globals, singletons, env). Pass a whole object when the function works on that entity, a single value when it's a utility. _(env/global reads banned outside entry points; parameter count is review)_
+- `review` Functional core, imperative shell: pure logic takes data and returns data; I/O stays at the edges.
+- `review` Inject only I/O (db, network, clock, delay, model clients); pure logic takes plain data. Wire dependencies in one composition root per entry point. No DI containers, service locators, singletons, or in-process event buses.
+- `review` Interfaces only at I/O boundaries (adapters); no one-implementation interfaces elsewhere. Strategies are plain functions. Composition over inheritance.
+- `review` Make operations idempotent wherever retries or reruns can happen.
 - `review` New behavior is gated behind a setting that defaults to today's behavior. Shipping a feature must not disrupt existing flows.
 
 *Examples:* `~/.claude/standards/design.md`
@@ -66,7 +75,7 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR. `hint` = 
 - `review` Comments carry what code can't: interface contracts, intent, and *why*. If a comment explains *what*, improve the names instead.
 - `review` No comments on obvious code.
 - `review` Include evidence and date when a choice came from a live observation (`Confirmed live 2026-09-24: ...`).
-- `review` Cross-reference sibling code that follows the same rule instead of re-explaining (`same rule as the sub-category backfill`).
+- `review` Cross-reference sibling code that follows the same rule instead of re-explaining (`same rule as the nightly backfill`).
 
 *Examples:* `~/.claude/standards/comments.md`
 
@@ -105,21 +114,21 @@ Read the matching file before writing code in that language:
 
 ## Debugging
 
-- `process` Diagnose with real data before deciding. Prefer LLM per-item passes over brittle heuristics for fuzzy classification.
+- `process` Diagnose with real data before deciding. For fuzzy classification, prefer a per-item model pass over brittle heuristics.
 - `process` When stuck after 3 attempts: stop, write down what failed, ask.
 
 ## Version Control
 
-- `tool` Imperative, lowercase, concise, no trailing period: `add real estate page`, `fix reviewed products resurfacing in needs-review queue`. _(commitlint)_
+- `tool` Imperative, lowercase, concise, no trailing period: `add search page`, `fix reviewed items resurfacing in review queue`. _(commit-message check)_
 - `tool`+`review` One logical change per commit. Feature branches merge with `merge <branch>`. _(merge message format is tool; one logical change is review)_
 - `tool` Never commit a broken build or failing tests. Never `--no-verify`, never force-push `main`. _(CI + no-verify bypass caught by required checks)_
-- `tool` No AI attribution: no `Co-Authored-By` trailers in commits, no "Generated with" lines in PR descriptions. _(commitlint / grep)_
+- `tool` No AI attribution: no `Co-Authored-By` trailers in commits, no "Generated with" lines in PR descriptions. _(commit-message check)_
 - `tool` Never hand-edit generated files (lockfiles, CHANGELOG, generated clients, files marked `DO NOT EDIT` / `@generated`). Change the source, rerun the generator. _(rerun generators, git diff --exit-code; pnpm install --frozen-lockfile)_
 
 ## Resilience
 
 - `review` External calls retry with bounded attempts and delay, then degrade (halve the batch, skip the item) instead of crashing the run.
-- `review` Distinguish fatal (e.g. 429 quota) from transient errors. Fatal unwinds, transient retries.
+- `review` Distinguish fatal (e.g. quota exhausted) from transient errors. Fatal unwinds, transient retries.
 - `review` Log every skip or degradation with id and reason. Never lose data silently: unprocessed items stay candidates for the next run.
 
 *Examples:* `~/.claude/standards/resilience.md`
@@ -127,12 +136,19 @@ Read the matching file before writing code in that language:
 ## External Services
 
 - `review` Be a polite, low-volume client. Pace requests against rate-sensitive targets: no rapid ad-hoc probing, batch checks into one run.
-- `review` Respect robots.txt and ToS. Don't scrape sources that forbid it.
+- `review` Respect each service's ToS and robots.txt. Don't collect from sources that forbid it.
 - `review` $0 budget default: prefer free tiers, self-hosting, and round-robin keys over paid services.
 
 ## Data
 
-- `review` Derive at query time instead of storing (e.g. ratios like price per sqm). Store raw inputs.
+- `review` Derive at query time instead of storing (ratios, totals, ages). Store raw inputs.
 - `review` Feature-specific data goes in side tables (1:1, cascade delete) rather than widening core tables.
 
 *Examples:* `~/.claude/standards/data.md`
+
+## Security
+
+- `tool` No secrets in the repo: env vars or a secret store, `.env*` gitignored, an `.env.example` committed. _(secret scanning)_
+- `review` Never log secrets, tokens, or personal data; redact at the logger.
+- `review` Parameterized queries and argument arrays only; never interpolate input into SQL or shell commands.
+- `review` Least privilege: scoped, read-only tokens where possible.
