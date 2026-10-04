@@ -23,9 +23,6 @@ on:
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN:
         required: true
-      AGENT_CONFIG_TOKEN:
-        description: Read-only token for k-b3r/agent-config, so the review also sees the global standards
-        required: false
 
 jobs:
   agent-review:
@@ -40,19 +37,16 @@ jobs:
     concurrency:
       group: agent-review-${{ github.event.pull_request.number }}
       cancel-in-progress: true
-    env:
-      HAS_AGENT_CONFIG_TOKEN: ${{ secrets.AGENT_CONFIG_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
+      # agent-config is public, so the caller's default token can read it.
       - name: Fetch global standards
-        if: env.HAS_AGENT_CONFIG_TOKEN == 'true'
         uses: actions/checkout@v7
         with:
           repository: k-b3r/agent-config
-          token: ${{ secrets.AGENT_CONFIG_TOKEN }}
           path: .agent-config
 
       - uses: anthropics/claude-code-action@v1
