@@ -36,7 +36,6 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR once the r
   4. Any part that must scale, deploy, fail, or run on a different runtime independently? Split out only that part as a service; the rest stays a monolith.
   5. Several teams with separate release cycles? Align module or service boundaries with teams.
   6. Event-driven or realtime core (chat, games, live trading)? Event or actor model for that core.
-- `process` Data flowing through stages (collect, enrich, notify) is a runtime shape, not a reason to drop modules: stages become thin entry points that call feature modules.
 - `review` Record the choice and the fit-check answer in the repo (ADR or `CONTEXT.md`) so it isn't relitigated.
 
 ## Design
@@ -44,7 +43,7 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR once the r
 - `review` Deep modules: simple interface, substantial functionality behind it. Avoid shallow pass-through layers and wrappers that add an interface without hiding anything.
 - `review` Prefer deep modules over many small functions. Don't split a function just to make it shorter; split only when the piece is a coherent abstraction. Small private helpers inside a module are fine.
 - `tool`+`review` Deep is not big. One module owns one concern; when a file mixes unrelated features (e.g. every query for every page), split it by feature. _(max-lines as hint; "one concern" is review)_
-- `review` Group code by feature, not by technical layer, so one change lives in one folder.
+- `review` Group code by feature, not by technical layer or pipeline stage, so one change lives in one folder.
 - `tool`+`review` Importing a module must be cheap and side-effect free: no connections, network calls, or heavy work at import time. _(dependency-cruiser bans DB/network/heavy deps in shared modules)_
 - `tool` Enforce module boundaries with tooling in CI, not prose alone: ban wildcard re-exports, forbid heavy deps leaking into shared entry points, forbid import cycles. Tool specifics in the language guide. _(see language guide)_
 - `tool`+`review` Hide information. Each module owns its decisions; callers never depend on internals. _(no deep imports past index)_
@@ -62,7 +61,7 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR once the r
 
 ### Structure
 
-- `review` Keep domain logic out of entry points: workers/handlers wire dependencies and loop, domains decide.
+- `review` Keep domain logic out of entry points: workers, handlers and pipeline stages wire dependencies and loop, domains decide.
 - `tool` Every runnable script gets a named command in the project's task runner (e.g. `package.json` script, `Makefile` target). _(script: every entry file has a task-runner command)_
 
 ## Writing Code
