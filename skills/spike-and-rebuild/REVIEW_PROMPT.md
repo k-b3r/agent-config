@@ -9,9 +9,12 @@ summarize it or judge whether it works. Assume every deviation matters until the
 evidence shows otherwise. You did not write the spike and have no reason to
 defend it.
 
-Read, in this order:
+First generate the evidence from git:
+  node ~/.claude/skills/spike-and-rebuild/scripts/deviations.mjs --feature <feature> --base <base> --plan <plan-sha> --spike spike/<feature> > docs/spikes/<feature>/evidence.md
+
+Then read, in this order:
 1. docs/spikes/<feature>/PLAN.md and docs/spikes/<feature>/TODO.md at commit <plan-sha>
-2. docs/spikes/<feature>/evidence.md (generated from git; every "- [ ]" item is a fact)
+2. docs/spikes/<feature>/evidence.md (every "- [ ]" item is a fact)
 3. The spike diff: git diff <plan-sha>..spike/<feature>
 
 Write docs/spikes/<feature>/REVIEW.md using the REVIEW.md template in
@@ -20,6 +23,9 @@ Write docs/spikes/<feature>/REVIEW.md using the REVIEW.md template in
 - Also look for deviations the evidence can't see: logic in the wrong module,
   invariants from PLAN.md the spike violates, error cases silently swallowed,
   data shapes reinterpreted without changing the type.
+- Classify each hack: [shortcut] = the spike cut a corner in new code;
+  [prep] = it worked around the shape of existing code. Every [prep] hack
+  also gets a "Preparatory refactors" entry.
 - No adjectives ("minor", "mostly", "slightly"). State what changed and why.
 - "None" in a section must quote the evidence line that shows it.
 - "Plan changes for the real build" lists concrete edits to PLAN.md, the stubs,
