@@ -6,13 +6,13 @@ Rules live in `CODING_STANDARDS.md` → Writing Code → Naming and Comments.
 
 Don't:
 ```ts
-// check if the listing is within the service area
-if (distanceKm(listing, MANILA) <= 80) { ... }
+// check if the order ships within the free-shipping zone
+if (distanceKm(order.address, WAREHOUSE) <= 80) { ... }
 ```
 
 Do:
 ```ts
-if (isInServiceArea(listing)) { ... }
+if (isInFreeShippingZone(order)) { ... }
 ```
 
 ## Comment the *why*
@@ -25,30 +25,30 @@ attempts++
 
 Do:
 ```ts
-// Groq 503s cluster for a few minutes; under 3 retries we gave up on runs that would have recovered.
+// Payment API 503s cluster for a few minutes; under 3 retries we gave up on runs that would have recovered.
 const MAX_ATTEMPTS = 5
 ```
 
 ## Evidence and date for choices from live observation
 
 ```ts
-// Confirmed live 2026-09-24: Facebook soft-walls after ~40 rapid page loads. Keep pacing above this.
-const MIN_PAGE_DELAY_MS = 4000
+// Confirmed live 2026-09-24: the supplier API rate-limits after ~40 rapid requests. Keep pacing above this.
+const MIN_REQUEST_DELAY_MS = 4000
 ```
 
 ## Cross-reference instead of re-explaining
 
 ```ts
-// Skips listings already priced: same rule as the sub-category backfill.
+// Skips orders already invoiced: same rule as the nightly backfill.
 ```
 
 ## Interface contracts belong in comments
 
 What the code can't say: preconditions, units, what null means, side effects.
 ```ts
-// Returns null when the listing was removed on Facebook (not an error).
+// Returns null when the order was deleted upstream (not an error).
 // Never throws on network failure: logs and returns the stale row instead.
-export async function refreshListing(id: string): Promise<Listing | null>
+export async function refreshOrder(id: string): Promise<Order | null>
 ```
 
 ## No comments on obvious code
