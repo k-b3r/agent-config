@@ -23,13 +23,19 @@ Feature folder: `docs/spikes/<feature>/` (kebab-case name). Templates: [TEMPLATE
    `node ~/.claude/skills/spike-and-rebuild/scripts/deviations.mjs --feature <f> --base <base> --plan <plan-sha> --spike spike/<f> > docs/spikes/<f>/evidence.md`
 8. **Fresh review.** Spawn a subagent (clean context, never the spike author) with [REVIEW_PROMPT.md](REVIEW_PROMPT.md) filled in. It writes `docs/spikes/<f>/REVIEW.md` using the template. The spike author may add a `Spike author notes` section after it, but never edits the reviewer's entries.
 9. **Gate.** Every `[ ]` in `evidence.md` must map to a REVIEW.md entry. Unmapped item: send it back to the reviewer. Show the user the REVIEW.md "Plan changes" section and get a yes.
-10. **Revise the plan** (stubs, `PLAN.md`, `TODO.md`) per the approved plan changes. Commit: `revise plan <feature>`.
-11. **Remove the spike:** `git worktree remove ../<repo>-spike-<feature>` and delete `spike/<feature>`. Keep `docs/spikes/<feature>/`.
-12. **Build properly, TDD.** Each invariant first becomes a failing test, then each interface stub gets its tests, then implementation. Normal coding standards apply; no `SPIKE-HACK` may survive (grep before each commit).
+10. **Revise the plan** (stubs, `PLAN.md`, `TODO.md`) per the approved plan changes. The plan must stand alone, since the builder never reads REVIEW.md: each hack's "real build must do instead" lands in `PLAN.md` or `TODO.md`, and approved preparatory refactors go in `TODO.md` > Before, in order. Commit: `revise plan <feature>`.
+11. **Remove the spike and hand off:** `git worktree remove ../<repo>-spike-<feature>` and delete `spike/<feature>`. Keep `docs/spikes/<feature>/`. End the session with:
+   - a checklist mapping each REVIEW.md plan change to where it landed (`PLAN.md` section, `TODO.md` line, or stub file);
+   - the user's check: read `PLAN.md` + `TODO.md` at the `revise plan` commit (exactly what the builder gets) and confirm the feature could be built from them alone;
+   - the prompt for a new session: `Build <feature> per docs/spikes/<f>/PLAN.md and TODO.md (/spike-and-rebuild step 12).`
+12. **Build properly** in a fresh session. Read only `PLAN.md`, `TODO.md`, and the stubs; never `REVIEW.md`, `evidence.md`, or the spike. Plan unclear or wrong: stop and ask, then fix the plan.
+   - **12a. Preparatory refactors** (`TODO.md` > Before) first: behavior-preserving only, one commit each, tests green after each; thin coverage gets characterization tests first. A refactor that crosses a module boundary is its own PR (its own fresh session), merged before the feature.
+   - **12b. Feature, TDD.** Each invariant first becomes a failing test, then each interface stub gets its tests, then implementation. Normal coding standards apply; no `SPIKE-HACK` may survive (grep before each commit).
 
 ## Rules
 
 - The spike never merges, not even "the good parts". Rewrite them in step 12.
+- The builder's context is the plan, nothing else. A gap the builder hits is a step 10 bug: fix the plan, don't dig through the review.
 - The spike author never writes the verdict. The reviewer gets plan, evidence, and spike diff only, not the spike conversation.
 - No adjectives in REVIEW.md ("minor", "mostly", "slightly"): state what changed and why.
 - "None" in a REVIEW.md section needs the evidence line that shows it (e.g. "evidence.md: Stub changes: none").

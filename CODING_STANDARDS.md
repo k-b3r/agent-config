@@ -74,7 +74,7 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR. `hint` = 
 
 - `review` Refactor in small, behavior-preserving steps with tests green between each. Separate refactoring commits from behavior changes.
 - `hint` Code smells (duplication, long parameter lists, feature envy, shotgun surgery) trigger refactoring; fix when touching the code, not in big-bang rewrites. _(jscpd, complexity, max-params)_
-- `review` Cleanup scope: fix smells only in files the change already touches, in a separate commit. Unrelated dead code elsewhere: mention it or ticket it, don't delete it. Do remove what your own change orphaned.
+- `review` Make it work, then make it right. No opportunistic refactoring mid-feature: note smells, fix them after the feature is green as separate commits in the same PR, limited to files the change touched; ticket the rest. Exception: a refactor the feature needs goes first. `/spike-and-rebuild` applies this at feature scale. Don't delete unrelated dead code; do remove what your own change orphaned.
 
 *Examples:* `~/.claude/standards/refactoring.md`
 

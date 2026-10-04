@@ -20,6 +20,9 @@ Write docs/spikes/<feature>/REVIEW.md using the REVIEW.md template in
 - Also look for deviations the evidence can't see: logic in the wrong module,
   invariants from PLAN.md the spike violates, error cases silently swallowed,
   data shapes reinterpreted without changing the type.
+- Classify each hack: [shortcut] = the spike cut a corner in new code;
+  [prep] = it worked around the shape of existing code. Every [prep] hack
+  also gets a "Preparatory refactors" entry.
 - No adjectives ("minor", "mostly", "slightly"). State what changed and why.
 - "None" in a section must quote the evidence line that shows it.
 - "Plan changes for the real build" lists concrete edits to PLAN.md, the stubs,

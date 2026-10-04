@@ -25,6 +25,11 @@ Plan commit: <sha> (filled in at step 5)
 ```md
 # <feature>: touch points
 
+## Before
+<added at step 10: approved preparatory refactors, in order; behavior-preserving>
+- `src/domains/x/listings.ts`: split query builder out of the upsert
+
+## Touch points
 - `src/domains/x/comps.ts`: new comps query
 - `db/schema.sql`: comps index
 - `src/workers/comps/`: new worker folder
@@ -50,7 +55,10 @@ Written by the fresh reviewer. Every `[ ]` in evidence.md maps to exactly one en
 - <file>: unnecessary, or skipped by a hack? (evidence: ...)
 
 ## Hacks
-- <file:line> <marker>: what it avoided; what the real build must do instead (evidence: ...)
+- <file:line> <marker> [shortcut|prep]: what it avoided; what the real build must do instead (evidence: ...)
+
+## Preparatory refactors
+- <existing file>: current shape -> needed shape; behavior-preserving (evidence: <hack or diff line>)
 
 ## New invariants found
 - <invariant>: what in the spike revealed it
