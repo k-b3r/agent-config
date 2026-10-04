@@ -88,7 +88,11 @@ export function baseConfig({
       rules: { 'no-restricted-properties': 'off', 'max-lines': 'off', ...syntax(EXPORT_ALL, DEFAULT_EXPORT) },
     },
     { files: ['**/*.{js,mjs}'], languageOptions: { globals: { ...globals.node } } },
-    { files: ['**/*.cjs'], languageOptions: { sourceType: 'commonjs', globals: { ...globals.node } } },
+    {
+      files: ['**/*.cjs'],
+      languageOptions: { sourceType: 'commonjs', globals: { ...globals.node } },
+      rules: { '@typescript-eslint/no-require-imports': 'off' },
+    },
     prettier,
   )
 }
