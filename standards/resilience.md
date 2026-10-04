@@ -49,7 +49,7 @@ Do:
 for (const item of items) {
   const parsed = tryParse(item)
   if (!parsed) {
-    logger.warn(`listing ${item.id}: unparseable, left for next run`)
+    logger.warn(`item ${item.id}: unparseable, left for next run`)
     continue // still a candidate: nothing marked it processed
   }
   await save(parsed)

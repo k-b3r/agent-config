@@ -7,12 +7,12 @@ Rules live in `CODING_STANDARDS.md` → Testing. Snippets are TypeScript/Vitest 
 Don't: a hidden singleton the test can't replace.
 ```ts
 import { db } from '../db'
-export async function markSold(id: string) { await db.query(...) }
+export async function markShipped(id: string) { await db.query(...) }
 ```
 
 Do:
 ```ts
-export async function markSold(db: DbClient, id: string): Promise<void>
+export async function markShipped(db: DbClient, id: string): Promise<void>
 ```
 
 ## Minimal interfaces, tiny fakes

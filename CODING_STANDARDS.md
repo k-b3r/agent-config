@@ -152,3 +152,5 @@ Read the matching file before writing code in that language:
 - `review` Never log secrets, tokens, or personal data; redact at the logger.
 - `review` Parameterized queries and argument arrays only; never interpolate input into SQL or shell commands.
 - `review` Least privilege: scoped, read-only tokens where possible.
+
+*Examples:* `~/.claude/standards/security.md`
