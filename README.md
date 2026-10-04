@@ -42,7 +42,7 @@ module.exports = { forbidden: [...baseRules({ publicApis: ['src/modules/catalog'
 
 Each config's options are documented in its file. `repo-checks` (bin) covers the `tool` rules no linter fits: commit subjects, escape-hatch and untested-module ratchets, test placement, entry scripts, test DB env, and `audit` (fails on any shared check the repo hasn't wired). Settings: `package.json` `"agentConfig"`; commands: header of `scripts/repo-checks.mjs`.
 
-CI: `.github/workflows/ci-typescript.yml` is a reusable workflow running all of it (format, lint, depcruise, typecheck, knip, `repo-checks all`, gitleaks, unit/integration/e2e); caller examples in its header. `pr-review.yml` adds the agent review and gate. `pnpm test` runs a violating fixture per rule plus a clean control.
+CI: `.github/workflows/ci-typescript.yml` is a reusable workflow running all of it (format, lint, depcruise, typecheck, knip, `repo-checks all`, gitleaks, unit/integration/e2e); caller examples in its header. `pr-review.yml` adds the agent review and gate. `/init-repo` (skill) copies `skills/init-repo/templates/typescript/` into a new or existing repo and wires all of the above. `pnpm test` runs a violating fixture per rule plus a clean control.
 
 ## Editing
 

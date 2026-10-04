@@ -1,0 +1,6 @@
+# Local guardrail: GitHub can't require status checks on private free-plan repos.
+# Bypass only deliberately (LEFTHOOK=0); CI runs the same checks.
+pre-push:
+  jobs:
+    - name: check
+      run: pnpm check
