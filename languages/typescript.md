@@ -14,11 +14,17 @@ Tags as in `CODING_STANDARDS.md`.
 
 ## Enforcement (wire into CI)
 
-- ESLint `no-restricted-syntax` on `ExportAllDeclaration`: bans `export *`.
-- `dependency-cruiser` (or `eslint-plugin-boundaries`): forbid domain/shared code importing heavy deps (e.g. `playwright`, `sharp`) outside their own entry module; forbid deep imports past a folder's `index.ts` from outside it.
-- `import/no-cycle` (or dependency-cruiser `no-circular`): no import cycles.
-- `@typescript-eslint/ban-ts-comment`: ban `@ts-ignore` and `@ts-nocheck`; `@ts-expect-error` only with a description.
-- `eslint-comments/no-unlimited-disable` + `require-description`: every `eslint-disable` names the rule and says why.
-- Fail CI when the count of disable comments, `as any`, or `@ts-expect-error` grows versus `main` (ratchet).
-- Test the lint config: keep `tests/lint-fixtures/` with one deliberately violating file per rule and assert each check fails on it, so a mis-scoped glob can't silently check nothing.
+Shared, referenced from `@k-b3r/agent-config` (git dependency) so repos don't drift; `/init-repo` wires all of it and `repo-checks audit` fails on any piece missing.
+
+| Rule | Check |
+|---|---|
+| no `export *`, named exports only, no ambient env outside entry points, no inline sleeps, `ban-ts-comment`, `no-explicit-any`, `eslint-disable` with reason, `import type`, floating promises | `@k-b3r/agent-config/eslint` `baseConfig` |
+| size/params/complexity smells (`hint`) | same, as warnings |
+| no cycles, heavy deps only via their owner, `index.ts` stays light, no deep imports, domains never import entry points | `@k-b3r/agent-config/dependency-cruiser` `baseRules` |
+| escape-hatch ratchet, untested-module ratchet, test placement, entry scripts, test DB env, commit subjects | `repo-checks` |
+| dead code | knip |
+| secrets | gitleaks in `ci-typescript.yml` |
+| canonical check before push | lefthook pre-push runs `pnpm check` |
+
+- Each shared rule has a violating fixture plus a clean control in agent-config's tests; a repo's own extra rules keep their own fixtures (`tests/lint-fixtures/`), so a mis-scoped glob can't silently check nothing.
 - Adopt rules on existing code by ratchet: block new violations, fix old ones when touching the code.

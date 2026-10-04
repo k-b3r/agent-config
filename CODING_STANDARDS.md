@@ -21,6 +21,7 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR once the r
 - `process` Ambiguous request: present the interpretations and ask; don't pick one silently.
 - `process` New features with unclear shape (new data model, several modules, unknown APIs) go through `/spike-and-rebuild`: plan as committed stubs, throwaway spike, fresh-context review from git evidence, then TDD rebuild. Bug fixes and small changes skip it.
 - `tool` Every change reaches `main` through a pull request. Never push to `main` directly.
+- `tool` New repos start from `/init-repo`, which wires every `tool` check below; `repo-checks audit` fails CI when one goes missing. _(audit)_
 - `tool` Run the project's canonical check (e.g. `pnpm check`) before opening or updating a PR. _(pre-push hook)_
 - `tool` A PR merges only when CI is green: format, lint, typecheck, unit, integration, e2e, agent review, and the review gate. _(required status checks)_
 - `process` When the agent review labels a PR `needs-human`, stop and get the human decision; never add `human-approved` yourself.
