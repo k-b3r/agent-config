@@ -1,0 +1,198 @@
+# Reusable PR upkeep, so agents and humans stop doing it by hand:
+#   regenerate        on a PR: run the repo's generator, commit the result if
+#                     the generated paths changed (`regenerate generated files`)
+#   update-branches   on a push to the default branch: merge it into every open,
+#                     non-draft PR that is behind (`merge main`). Conflicts only
+#                     in generated paths are resolved by regenerating; any other
+#                     conflict gets the `merge-conflict` label and a comment.
+# Pushes use a GitHub App token so CI and the review run again on the new
+# commit (pushes made with GITHUB_TOKEN trigger no workflows). Same-repo
+# branches only: a fork's code never runs with the token.
+# Each job's step summary lists what it did per PR.
+#
+# Agents working on a PR branch must `git pull` before pushing: this workflow
+# may have added commits.
+#
+# Caller:
+#   name: pr-upkeep
+#   on:
+#     pull_request:
+#     push:
+#       branches: [main]
+#   concurrency:
+#     group: pr-upkeep-${{ github.ref }}
+#     cancel-in-progress: true
+#   jobs:
+#     upkeep:
+#       uses: k-b3r/agent-config/.github/workflows/pr-upkeep.yml@main
+#       with:
+#         app-id: ${{ vars.CI_APP_ID }}
+#         regenerate: pnpm gen-arch-doc
+#         regenerate-paths: docs-site
+#         install-dirs: . dashboard
+#       secrets:
+#         CI_APP_PRIVATE_KEY: ${{ secrets.CI_APP_PRIVATE_KEY }}
+
+name: pr-upkeep
+
+on:
+  workflow_call:
+    inputs:
+      app-id:
+        description: GitHub App id (repo variable CI_APP_ID)
+        type: string
+        required: true
+      regenerate:
+        description: Command that regenerates generated files; empty skips regeneration
+        type: string
+        default: ''
+      regenerate-paths:
+        description: 'Space-separated paths the command writes (e.g. "docs-site")'
+        type: string
+        default: ''
+      install-dirs:
+        description: 'Space-separated folders with their own pnpm-lock.yaml'
+        type: string
+        default: .
+      node-version:
+        type: string
+        default: '22'
+    secrets:
+      CI_APP_PRIVATE_KEY:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  regenerate:
+    # Drafts are skipped: the agent is still pushing to them.
+    if: >-
+      github.event_name == 'pull_request' && inputs.regenerate != '' &&
+      !github.event.pull_request.draft &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - id: app
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ inputs.app-id }}
+          private-key: ${{ secrets.CI_APP_PRIVATE_KEY }}
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ steps.app.outputs.token }}
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: pnpm
+          cache-dependency-path: '**/pnpm-lock.yaml'
+      - env:
+          DIRS: ${{ inputs.install-dirs }}
+        run: for dir in $DIRS; do (cd "$dir" && pnpm install --frozen-lockfile); done
+      - name: Regenerate and commit
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          REGENERATE: ${{ inputs.regenerate }}
+          PATHS: ${{ inputs.regenerate-paths }}
+          APP_SLUG: ${{ steps.app.outputs.app-slug }}
+        run: |
+          bash -c "$REGENERATE"
+          # shellcheck disable=SC2086 # PATHS is a space-separated list
+          if [ -z "$(git status --porcelain -- $PATHS)" ]; then
+            echo "regenerate: generated files up to date" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          user_id=$(gh api "/users/${APP_SLUG}[bot]" --jq .id)
+          git config user.name "${APP_SLUG}[bot]"
+          git config user.email "${user_id}+${APP_SLUG}[bot]@users.noreply.github.com"
+          # shellcheck disable=SC2086
+          git add -- $PATHS
+          git commit -m "regenerate generated files"
+          git push
+          {
+            echo "regenerate: committed regenerated files"
+            echo '```'
+            git show --stat --format= HEAD
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  update-branches:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - id: app
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ inputs.app-id }}
+          private-key: ${{ secrets.CI_APP_PRIVATE_KEY }}
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          token: ${{ steps.app.outputs.token }}
+      - uses: pnpm/action-setup@v6
+        if: inputs.regenerate != ''
+      - uses: actions/setup-node@v7
+        if: inputs.regenerate != ''
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: pnpm
+          cache-dependency-path: '**/pnpm-lock.yaml'
+      - name: Merge the default branch into open PRs that are behind
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          REPO: ${{ github.repository }}
+          BASE: ${{ github.ref_name }}
+          REGENERATE: ${{ inputs.regenerate }}
+          PATHS: ${{ inputs.regenerate-paths }}
+          DIRS: ${{ inputs.install-dirs }}
+          APP_SLUG: ${{ steps.app.outputs.app-slug }}
+        run: |
+          user_id=$(gh api "/users/${APP_SLUG}[bot]" --jq .id)
+          git config user.name "${APP_SLUG}[bot]"
+          git config user.email "${user_id}+${APP_SLUG}[bot]@users.noreply.github.com"
+          summary() { echo "$1" >> "$GITHUB_STEP_SUMMARY"; }
+          installed=0
+          in_generated() { # every argument lies under one of PATHS
+            for file in "$@"; do
+              hit=0
+              for path in $PATHS; do case "$file" in "$path"|"$path"/*) hit=1 ;; esac; done
+              [ "$hit" = 1 ] || return 1
+            done
+          }
+          summary "### update-branches after a push to \`$BASE\`"
+          prs=$(gh pr list --repo "$REPO" --base "$BASE" --state open \
+            --json number,isDraft,headRefName,isCrossRepository \
+            --jq '.[] | select(.isDraft | not) | select(.isCrossRepository | not) | "\(.number) \(.headRefName)"')
+          [ -z "$prs" ] && summary "- no open PRs" && exit 0
+          while read -r number branch; do
+            behind=$(gh api "repos/$REPO/compare/$BASE...$branch" --jq .behind_by)
+            if [ "$behind" = 0 ]; then summary "- #$number \`$branch\`: already current"; continue; fi
+            git checkout -q -B "$branch" "origin/$branch"
+            if ! git merge -q --no-edit -m "merge $BASE" "origin/$BASE"; then
+              conflicted=$(git diff --name-only --diff-filter=U)
+              # shellcheck disable=SC2086 # one file per word
+              if [ -n "$REGENERATE" ] && [ -n "$conflicted" ] && in_generated $conflicted; then
+                # shellcheck disable=SC2086
+                git checkout --theirs -- $conflicted
+                if [ "$installed" = 0 ]; then
+                  for dir in $DIRS; do (cd "$dir" && pnpm install --frozen-lockfile); done
+                  installed=1
+                fi
+                bash -c "$REGENERATE"
+                # shellcheck disable=SC2086
+                git add -- $PATHS
+                git commit -q --no-edit -m "merge $BASE"
+              else
+                git merge --abort
+                gh pr edit "$number" --repo "$REPO" --add-label merge-conflict
+                gh pr comment "$number" --repo "$REPO" --body "Couldn't merge \`$BASE\` in automatically: conflicts in $(echo "$conflicted" | sed 's/.*/`&`/' | paste -sd, -). Resolve by hand (merge \`$BASE\`, subject \`merge $BASE\`)."
+                summary "- #$number \`$branch\`: conflict ($(echo "$conflicted" | paste -sd, -)), labelled merge-conflict"
+                continue
+              fi
+            fi
+            git push -q origin "HEAD:$branch"
+            gh pr edit "$number" --repo "$REPO" --remove-label merge-conflict 2>/dev/null || true
+            summary "- #$number \`$branch\`: merged \`$BASE\` ($behind commits behind)"
+          done <<< "$prs"
