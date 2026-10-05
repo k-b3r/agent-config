@@ -27,6 +27,7 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR once the r
 - `tool` A PR merges only when CI is green: format, lint, typecheck, unit, integration, e2e, agent review, and the review gate. _(required status checks)_
 - `process` When the agent review labels a PR `needs-human`, stop and get the human decision; never add `human-approved` yourself.
 - `process` Review findings are fixed on the PR's own branch (never a sub-PR), one commit per finding, via `/address-pr-review`: verify each first, fix what the PR introduced, ticket the rest, reply on and resolve every thread.
+- `process` Anything found outside the task's scope (bug, smell, debt) becomes a ticket in the project tracker the moment it's seen, linked from the PR; notes and memory are not a backlog. Delegated agents list findings in their report; whoever receives the report files them.
 
 ## Architecture
 
