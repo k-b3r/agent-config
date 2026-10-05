@@ -123,7 +123,7 @@ Read the matching file before writing code in that language:
 
 ## Version Control
 
-- `tool` Imperative, lowercase, concise, no trailing period: `add search page`, `fix reviewed items resurfacing in review queue`. _(commit-message check)_
+- `tool` Imperative, lowercase, concise, no trailing period: `add search page`, `fix reviewed items resurfacing in review queue`. _(commit-msg hook + CI commit check)_
 - `tool`+`review` One logical change per commit. Feature branches merge with `merge <branch>`. _(merge message format is tool; one logical change is review)_
 - `tool` Never commit a broken build or failing tests. Never `--no-verify`, never force-push `main`. _(CI + no-verify bypass caught by required checks)_
 - `tool` No AI attribution: no `Co-Authored-By` trailers in commits, no "Generated with" lines in PR descriptions. _(commit-message check)_
