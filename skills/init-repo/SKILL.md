@@ -24,8 +24,11 @@ Every `tool` rule in CODING_STANDARDS.md counts as `review` until a repo wires i
    gh label create agent-changes-requested --color D93F0B --description "Agent review found blocking issues" --force
    gh label create needs-human --color FBCA04 --description "Agent wants a human decision before merge" --force
    gh label create human-approved --color 0E8A16 --description "Human reviewed a needs-human PR and signs off" --force
+   gh label create automerge --color 1D76DB --description "Merge automatically once green and current" --force
+   gh label create merge-conflict --color B60205 --description "Main couldn't be merged in automatically" --force
    ```
    The `CLAUDE_CODE_OAUTH_TOKEN` secret is the user's: ask them to run `! claude setup-token` and `! gh secret set CLAUDE_CODE_OAUTH_TOKEN`. Never handle the token yourself.
+   `auto-merge.yml` / `pr-upkeep.yml` need the user's GitHub App (`k-b3r-ci`) installed on the repo, plus `! gh variable set CI_APP_ID` and `! gh secret set CI_APP_PRIVATE_KEY < key.pem`. Set `regenerate` / `regenerate-paths` in `pr-upkeep.yml` if the repo has generated files; add `e2e` to `auto-merge.yml`'s workflow list if the repo has `e2e.yml`.
 8. **Verify.** `pnpm check` and `pnpm exec repo-checks audit` must pass. Retrofit: fix new findings or ratchet them (escape hatches, untested modules); list what's left as tickets.
 9. **PR.** Commit (`init repo wiring` or per piece on a retrofit), push, open the PR. Its CI and agent review are the live test: all jobs green, gate passes.
 
