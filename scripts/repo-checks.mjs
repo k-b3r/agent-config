@@ -2,6 +2,7 @@
 // Repo checks for the `tool` rules of CODING_STANDARDS.md that no off-the-shelf
 // linter fits. Run from the repo root: `repo-checks <command> [base-ref]`.
 //   commits <base>           commit subjects in <base>..HEAD follow Version Control
+//   commit-msg <file>        the message being committed follows it (lefthook commit-msg; not in `all`)
 //   escape-hatches <base>    eslint-disable / `as any` / @ts-expect-error count never grows (ratchet)
 //   untested-modules <base>  no new source module without a sibling test (ratchet)
 //   test-placement           unit tests sit next to their module; integration/e2e under tests/
@@ -12,7 +13,7 @@
 // Per-repo settings live in package.json "agentConfig" (see DEFAULTS).
 // commitlint was skipped: its parser expects a `type:` prefix these repos don't use.
 import { execFileSync } from 'node:child_process'
-import { readFileSync, realpathSync } from 'node:fs'
+import { existsSync, readFileSync, realpathSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 const MAX_SUBJECT = 72
@@ -185,6 +186,10 @@ export function auditWiring(repo) {
     ],
     [/pre-push:[\s\S]*pnpm check/.test(text('lefthook.yml')), 'Workflow: lefthook.yml runs pnpm check on pre-push'],
     [
+      /commit-msg:[\s\S]*repo-checks commit-msg/.test(text('lefthook.yml')),
+      'Version Control: lefthook.yml runs repo-checks commit-msg on commit-msg',
+    ],
+    [
       paths.some((path) => /^eslint\.config\.[cm]?[jt]s$/.test(path) && text(path).includes('@k-b3r/agent-config/eslint')),
       'Design: eslint config extends @k-b3r/agent-config/eslint',
     ],
@@ -235,6 +240,17 @@ const COMMANDS = {
     })
     return report('commits', problems, `${shas.length} ok`)
   },
+  // Same rule as `commits`, before the commit exists. Merge commits are
+  // skipped there (--no-merges), so here too: `git pull` and `git merge`
+  // keep their default messages.
+  'commit-msg'(file) {
+    if (existsSync(git('rev-parse', '--git-path', 'MERGE_HEAD').trim())) return report('commit-msg', [], 'merge, skipped')
+    const message = readFileSync(file, 'utf8')
+      .split('\n')
+      .filter((line) => !line.startsWith('#'))
+      .join('\n')
+    return report('commit-msg', checkCommitMessage(message.trimStart()), 'ok')
+  },
   'escape-hatches'(base, config) {
     const count = (ref) =>
       countEscapeHatches(sourcePaths(trackedAt(ref).join('\0'), config.escapeHatchExempt).map((p) => showAt(ref, p)))
@@ -269,10 +285,15 @@ const COMMANDS = {
 }
 
 const NEEDS_BASE = new Set(['commits', 'escape-hatches', 'untested-modules', 'all'])
+const NOT_IN_ALL = new Set(['commit-msg'])
 
 function main([command, base]) {
   if (!(command in COMMANDS) && command !== 'all') {
     console.error(`usage: repo-checks <${[...Object.keys(COMMANDS), 'all'].join('|')}> [base-ref]`)
+    return 2
+  }
+  if (command === 'commit-msg' && !base) {
+    console.error('repo-checks commit-msg needs the message file, e.g. .git/COMMIT_EDITMSG')
     return 2
   }
   if (NEEDS_BASE.has(command) && !base) {
@@ -280,7 +301,7 @@ function main([command, base]) {
     return 2
   }
   const config = loadConfig()
-  const run = command === 'all' ? Object.keys(COMMANDS) : [command]
+  const run = command === 'all' ? Object.keys(COMMANDS).filter((name) => !NOT_IN_ALL.has(name)) : [command]
   // Run every check even after a failure, so one run reports them all.
   return run.map((name) => COMMANDS[name](base, config)).some(Boolean) ? 1 : 0
 }
