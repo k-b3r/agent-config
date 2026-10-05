@@ -1,0 +1,76 @@
+# Reusable auto-merge: merges a PR labelled `automerge` once every check on its
+# head is green, the review gate passed and it is current with its base. A
+# small merge queue together with pr-upkeep.yml's update-branches job. Private
+# free-plan repos can't use GitHub's native auto-merge (it needs required checks).
+#
+# The decision lives in scripts/pr-automation.mjs (unit-tested); the step
+# summary shows each condition and why a PR was held or merged.
+#
+# Merges with a GitHub App token: a merge made with GITHUB_TOKEN doesn't trigger
+# the push workflow that brings other open PRs up to date.
+#
+# Caller (workflow names = the `name:` of each workflow whose result matters):
+#   name: auto-merge
+#   on:
+#     workflow_run:
+#       workflows: [ci, integration, e2e, pr-review, pr-upkeep]
+#       types: [completed]
+#     pull_request:
+#       types: [labeled]
+#   jobs:
+#     merge:
+#       uses: k-b3r/agent-config/.github/workflows/auto-merge.yml@main
+#       with:
+#         app-id: ${{ vars.CI_APP_ID }}
+#       secrets:
+#         CI_APP_PRIVATE_KEY: ${{ secrets.CI_APP_PRIVATE_KEY }}
+
+name: auto-merge
+
+on:
+  workflow_call:
+    inputs:
+      app-id:
+        description: GitHub App id (repo variable CI_APP_ID)
+        type: string
+        required: true
+    secrets:
+      CI_APP_PRIVATE_KEY:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  evaluate:
+    # The job name must contain "auto-merge": the script skips its own
+    # in-progress check run. Skipped jobs bill nothing, so filter here.
+    name: auto-merge evaluate
+    if: >-
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.event == 'pull_request' &&
+       github.event.workflow_run.conclusion == 'success') ||
+      (github.event_name == 'pull_request' && github.event.label.name == 'automerge')
+    runs-on: ubuntu-latest
+    concurrency:
+      group: auto-merge-${{ github.event.workflow_run.head_sha || github.event.pull_request.head.sha }}
+      cancel-in-progress: false
+    steps:
+      - id: app
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ inputs.app-id }}
+          private-key: ${{ secrets.CI_APP_PRIVATE_KEY }}
+
+      # agent-config is public, so the default token can read it.
+      - uses: actions/checkout@v7
+        with:
+          repository: k-b3r/agent-config
+          path: .agent-config
+
+      - name: Merge if ready
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.workflow_run.head_sha || github.event.pull_request.head.sha }}
+        run: node .agent-config/scripts/pr-automation.mjs merge-if-ready "$REPO" "$SHA"
