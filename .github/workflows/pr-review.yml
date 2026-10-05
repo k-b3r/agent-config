@@ -69,6 +69,7 @@ jobs:
           path: .agent-config
 
       - uses: anthropics/claude-code-action@v1
+        id: claude
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
@@ -113,6 +114,24 @@ jobs:
               `human-approved`; only a human does.
           claude_args: |
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh pr edit:*),Read,Glob,Grep"
+
+      # Telemetry for tuning the review prompt: the full transcript as an
+      # artifact, and turns / duration / cost in the step summary.
+      - name: Keep the review transcript
+        if: always() && steps.claude.outputs.execution_file != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: agent-review-transcript
+          path: ${{ steps.claude.outputs.execution_file }}
+          retention-days: 7
+      - name: Summarize the review run
+        if: always() && steps.claude.outputs.execution_file != ''
+        env:
+          EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
+        run: |
+          jq -r '[.[] | select(.type == "result")] | last // empty
+            | "agent review: \(.num_turns) turns, \(.duration_ms / 1000 | floor)s, $\(.total_cost_usd // "n/a")"' \
+            "$EXECUTION_FILE" >> "$GITHUB_STEP_SUMMARY" || echo "agent review: transcript unreadable" >> "$GITHUB_STEP_SUMMARY"
 
       # claude-code-action skips (and still succeeds) when the PR changes the
       # workflow that runs it, so the gate would pass unreviewed code.
