@@ -16,9 +16,28 @@ const GATE_CHECK = /(^|\/ )gate$/
 // The evaluating job's own check run is still in progress while it decides.
 const SELF_CHECK = /auto-merge/
 
+// Checks re-run on the same commit (label events skip the gate, a human
+// re-runs a failed job): judge each name by its newest run that actually ran,
+// falling back to the newest skipped one when it never ran.
+function currentRuns(checks) {
+  const byName = new Map()
+  const rank = (check) => [check.conclusion !== 'skipped', check.started_at ?? '']
+  for (const check of checks) {
+    const held = byName.get(check.name)
+    if (!held) {
+      byName.set(check.name, check)
+      continue
+    }
+    const [ranA, atA] = rank(check)
+    const [ranB, atB] = rank(held)
+    if (ranA > ranB || (ranA === ranB && atA > atB)) byName.set(check.name, check)
+  }
+  return [...byName.values()]
+}
+
 export function mergeDecision({ pr, checks, behindBy, sha }) {
   const labels = new Set(pr.labels.map((label) => label.name))
-  const others = checks.filter((check) => !SELF_CHECK.test(check.name))
+  const others = currentRuns(checks.filter((check) => !SELF_CHECK.test(check.name)))
   const notGreen = others
     .filter((check) => check.status !== 'completed' || !OK_CONCLUSIONS.has(check.conclusion))
     .map((check) => `${check.name}: ${check.status === 'completed' ? check.conclusion : check.status}`)
@@ -48,7 +67,7 @@ export function mergeIfReady({ repo, sha, gh, report }) {
   const pr = json(
     gh(['pr', 'view', number, '--repo', repo, '--json', 'number,state,isDraft,labels,headRefName,headRefOid,baseRefName']),
   )
-  const checks = json(gh(['api', `repos/${repo}/commits/${sha}/check-runs?per_page=100`])).check_runs
+  const checks = json(gh(['api', `repos/${repo}/commits/${sha}/check-runs?filter=all&per_page=100`])).check_runs
   const behindBy = json(gh(['api', `repos/${repo}/compare/${pr.baseRefName}...${sha}`])).behind_by
   const decision = mergeDecision({ pr, checks, behindBy, sha })
 

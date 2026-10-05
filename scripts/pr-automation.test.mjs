@@ -54,6 +54,21 @@ test('mergeDecision holds while any other check is pending or failed and names i
   assert.match(mergeDecision({ ...ready, checks: red }).conditions.find((c) => !c.ok).detail, /static checks: failure/)
 })
 
+test('mergeDecision judges each check by its newest run that was not skipped', () => {
+  const at = (check, startedAt) => ({ ...check, started_at: startedAt })
+  const gate = (conclusion, startedAt) => at({ name: 'review / gate', status: 'completed', conclusion }, startedAt)
+  const others = greenChecks.filter((c) => !c.name.endsWith('gate'))
+  // A label event that can't change the verdict skips the gate; the earlier verdict stands.
+  assert.equal(mergeDecision({ ...ready, checks: [...others, gate('success', 't1'), gate('skipped', 't2')] }).merge, true)
+  // A failed gate fixed by a later run (e.g. human-approved added) no longer holds the PR.
+  assert.equal(mergeDecision({ ...ready, checks: [...others, gate('failure', 't1'), gate('success', 't2')] }).merge, true)
+  assert.deepEqual(failed(mergeDecision({ ...ready, checks: [...others, gate('success', 't1'), gate('failure', 't2')] })), [
+    'all checks finished green',
+    'gate passed',
+  ])
+  assert.deepEqual(failed(mergeDecision({ ...ready, checks: [...others, gate('skipped', 't1')] })), ['gate passed'])
+})
+
 test('mergeDecision requires a passed gate and an up-to-date branch', () => {
   const noGate = greenChecks.filter((c) => !c.name.endsWith('gate'))
   assert.deepEqual(failed(mergeDecision({ ...ready, checks: noGate })), ['gate passed'])

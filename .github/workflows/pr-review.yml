@@ -152,8 +152,14 @@ jobs:
 
   gate:
     needs: agent-review
-    # Runs after a review, and on its own when a human changes labels.
-    if: always() && github.event_name == 'pull_request' && !github.event.pull_request.draft
+    # Runs after a review, and on its own when a label it reads changes. Other
+    # labels (automerge, merge-conflict) can't change the verdict, so skip
+    # them: each run bills a minute. Auto-merge reads the newest gate run that
+    # wasn't skipped.
+    if: >-
+      always() && github.event_name == 'pull_request' && !github.event.pull_request.draft &&
+      ((github.event.action != 'labeled' && github.event.action != 'unlabeled') ||
+      contains(fromJSON('["agent-changes-requested", "needs-human", "human-approved"]'), github.event.label.name))
     runs-on: ubuntu-latest
     permissions:
       pull-requests: read
