@@ -187,6 +187,7 @@ jobs:
               else
                 git merge --abort
                 gh pr edit "$number" --repo "$REPO" --add-label merge-conflict
+                # shellcheck disable=SC2016 # literal backticks for markdown
                 gh pr comment "$number" --repo "$REPO" --body "Couldn't merge \`$BASE\` in automatically: conflicts in $(echo "$conflicted" | sed 's/.*/`&`/' | paste -sd, -). Resolve by hand (merge \`$BASE\`, subject \`merge $BASE\`)."
                 summary "- #$number \`$branch\`: conflict ($(echo "$conflicted" | paste -sd, -)), labelled merge-conflict"
                 continue
