@@ -60,4 +60,5 @@ Remove it once the PR merges: `git -C ~/Develop/agent-config worktree remove ../
 - Here: rules that apply to every project, skills written by me.
 - Not here: third-party skills (install via their own tooling so they keep updating; a `tools/<name>.sh` step may run that tooling), project-specific rules (live in each repo's `CODING_STANDARDS.md` / `CLAUDE.md`).
 - Add a skill once a workflow has repeated 3+ times or the agent needed the same correction twice.
+- Skill descriptions may say what the skill does as well as when to use it. Tested 2026-10-06 against superpowers' "triggers only, never summarize the workflow" rule: 12 headless runs (Opus 5.5, direct and indirect prompts) of a skill whose description contradicted its body; every run loaded the body and followed it, with either description style.
 - Add a tool to `tools/` only if it should be on in every project; per-project tools go in that repo's `.mcp.json`.
