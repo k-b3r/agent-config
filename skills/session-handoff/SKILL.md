@@ -14,7 +14,7 @@ Two parts: rewrite the doc, then open the next session. The user approves the ne
 - **Local only.** Unless git already tracks it, make sure `SESSION_RESUME.md` is in `.git/info/exclude` (`git rev-parse --git-path info/exclude`; append only if missing; Claude Code asks approval for that file, don't route around it). Never commit it.
 - **Rewrite, don't append.** Done items, strikethroughs and notes that git, PRs or the tracker already record go. Keep only what the next session can't rediscover.
 - **Check before writing.** Every PR, CI, branch and worktree state in the doc comes from a live look (`git status`, `git worktree list`, `gh pr list`/`gh pr checks`), not memory.
-- **Absolute dates**, never "today" or "yesterday".
+- **Absolute dates**, never "today" or "yesterday". **Absolute paths** for worktrees and other repos; a relative path resolves against whatever cwd the next session has.
 - Out-of-scope findings become tickets per CODING_STANDARDS.md, not doc lines. The doc may link the ticket.
 - Under ~60 lines. Exactly this shape, empty sections dropped:
 
