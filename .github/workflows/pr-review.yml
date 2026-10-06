@@ -46,8 +46,33 @@ jobs:
       group: agent-review-${{ github.event.pull_request.number }}
       cancel-in-progress: true
     steps:
+      # pr-upkeep pushes as a bot (merge of the base branch, regenerated files):
+      # no new PR code, so no review and the approval stands. claude-code-action
+      # also refuses bot-triggered runs, which failed the check and held
+      # auto-merge. Confirmed live 2026-10-06 on k-b3r/buy-and-sell-ai#30.
+      - name: Detect an upkeep push
+        id: upkeep
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SENDER_TYPE: ${{ github.event.sender.type }}
+          ACTION: ${{ github.event.action }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE: ${{ github.event.pull_request.base.ref }}
+        run: |
+          skip=false
+          if [ "$SENDER_TYPE" = Bot ] && [ "$ACTION" = synchronize ]; then
+            msg=$(gh api "repos/$REPO/commits/$HEAD_SHA" -q '.commit.message | split("\n")[0]')
+            parents=$(gh api "repos/$REPO/commits/$HEAD_SHA" -q '.parents | length')
+            if { [ "$msg" = "merge $BASE" ] && [ "$parents" = 2 ]; } || [ "$msg" = "regenerate generated files" ]; then
+              skip=true
+              echo "upkeep push ($msg): review skipped" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          fi
+          echo "skip=$skip" >> "$GITHUB_OUTPUT"
+
       - name: Drop approval of older commits
-        if: github.event.action == 'synchronize'
+        if: github.event.action == 'synchronize' && steps.upkeep.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -59,17 +84,20 @@ jobs:
           fi
 
       - uses: actions/checkout@v7
+        if: steps.upkeep.outputs.skip != 'true'
         with:
           fetch-depth: 0
 
       # agent-config is public, so the caller's default token can read it.
       - name: Fetch global standards
+        if: steps.upkeep.outputs.skip != 'true'
         uses: actions/checkout@v7
         with:
           repository: k-b3r/agent-config
           path: .agent-config
 
       - uses: anthropics/claude-code-action@v1
+        if: steps.upkeep.outputs.skip != 'true'
         id: claude
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -140,6 +168,7 @@ jobs:
       # workflow that runs it, so the gate would pass unreviewed code.
       # Confirmed live 2026-10-05 on k-b3r/buy-and-sell-ai#10.
       - name: Flag a skipped review
+        if: steps.upkeep.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
