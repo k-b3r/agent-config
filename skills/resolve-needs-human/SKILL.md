@@ -5,7 +5,7 @@ description: Walks the user through every open PR labelled `needs-human` (the ag
 
 # Resolve needs-human
 
-The agent review in `pr-review.yml` adds `needs-human` when correctness hinges on a judgment it can't verify; the gate fails until `human-approved` is added. Commenting `/approve` (repo owner only) adds it and re-runs the gate. This skill turns that queue into a guided session. The user decides; you prepare and execute.
+The agent review in `pr-review.yml` adds `needs-human` when correctness hinges on a judgment it can't verify; the gate fails until `human-approved` is added. Commenting `/approve` (repo owner only) adds it, removes `needs-human` and re-runs the gate. This skill turns that queue into a guided session. The user decides; you prepare and execute.
 
 Input: optional `--repo owner/name` (default: current repo) or PR numbers to limit the queue.
 
@@ -15,7 +15,7 @@ Input: optional `--repo owner/name` (default: current repo) or PR numbers to lim
 gh pr list --state open --label needs-human --author @me \
   --json number,title,url,labels,isDraft,headRefName
 ```
-Drop PRs that already have `human-approved` (decided; new commits drop the label, so they reappear when needed). Show the queue as one line per PR (`#33 fix llm caller retries (BUY-34)`), oldest first. Empty: say so and stop.
+Drop PRs that already have `human-approved` (decided, `/approve` just hasn't cleared `needs-human`, e.g. approved by label: remove `needs-human` on those and list them). A PR reappears only if the re-review raises a new decision. Show the queue as one line per PR (`#33 fix llm caller retries (BUY-34)`), oldest first. Empty: say so and stop.
 
 ## 2. Per PR, one at a time
 
@@ -45,7 +45,7 @@ Then ask with AskUserQuestion (recommended option first):
 
 ## 3. Act on the answer
 
-- **Approve**: if the user gave a reason, `gh pr comment <pr> --body "Human decision: <reason>"` first. Then `gh pr comment <pr> --body "/approve"`. Confirm the workflow added `human-approved` (`gh pr view <pr> --json labels`, the workflow also replies "Approved via `/approve`"; give it ~30s). If blocking findings or red CI remain, say the gate still won't pass and add the PR to the fix list.
+- **Approve**: if the user gave a reason, `gh pr comment <pr> --body "Human decision: <reason>"` first. Then `gh pr comment <pr> --body "/approve"`. Confirm the workflow added `human-approved` and removed `needs-human` (`gh pr view <pr> --json labels`, the workflow also replies "Approved via `/approve`"; give it ~30s). If blocking findings or red CI remain, say the gate still won't pass and add the PR to the fix list.
 - **Approve + automerge**: as Approve, then `gh pr edit <pr> --add-label automerge`.
 - **Changes**: post `Human decision: <what to change and why>` as a PR comment (it becomes a finding the re-review sees), add to the fix list, move on. Don't fix mid-walk; decisions stay fast.
 - **Close**: confirm once (irreversible for the branch's work), then `gh pr close <pr> --comment "<reason>"`. Note the linked ticket for the user (reopen, re-scope, or cancel; ask which).
@@ -58,9 +58,9 @@ After the walk, for each PR on the fix list ask: fix now in this session, or han
 ## Rules
 
 - `/approve` only after the user's explicit per-PR answer in this session. Never batch-approve, never infer approval from earlier answers or memory.
-- Never add `human-approved` directly or remove `needs-human`; `/approve` keeps the audit trail on the PR.
+- Approve through `/approve`, not by editing labels; it keeps the audit trail on the PR. Remove `needs-human` by hand only on a PR a human already approved.
 - Never merge. `automerge` only when the user picked it.
-- Your `gh` account must be the repo owner, or `/approve` is ignored; if `human-approved` doesn't appear, say so instead of retrying.
+- Your `gh` account must be the repo owner, or `/approve` is ignored; if the labels don't change, say so instead of retrying.
 
 ## Report
 

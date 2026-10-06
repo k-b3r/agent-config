@@ -8,7 +8,8 @@
 #                            every push so an approval only covers the code the human saw
 #
 # Approve by label, or by commenting `/approve` on the PR (repo owner only): that adds
-# `human-approved` and re-runs the failed gate. Labels set with the workflow token
+# `human-approved`, removes `needs-human` (the decision is made, so a later push such as
+# pr-upkeep's merge of main doesn't re-block the PR) and re-runs the failed gate. Labels set with the workflow token
 # don't trigger workflows, hence the explicit re-run.
 #
 # Caller:
@@ -111,7 +112,9 @@ jobs:
               or migrations, security trade-offs, product intent, stale docs (name the
               doc and section; the human updates it or approves as is). Say in the summary
               exactly what the human must decide. Never remove `needs-human` or
-              `human-approved`; only a human does.
+              `human-approved`; only a human does. Don't re-add `needs-human` for a
+              decision a human already made on this PR (an "Approved via `/approve`"
+              or "Human decision:" comment covers it) unless new commits change it.
           claude_args: |
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh pr edit:*),Read,Glob,Grep"
 
@@ -206,7 +209,7 @@ jobs:
           # In a called workflow this is the caller's file: owner/repo/<path>@<ref>.
           WORKFLOW_REF: ${{ github.workflow_ref }}
         run: |
-          gh pr edit "$PR" --repo "$REPO" --add-label human-approved
+          gh pr edit "$PR" --repo "$REPO" --add-label human-approved --remove-label needs-human
           sha=$(gh pr view "$PR" --repo "$REPO" --json headRefOid -q .headRefOid)
           path=${WORKFLOW_REF#*/*/}
           path=${path%@*}
@@ -214,7 +217,7 @@ jobs:
             -q "[.workflow_runs[] | select(.path == \"$path\")][0] | select(.conclusion == \"failure\") | .id")
           if [ -n "$run_id" ]; then
             gh run rerun "$run_id" --repo "$REPO" --failed
-            gh pr comment "$PR" --repo "$REPO" --body "Approved via \`/approve\`: added \`human-approved\`, re-running the gate."
+            gh pr comment "$PR" --repo "$REPO" --body "Approved via \`/approve\`: added \`human-approved\`, removed \`needs-human\`, re-running the gate."
           else
-            gh pr comment "$PR" --repo "$REPO" --body "Approved via \`/approve\`: added \`human-approved\` (no failed gate run to re-run)."
+            gh pr comment "$PR" --repo "$REPO" --body "Approved via \`/approve\`: added \`human-approved\`, removed \`needs-human\` (no failed gate run to re-run)."
           fi
