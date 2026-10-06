@@ -25,7 +25,7 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR once the r
 - `tool` The canonical check (e.g. `pnpm check`) runs before every push. _(pre-push hook)_
 - `process` Each check runs in one place: the pre-push hook runs the canonical check, CI runs everything else. Don't run either by hand before pushing, and don't re-run CI's checks locally. Locally: targeted tests while iterating (the TDD loop), and regenerate generated files, since CI can only verify them. After pushing, watch CI and fix what fails. Prompts for delegated agents follow the same rule.
 - `tool` A PR merges only when CI is green: format, lint, typecheck, unit, integration, e2e, agent review, and the review gate. _(required status checks)_
-- `process` When the agent review labels a PR `needs-human`, stop and get the human decision; never add `human-approved` yourself.
+- `process` When the agent review labels a PR `needs-human`, stop and get the human decision; never add `human-approved` yourself. `/resolve-needs-human` walks the user through the open ones and posts `/approve` only on their explicit per-PR answer.
 - `process` A delegated agent shipping a ticket as a PR loads `/ship-ticket`; its prompt carries only the ticket, its file scope and cross-PR notes.
 - `process` Review findings are fixed on the PR's own branch (never a sub-PR), one commit per finding, via `/address-pr-review`: verify each first, fix what the PR introduced, ticket the rest, reply on and resolve every thread.
 - `process` Anything found outside the task's scope (bug, smell, debt) becomes a ticket in the project tracker the moment it's seen, linked from the PR; notes and memory are not a backlog. Delegated agents list findings in their report; whoever receives the report files them.
