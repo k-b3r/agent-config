@@ -5,7 +5,9 @@
 #   agent-changes-requested  agent found blocking issues (it removes it once fixed)
 #   needs-human              agent wants a human decision (business logic, money, data loss, ...)
 #   human-approved           a human reviewed a needs-human PR and signs off; dropped on
-#                            every push so an approval only covers the code the human saw
+#                            any push that changes the PR's diff, so an approval only covers
+#                            the code the human saw (a clean merge of the base keeps it and
+#                            skips the re-review)
 #
 # Approve by label, or by commenting `/approve` on the PR (repo owner only): that adds
 # `human-approved`, removes `needs-human` (the decision is made, so a later push such as
@@ -46,18 +48,6 @@ jobs:
       group: agent-review-${{ github.event.pull_request.number }}
       cancel-in-progress: true
     steps:
-      - name: Drop approval of older commits
-        if: github.event.action == 'synchronize'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          PR: ${{ github.event.pull_request.number }}
-        run: |
-          if gh pr view "$PR" --repo "$REPO" --json labels -q '.labels[].name' | grep -qx human-approved; then
-            gh pr edit "$PR" --repo "$REPO" --remove-label human-approved
-            gh pr comment "$PR" --repo "$REPO" --body "New commits pushed: removed \`human-approved\`. Re-approve if the review still needs a human."
-          fi
-
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
@@ -69,8 +59,41 @@ jobs:
           repository: k-b3r/agent-config
           path: .agent-config
 
+      # A push that leaves the PR's own diff unchanged (pr-upkeep merging the
+      # base in) changes nothing a reviewer saw: keep `human-approved` and skip
+      # the re-review (the action also refuses bot-triggered runs). Confirmed
+      # live 2026-10-06 on k-b3r/buy-and-sell-ai#30..#33: each upkeep merge
+      # dropped the approval and failed the review.
+      - name: Check whether the push changed the PR diff
+        id: diff
+        if: github.event.action == 'synchronize'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BASE: ${{ github.event.pull_request.base.ref }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
+        run: |
+          if node .agent-config/scripts/pr-automation.mjs diff-unchanged "$REPO" "$BASE" "$BEFORE" "$AFTER"; then
+            echo "PR diff unchanged by this push: keeping approval, skipping re-review"
+            echo "unchanged=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Drop approval of older commits
+        if: github.event.action == 'synchronize' && steps.diff.outputs.unchanged != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          if gh pr view "$PR" --repo "$REPO" --json labels -q '.labels[].name' | grep -qx human-approved; then
+            gh pr edit "$PR" --repo "$REPO" --remove-label human-approved
+            gh pr comment "$PR" --repo "$REPO" --body "New commits changed this PR's diff: removed \`human-approved\`. Re-approve if the review still needs a human."
+          fi
+
       - uses: anthropics/claude-code-action@v1
         id: claude
+        if: steps.diff.outputs.unchanged != 'true'
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
