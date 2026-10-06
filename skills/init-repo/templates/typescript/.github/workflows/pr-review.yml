@@ -15,4 +15,7 @@ jobs:
       issues: write
       id-token: write
       actions: write
+    with:
+      # Same value as pr-upkeep.yml's regenerate-paths, e.g. docs-site
+      generated-paths: ''
     secrets: inherit

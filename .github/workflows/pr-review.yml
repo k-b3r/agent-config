@@ -6,8 +6,9 @@
 #   needs-human              agent wants a human decision (business logic, money, data loss, ...)
 #   human-approved           a human reviewed a needs-human PR and signs off; dropped on
 #                            any push that changes the PR's diff, so an approval only covers
-#                            the code the human saw (a clean merge of the base keeps it and
-#                            skips the re-review)
+#                            the code the human saw (a clean merge of the base, or a push
+#                            that only changes `generated-paths`, keeps it and skips the
+#                            re-review)
 #
 # Approve by label, or by commenting `/approve` on the PR (repo owner only): that adds
 # `human-approved`, removes `needs-human` (the decision is made; a later push that drops
@@ -25,12 +26,21 @@
 #     review:
 #       uses: k-b3r/agent-config/.github/workflows/pr-review.yml@main
 #       permissions: { contents: read, pull-requests: write, issues: write, id-token: write, actions: write }
+#       with:
+#         generated-paths: docs-site   # same value as pr-upkeep's regenerate-paths
 #       secrets: inherit
 
 name: pr-review
 
 on:
   workflow_call:
+    inputs:
+      generated-paths:
+        description: >-
+          Space-separated paths of generated files (pr-upkeep's regenerate-paths). A push
+          that only changes files under them keeps `human-approved` and skips the re-review.
+        type: string
+        default: ''
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN:
         required: true
@@ -61,10 +71,11 @@ jobs:
           path: .agent-config
 
       # A push that leaves the PR's own diff unchanged (pr-upkeep merging the
-      # base in) changes nothing a reviewer saw: keep `human-approved` and skip
-      # the re-review (the action also refuses bot-triggered runs). Confirmed
-      # live 2026-10-06 on k-b3r/buy-and-sell-ai#30..#33: each upkeep merge
-      # dropped the approval and failed the review.
+      # base in, or committing regenerated files under generated-paths) changes
+      # nothing a reviewer saw: keep `human-approved` and skip the re-review
+      # (the action also refuses bot-triggered runs). Confirmed live 2026-10-06
+      # on k-b3r/buy-and-sell-ai#30..#33: each upkeep merge dropped the
+      # approval and failed the review.
       - name: Check whether the push changed the PR diff
         id: diff
         if: github.event.action == 'synchronize'
@@ -74,8 +85,10 @@ jobs:
           BASE: ${{ github.event.pull_request.base.ref }}
           BEFORE: ${{ github.event.before }}
           AFTER: ${{ github.event.after }}
+          GENERATED_PATHS: ${{ inputs.generated-paths }}
         run: |
-          if node .agent-config/scripts/pr-automation.mjs diff-unchanged "$REPO" "$BASE" "$BEFORE" "$AFTER"; then
+          # shellcheck disable=SC2086 # GENERATED_PATHS is a space-separated list
+          if node .agent-config/scripts/pr-automation.mjs diff-unchanged "$REPO" "$BASE" "$BEFORE" "$AFTER" $GENERATED_PATHS; then
             echo "PR diff unchanged by this push: keeping approval, skipping re-review"
             echo "unchanged=true" >> "$GITHUB_OUTPUT"
           fi
