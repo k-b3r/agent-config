@@ -65,7 +65,7 @@ Record filed ids in the row.
 
 - `needs-human` on the PR: mark `awaiting human`; at the end, offer `/resolve-needs-human`.
 - `agent-changes-requested`: send the agent back to `/address-pr-review`, or do it yourself after the round.
-- Verified and green: add `automerge` (allowed here because you read the report and the diff). Never merge directly.
+- Verified and green: add `automerge` (allowed here because you read the report and the diff). Never merge directly. First route the review summary's non-blocking items like `[small]` findings; once merged, nobody reads them.
 
 ## 6. Close the round
 
