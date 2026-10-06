@@ -9,7 +9,7 @@ Two parts: rewrite the doc, then open the next session. The user approves the ne
 
 ## 1. Rewrite SESSION_RESUME.md
 
-At the repo root (`git rev-parse --show-toplevel`). Read the current one first if it exists.
+**Root:** the worktree of the branch the work is on (where its commits and PR live), or the session's own cwd when no branch is in progress. Doc and new pane both go there. Read the current doc first if it exists.
 
 - **Local only.** Unless git already tracks it, make sure `SESSION_RESUME.md` is in `.git/info/exclude` (`git rev-parse --git-path info/exclude`; append only if missing; Claude Code asks approval for that file, don't route around it). Never commit it.
 - **Rewrite, don't append.** Done items, strikethroughs and notes that git, PRs or the tracker already record go. Keep only what the next session can't rediscover.
@@ -47,7 +47,7 @@ Local handoff, in `.git/info/exclude`; do not commit. Last updated: <YYYY-MM-DD>
 `test "${HERDR_ENV:-}" = 1` fails: skip to step 3's fallback.
 
 ```bash
-root=$(git rev-parse --show-toplevel)
+root=$(git -C "<root from step 1>" rev-parse --show-toplevel)
 name="resume-$(date +%H%M%S)"
 width=$(herdr pane layout --pane "$HERDR_PANE_ID" | jq '.result.layout.panes[]|select(.pane_id==env.HERDR_PANE_ID).rect.width')
 dir=$([ "$width" -ge 160 ] && echo right || echo down)
@@ -74,5 +74,5 @@ session-handoff: SESSION_RESUME.md rewritten (<n> lines), <k> next steps
 New session: pane <pane> (<name>), prompt typed, press Enter there to start
 ```
 
-Not in Herdr: replace the second line with the command for the user to run in a new terminal at the repo root:
+Not in Herdr: replace the second line with the command for the user to run in a new terminal in the root from step 1:
 `claude "Read SESSION_RESUME.md in full and continue from its Next steps. Ask me about anything under Waiting on user."`
