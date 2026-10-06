@@ -41,6 +41,13 @@ on:
           that only changes files under them keeps `human-approved` and skips the re-review.
         type: string
         default: ''
+      allowed-bots:
+        description: >-
+          Comma-separated bot accounts whose pushes still get a review (claude-code-action
+          refuses bot-triggered runs otherwise). Default: the CI GitHub App that pr-upkeep
+          and auto-merge push as. Never '*'.
+        type: string
+        default: k-b3r-ci
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN:
         required: true
@@ -74,7 +81,7 @@ jobs:
       # A push that leaves the PR's own diff unchanged (pr-upkeep merging the
       # base in, or committing regenerated files under generated-paths) changes
       # nothing a reviewer saw: keep `human-approved` and skip the re-review
-      # (the action also refuses bot-triggered runs). Confirmed live 2026-10-06
+      # (saves a review run). Confirmed live 2026-10-06
       # on k-b3r/buy-and-sell-ai#30..#33: each upkeep merge dropped the
       # approval and failed the review.
       - name: Check whether the push changed the PR diff
@@ -117,6 +124,13 @@ jobs:
         if: steps.diff.outputs.unchanged != 'true'
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # A pr-upkeep push that does need a review (merge conflicts resolved,
+          # or the previous commit's review never completed) runs as the CI
+          # App; without this the action fails and the gate stays red until a
+          # human retriggers. Confirmed live 2026-10-06 on
+          # k-b3r/buy-and-sell-ai#39 (run 37434980720): one uncovered upkeep
+          # merge failed, so every later one was uncovered too.
+          allowed_bots: ${{ inputs.allowed-bots }}
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}

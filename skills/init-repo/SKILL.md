@@ -28,7 +28,7 @@ Every `tool` rule in CODING_STANDARDS.md counts as `review` until a repo wires i
    gh label create merge-conflict --color B60205 --description "Main couldn't be merged in automatically" --force
    ```
    The `CLAUDE_CODE_OAUTH_TOKEN` secret is the user's: ask them to run `! claude setup-token` and `! gh secret set CLAUDE_CODE_OAUTH_TOKEN`. Never handle the token yourself.
-   `auto-merge.yml` / `pr-upkeep.yml` need the user's GitHub App (`k-b3r-ci`) installed on the repo, plus `! gh variable set CI_APP_ID` and `! gh secret set CI_APP_PRIVATE_KEY < key.pem`. Set `regenerate` / `regenerate-paths` in `pr-upkeep.yml` if the repo has generated files, and the same paths as `generated-paths` in `pr-review.yml` (so upkeep's regen commits keep `human-approved`); add `e2e` to `auto-merge.yml`'s workflow list if the repo has `e2e.yml`.
+   `auto-merge.yml` / `pr-upkeep.yml` need the user's GitHub App (`k-b3r-ci`) installed on the repo, plus `! gh variable set CI_APP_ID` and `! gh secret set CI_APP_PRIVATE_KEY < key.pem`. Set `regenerate` / `regenerate-paths` in `pr-upkeep.yml` if the repo has generated files, and the same paths as `generated-paths` in `pr-review.yml` (so upkeep's regen commits keep `human-approved`); a different App name also goes in `pr-review.yml`'s `allowed-bots` (default `k-b3r-ci`) so its pushes still get reviewed; add `e2e` to `auto-merge.yml`'s workflow list if the repo has `e2e.yml`.
 8. **Verify.** `pnpm check` and `pnpm exec repo-checks audit` must pass. Retrofit: fix new findings or ratchet them (escape hatches, untested modules); list what's left as tickets.
 9. **PR.** Commit (`init repo wiring` or per piece on a retrofit), push, open the PR. Its CI and agent review are the live test: all jobs green, gate passes.
 
