@@ -29,6 +29,7 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR once the r
 - `process` A delegated agent shipping a ticket as a PR loads `/ship-ticket`; its prompt carries only the ticket, its file scope and cross-PR notes. The orchestrating session runs the round with `/dispatch-tickets`.
 - `process` Review findings are fixed on the PR's own branch (never a sub-PR), one commit per finding, via `/address-pr-review`: verify each first, fix what the PR introduced, ticket the rest, reply on and resolve every thread.
 - `process` Anything found outside the task's scope (bug, smell, debt) becomes a ticket in the project tracker the moment it's seen, linked from the PR; notes and memory are not a backlog. Delegated agents list findings in their report; whoever receives the report files them.
+- `process` Tracker writes go only to the project's own board. Before creating, updating or deleting a ticket, confirm the connector is on the right workspace (a "not found" often means the wrong one). Board unreachable: never write to another workspace or board; queue the call in the repo's local outbox file (default `TRACKER_OUTBOX.md`, in `.git/info/exclude`) and tell the user.
 - `process` Exception: small smells and tidy-ups (never a bug a user could hit) may wait in the repo's held-findings list so related ones become one ticket. Capped: at most 10 items, a group of 3 related items is ticketed together, nothing waits past 14 days. `/ticket-held-findings` applies the cap and files them.
 
 ## Architecture

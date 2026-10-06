@@ -22,7 +22,7 @@ Drop PRs that already have `human-approved` (decided, `/approve` just hasn't cle
 Gather (silently):
 - `node ~/.claude/skills/address-pr-review/scripts/review-threads.mjs list <pr>`: labels, review summary, unresolved threads
 - `gh pr view <pr> --json body,files,statusCheckRollup,mergeable` and `gh pr diff <pr>`
-- Linked ticket (from title or body) if the tracker is reachable
+- Linked ticket (from title or body) if the tracker is reachable. "Not found": check the connector's workspace before concluding the ticket is missing.
 
 Find what the summary says the human must decide. Several decisions on one PR: handle each. Then verify: read the flagged code and its callers, check the claim (reviewers overstate and are sometimes wrong). If the "decision" turns out to be checkable from code, say so and settle it.
 

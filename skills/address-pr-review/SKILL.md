@@ -25,7 +25,7 @@ Read the flagged code yourself. Reviewers overstate (a "crash" that is really a 
 | Verdict | When | Action |
 |---|---|---|
 | **fix** | real, and in code this PR adds or changes, and small | fix here |
-| **ticket** | real, but in older code, or a bigger change than the PR's scope | issue on the project's tracker (CLAUDE.md or memory names it, e.g. a Linear board; else `gh issue create`) |
+| **ticket** | real, but in older code, or a bigger change than the PR's scope | issue on the project's tracker (CLAUDE.md or memory names it, e.g. a Linear board; else `gh issue create`). Wrong workspace or unreachable: outbox, never another board |
 | **reject** | wrong, or conflicts with the PR's intent or the standards | no change |
 
 Before sorting:
