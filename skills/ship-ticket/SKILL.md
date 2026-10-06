@@ -11,7 +11,7 @@ Orchestrator side: `/dispatch-tickets`. Input from the orchestrator: ticket id, 
 
 - Branch `<ticket-lower>-<slug>` (e.g. `buy-42-delete-utils`). In an auto-named worktree, rename its branch to that.
 - Resuming earlier work: check out the pushed branch, don't `reset --hard` onto it.
-- Install deps for every workspace the repo has (root and sub-apps). Generators and the pre-push check fail or silently write wrong output without them.
+- Install deps for the root and every folder with its own lockfile, including ones outside the workspace (`find . -name pnpm-lock.yaml -not -path '*/node_modules/*'` or the ecosystem's equivalent; a fresh worktree has none). Generators and the pre-push check fail or silently write wrong output without them.
 - Read the ticket. If the tracker is not reachable, use the body the orchestrator passed. Unclear scope: report the question instead of guessing.
 
 ## 2. Stay in scope
