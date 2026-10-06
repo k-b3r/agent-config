@@ -1,15 +1,16 @@
 #!/usr/bin/env node
 // PR automation for the reusable auto-merge workflow. Run from any directory:
 //   pr-automation merge-if-ready <owner/repo> <sha>
-//   pr-automation approval-still-valid <owner/repo> <base> <before-sha> <after-sha>
+//   pr-automation diff-unchanged <owner/repo> <base> <before-sha> <after-sha>
 // Merges the open PR whose head is <sha> once it is opted in, green and current
 // with its base; otherwise reports which condition holds it. Writes a markdown
 // table to $GITHUB_STEP_SUMMARY when set, else stdout. Needs `gh` authenticated
 // with a token whose merge triggers push workflows (a GitHub App token, not
 // GITHUB_TOKEN).
-// approval-still-valid exits 0 when a push left the PR's own change as it was
+// diff-unchanged exits 0 when a push left the PR's own change as it was
 // (e.g. pr-upkeep merged the base in cleanly), so pr-review keeps
-// `human-approved`; any other outcome, errors included, exits 1.
+// `human-approved` and skips re-reviewing; any other outcome, errors
+// included, exits 1.
 import { execFileSync } from 'node:child_process'
 import { appendFileSync, realpathSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -102,7 +103,7 @@ export function sameChange(diffBefore, diffAfter) {
   return normalizeDiff(diffBefore) === normalizeDiff(diffAfter)
 }
 
-export function approvalStillValid({ repo, base, before, after, gh }) {
+export function prDiffUnchanged({ repo, base, before, after, gh }) {
   const diff = (sha) => gh(['api', '-H', 'Accept: application/vnd.github.diff', `repos/${repo}/compare/${base}...${sha}`])
   try {
     return sameChange(diff(before), diff(after))
@@ -113,14 +114,14 @@ export function approvalStillValid({ repo, base, before, after, gh }) {
 
 const USAGE = [
   'usage: pr-automation merge-if-ready <owner/repo> <sha>',
-  '       pr-automation approval-still-valid <owner/repo> <base> <before-sha> <after-sha>',
+  '       pr-automation diff-unchanged <owner/repo> <base> <before-sha> <after-sha>',
 ].join('\n')
 
 function main([command, repo, ...rest]) {
   const gh = (args) => execFileSync('gh', args, { encoding: 'utf8' })
-  if (command === 'approval-still-valid' && repo && rest.length === 3) {
+  if (command === 'diff-unchanged' && repo && rest.length === 3) {
     const [base, before, after] = rest
-    return approvalStillValid({ repo, base, before, after, gh }) ? 0 : 1
+    return prDiffUnchanged({ repo, base, before, after, gh }) ? 0 : 1
   }
   const [sha] = rest
   if (command !== 'merge-if-ready' || !repo || !sha) {

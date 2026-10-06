@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { approvalStillValid, mergeDecision, mergeIfReady, sameChange } from './pr-automation.mjs'
+import { prDiffUnchanged, mergeDecision, mergeIfReady, sameChange } from './pr-automation.mjs'
 
 const SHA = 'abc123'
 const greenPr = {
@@ -142,23 +142,23 @@ test('sameChange sees an edited line or changed context as a different change', 
   assert.equal(sameChange(before, prDiff('index 1111111..2222222 100644', '@@ -10,3 +10,3 @@', 'changed by main')), false)
 })
 
-test('approvalStillValid compares the PR diff against its base before and after the push', () => {
+test('prDiffUnchanged compares the PR diff against its base before and after the push', () => {
   const diff = prDiff('index 1111111..2222222 100644', '@@ -10,3 +10,3 @@', 'kept')
   const { gh, calls } = fakeGh({
     'api -H Accept: application/vnd.github.diff repos/o/r/compare/main...old': diff,
     'api -H Accept: application/vnd.github.diff repos/o/r/compare/main...new': diff.replace('@@ -10,3 +10,3 @@', '@@ -12,3 +12,3 @@'),
   })
-  assert.equal(approvalStillValid({ repo: 'o/r', base: 'main', before: 'old', after: 'new', gh }), true)
+  assert.equal(prDiffUnchanged({ repo: 'o/r', base: 'main', before: 'old', after: 'new', gh }), true)
   assert.equal(calls.length, 2)
 })
 
-test('approvalStillValid drops approval when the PR diff changed or cannot be fetched', () => {
+test('prDiffUnchanged is false when the PR diff changed or cannot be fetched', () => {
   const diff = prDiff('index 1111111..2222222 100644', '@@ -10,3 +10,3 @@', 'kept')
   const changed = fakeGh({
     'api -H Accept: application/vnd.github.diff repos/o/r/compare/main...old': diff,
     'api -H Accept: application/vnd.github.diff repos/o/r/compare/main...new': diff.replace('+new line', '+other line'),
   })
-  assert.equal(approvalStillValid({ repo: 'o/r', base: 'main', before: 'old', after: 'new', gh: changed.gh }), false)
+  assert.equal(prDiffUnchanged({ repo: 'o/r', base: 'main', before: 'old', after: 'new', gh: changed.gh }), false)
   const failing = fakeGh({})
-  assert.equal(approvalStillValid({ repo: 'o/r', base: 'main', before: 'old', after: 'new', gh: failing.gh }), false)
+  assert.equal(prDiffUnchanged({ repo: 'o/r', base: 'main', before: 'old', after: 'new', gh: failing.gh }), false)
 })
