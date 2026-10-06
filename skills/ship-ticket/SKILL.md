@@ -16,13 +16,16 @@ Input from the orchestrator: ticket id, ticket body (or where to read it: tracke
 
 ## 2. Stay in scope
 
-- Change only the paths you own. A shared file outside your scope: leave it, note it under cross-PR.
+- Change only the paths you own. A file outside your scope only when the fix is wrong without it: check it isn't a path another open PR owns (cross-PR notes); if it is, stop and report. Otherwise edit it and name the file and the reason under Decisions.
 - Run formatters on your own paths, not on whole shared folders.
 - Bugs, smells and debt found on the way go in the report (step 6), not in the diff.
 
 ## 3. Work
 
 - TDD: failing test, change, green. Tests named as full sentences.
+- Every commit leaves its targeted tests green. Refactoring and behavior changes go in separate commits.
+- Before changing a signature or shared type: `codegraph impact <symbol> --depth 2 -p <main repo>` when the repo is indexed (TOOLS.md), then grep for strings, config and dynamic lookups.
+- Stuck after 3 attempts at the same problem: stop and report what failed instead of trying more.
 - File changes with Write/Edit, not heredocs or multi-step `sed`. One command per Bash call, `git -C <dir>` instead of `cd <dir> && git`. Sandboxes reject chained and inline-script forms.
 - Targeted tests only while iterating (quiet reporter, e.g. `pnpm --dir <dir> exec vitest run --silent --reporter=dot <path>`). Don't run the canonical check or CI's checks by hand: the pre-push hook runs the check, CI runs the rest.
 - Regenerate generated files the repo lists (docs, clients); CI can only verify them.
