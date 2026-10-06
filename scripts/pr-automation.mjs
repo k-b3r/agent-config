@@ -4,7 +4,8 @@
 //   pr-automation diff-unchanged <owner/repo> <base> <before-sha> <after-sha>
 // Merges the open PR whose head is <sha> once it is opted in, green and current
 // with its base; otherwise reports which condition holds it. Writes a markdown
-// table to $GITHUB_STEP_SUMMARY when set, else stdout. Needs `gh` authenticated
+// table to stdout (the run log, readable with `gh run view --log`) and to
+// $GITHUB_STEP_SUMMARY when set (web UI only). Needs `gh` authenticated
 // with a token whose merge triggers push workflows (a GitHub App token, not
 // GITHUB_TOKEN).
 // diff-unchanged exits 0 when a push left the PR's own change as it was
@@ -129,7 +130,10 @@ function main([command, repo, ...rest]) {
     return 2
   }
   const summaryFile = process.env.GITHUB_STEP_SUMMARY
-  const report = (line) => (summaryFile ? appendFileSync(summaryFile, `${line}\n`) : console.log(line))
+  const report = (line) => {
+    console.log(line)
+    if (summaryFile) appendFileSync(summaryFile, `${line}\n`)
+  }
   mergeIfReady({ repo, sha, gh, report })
   return 0
 }
