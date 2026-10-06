@@ -5,7 +5,7 @@ description: Brief for a delegated agent that takes one tracker ticket to a read
 
 # Ship Ticket
 
-Input from the orchestrator: ticket id, ticket body (or where to read it: tracker, plan row, file), file scope (paths you own), and any cross-PR notes. The repo's `CODING_STANDARDS.md` names the canonical check, the install steps and repo-specific rules; it wins over this brief.
+Orchestrator side: `/dispatch-tickets`. Input from the orchestrator: ticket id, ticket body (or where to read it: tracker, plan row, file), file scope (paths you own), and any cross-PR notes. The repo's `CODING_STANDARDS.md` names the canonical check, the install steps and repo-specific rules; it wins over this brief.
 
 ## 1. Set up
 
