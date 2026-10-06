@@ -22,7 +22,7 @@ Statuses: `scoped`, `running`, `reported`, `report verified`, `awaiting human`, 
 
 ## 1. Prepare
 
-- Check what's live before planning: tracker tools loaded, `gh` on the right account. Missing: say so; take ticket bodies from the plan or a file instead.
+- Check what's live before planning: tracker tools loaded and on the project's workspace (e.g. Linear `get_workspace`), `gh` on the right account. Missing or wrong workspace: say so; take ticket bodies from the plan or a file instead, and queue tracker writes in the outbox (CODING_STANDARDS.md tracker rule).
 - Look for leftovers: `git worktree list`, open PRs and pushed branches for these tickets. A ticket with a branch or PR already is a resume, not a new launch.
 - Read every ticket. Give each a **file scope** (paths it owns); scopes must not overlap. Two tickets that need the same file: run them one after another, or name the owner and write the contract for the other (import direction, function signature) as a cross-PR note.
 - Unclear scope or acceptance: ask the user now. Don't let an agent guess.
@@ -55,7 +55,7 @@ Cross-PR notes in the report: relay them to the affected running agents right aw
 
 ## 4. File what the agents found
 
-- `[sizable]` findings: ticket them now in the repo's tracker; link the source PR.
+- `[sizable]` findings: ticket them now in the repo's tracker (outbox if it's unreachable); link the source PR.
 - `[small]`: append to the held-findings list the repo names (see `/ticket-held-findings`), with date and source.
 - `Friction`: pass it to the user as candidate improvements to the agent setup; don't fix tooling mid-round.
 
@@ -65,11 +65,11 @@ Record filed ids in the row.
 
 - `needs-human` on the PR: mark `awaiting human`; at the end, offer `/resolve-needs-human`.
 - `agent-changes-requested`: send the agent back to `/address-pr-review`, or do it yourself after the round.
-- Verified and green: add `automerge` (allowed here because you read the report and the diff). Never merge directly.
+- Verified and green: add `automerge` (allowed here because you read the report and the diff). Never merge directly. First route the review summary's non-blocking items like `[small]` findings; once merged, nobody reads them.
 
 ## 6. Close the round
 
-- After each merge: remove that agent's worktree and local branch (`git worktree remove`, `git branch -d`); skip any that are locked or have unpushed commits, and tell the user.
+- After each merge: check the ticket closed itself (tracker's GitHub integration via `Closes <id>`); set it Done only if it didn't. Remove that agent's worktree and local branch (`git worktree remove`, `git branch -d`); skip any that are locked or have unpushed commits, and tell the user.
 - Report from the progress file:
 
 ```

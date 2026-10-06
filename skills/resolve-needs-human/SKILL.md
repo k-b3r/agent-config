@@ -22,9 +22,10 @@ Drop PRs that already have `human-approved` (decided, `/approve` just hasn't cle
 Gather (silently):
 - `node ~/.claude/skills/address-pr-review/scripts/review-threads.mjs list <pr>`: labels, review summary, unresolved threads
 - `gh pr view <pr> --json body,files,statusCheckRollup,mergeable` and `gh pr diff <pr>`
-- Linked ticket (from title or body) if the tracker is reachable
+- Linked ticket (from title or body) if the tracker is reachable. "Not found": check the connector's workspace before concluding the ticket is missing.
+- Decisions already recorded elsewhere: the ticket, `SESSION_RESUME.md`, earlier `Human decision:` comments
 
-Find what the summary says the human must decide. Several decisions on one PR: handle each. Then verify: read the flagged code and its callers, check the claim (reviewers overstate and are sometimes wrong). If the "decision" turns out to be checkable from code, say so and settle it.
+Find what the summary says the human must decide. Several decisions on one PR: handle each. Compare what the PR implements against the recorded decisions; a mismatch goes in the presentation as `Differs from record:`. Then verify: read the flagged code and its callers, check the claim (reviewers overstate and are sometimes wrong). If the "decision" turns out to be checkable from code, say so and settle it.
 
 Present, short:
 
@@ -46,7 +47,7 @@ Then ask with AskUserQuestion (recommended option first):
 ## 3. Act on the answer
 
 - **Approve**: if the user gave a reason, `gh pr comment <pr> --body "Human decision: <reason>"` first. Then `gh pr comment <pr> --body "/approve"`. Confirm the workflow added `human-approved` and removed `needs-human` (`gh pr view <pr> --json labels`, the workflow also replies "Approved via `/approve`"; give it ~30s). If blocking findings or red CI remain, say the gate still won't pass and add the PR to the fix list.
-- **Approve + automerge**: as Approve, then `gh pr edit <pr> --add-label automerge`.
+- **Approve + automerge**: as Approve, then `gh pr edit <pr> --add-label automerge`. Non-blocking items in the review summary would be lost on merge: route them first (held-findings list or ticket, per CODING_STANDARDS.md).
 - **Changes**: post `Human decision: <what to change and why>` as a PR comment (it becomes a finding the re-review sees), add to the fix list, move on. Don't fix mid-walk; decisions stay fast.
 - **Close**: confirm once (irreversible for the branch's work), then `gh pr close <pr> --comment "<reason>"`. Note the linked ticket for the user (reopen, re-scope, or cancel; ask which).
 - **Skip**: leave untouched.

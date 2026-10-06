@@ -12,7 +12,7 @@ Input: optional `--all` (file everything, cap or not) or a group name to file ju
 ## 1. Locate
 
 - **Held list:** the path the repo's `CODING_STANDARDS.md` names for held findings; default the `## Held findings` section of `TODOS.md` at the repo root (often local only, in `.git/info/exclude`).
-- **Tracker:** whatever the repo's `CODING_STANDARDS.md` / `CLAUDE.md` names, and any scope rule in memory (e.g. one team or board only). Linear MCP, `gh issue`, etc. Unreachable or not loaded: stop and say so; don't file elsewhere.
+- **Tracker:** whatever the repo's `CODING_STANDARDS.md` / `CLAUDE.md` names, and any scope rule in memory (e.g. one team or board only). Linear MCP, `gh issue`, etc. Confirm the connector is on that workspace first (e.g. Linear `get_workspace`). Unreachable, not loaded or wrong workspace: stop and say so; never file on another workspace or board.
 
 Item format in the list (add date and source when you move items in, so the age rule works):
 
