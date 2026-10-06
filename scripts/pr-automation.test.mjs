@@ -142,6 +142,41 @@ test('sameChange sees an edited line or changed context as a different change', 
   assert.equal(sameChange(before, prDiff('index 1111111..2222222 100644', '@@ -10,3 +10,3 @@', 'changed by main')), false)
 })
 
+const generatedDiff = (path, line) => `diff --git a/${path} b/${path}
+index 5555555..6666666 100644
+--- a/${path}
++++ b/${path}
+@@ -1,1 +1,1 @@
+-old ${line}
++new ${line}
+`
+
+test('sameChange ignores files under the generated paths it is given', () => {
+  const code = prDiff('index 1111111..2222222 100644', '@@ -10,3 +10,3 @@', 'kept')
+  const before = generatedDiff('docs-site/index.html', 'v1') + code
+  const after = generatedDiff('docs-site/index.html', 'v2') + code + generatedDiff('docs-site/new/page.html', 'v1')
+  assert.equal(sameChange(before, after, ['docs-site']), true)
+  assert.equal(sameChange(code, after, ['docs-site/']), true)
+})
+
+test('sameChange still sees a change outside the generated paths, or in a path that only shares their prefix', () => {
+  const code = prDiff('index 1111111..2222222 100644', '@@ -10,3 +10,3 @@', 'kept')
+  const before = generatedDiff('docs-site/index.html', 'v1') + code
+  assert.equal(sameChange(before, before.replace('+new line', '+newer line'), ['docs-site']), false)
+  assert.equal(sameChange(code, code + generatedDiff('docs-site-src/page.md', 'v1'), ['docs-site']), false)
+  assert.equal(sameChange(before, code), false)
+})
+
+test('prDiffUnchanged ignores a push that only regenerated files under the generated paths', () => {
+  const code = prDiff('index 1111111..2222222 100644', '@@ -10,3 +10,3 @@', 'kept')
+  const { gh } = fakeGh({
+    'api -H Accept: application/vnd.github.diff repos/o/r/compare/main...old': code,
+    'api -H Accept: application/vnd.github.diff repos/o/r/compare/main...new': code + generatedDiff('docs-site/a.html', 'v1'),
+  })
+  assert.equal(prDiffUnchanged({ repo: 'o/r', base: 'main', before: 'old', after: 'new', generatedPaths: ['docs-site'], gh }), true)
+  assert.equal(prDiffUnchanged({ repo: 'o/r', base: 'main', before: 'old', after: 'new', gh }), false)
+})
+
 test('prDiffUnchanged compares the PR diff against its base before and after the push', () => {
   const diff = prDiff('index 1111111..2222222 100644', '@@ -10,3 +10,3 @@', 'kept')
   const { gh, calls } = fakeGh({
