@@ -10,9 +10,10 @@
 #                            skips the re-review)
 #
 # Approve by label, or by commenting `/approve` on the PR (repo owner only): that adds
-# `human-approved`, removes `needs-human` (the decision is made, so a later push such as
-# pr-upkeep's merge of main doesn't re-block the PR) and re-runs the failed gate. Labels set with the workflow token
-# don't trigger workflows, hence the explicit re-run.
+# `human-approved`, removes `needs-human` (the decision is made; a later push that drops
+# the approval doesn't re-block the PR unless the re-review raises a new decision) and
+# re-runs the failed gate. Labels set with the workflow token don't trigger workflows,
+# hence the explicit re-run.
 #
 # Caller:
 #   on:
