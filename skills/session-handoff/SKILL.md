@@ -72,7 +72,10 @@ Report, then stop working in this session so two agents don't touch the same bra
 ```
 session-handoff: SESSION_RESUME.md rewritten (<n> lines), <k> next steps
 New session: pane <pane> (<name>), prompt typed, press Enter there to start
+Still running: <background agents of this session, or "none">
 ```
+
+Background agents stop when this session closes (transcripts and pushed branches survive), so name every one still running.
 
 Not in Herdr: replace the second line with the command for the user to run in a new terminal in the root from step 1:
 `claude "Read SESSION_RESUME.md in full and continue from its Next steps. Ask me about anything under Waiting on user."`
