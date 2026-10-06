@@ -38,6 +38,7 @@ Three **Gates** need the user; everything else runs without them.
 
 - The spike never merges, not even "the good parts". Rewrite them in phase 6.
 - The builder's context is the plan, nothing else. A gap the builder hits is a phase 4 bug: fix the plan, don't dig through the review.
+- No placeholders in `PLAN.md` or `TODO.md` at the `revise plan` commit: no "TBD", "handle errors appropriately", "same as above" or "similar to <other item>". Write the actual decision; the builder can't ask what you meant.
 - The spike author never writes the verdict. The reviewer gets plan, evidence, and spike diff only, not the spike conversation.
 - No adjectives in REVIEW.md ("minor", "mostly", "slightly"): state what changed and why.
 - "None" in a REVIEW.md section needs the evidence line that shows it (e.g. "evidence.md: Stub changes: none").

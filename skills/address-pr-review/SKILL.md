@@ -28,6 +28,11 @@ Read the flagged code yourself. Reviewers overstate (a "crash" that is really a 
 | **ticket** | real, but in older code, or a bigger change than the PR's scope | issue on the project's tracker (CLAUDE.md or memory names it, e.g. a Linear board; else `gh issue create`) |
 | **reject** | wrong, or conflicts with the PR's intent or the standards | no change |
 
+Before sorting:
+- A finding you can't parse: ask about it before fixing any finding. Findings are often linked, and a partial reading fixes the wrong thing.
+- "Implement it properly" (add handling, config, metrics): grep for callers first. Unused code gets **reject** with "nothing calls this; remove it instead?" (YAGNI).
+- A finding that contradicts a decision the human made (PR body, ticket, a `Human decision:` comment): hand it to the user; don't fix or reject it yourself.
+
 Blocking findings are always **fix** unless rejected. Show the user the verdict table (finding, verdict, one-line reason) and continue; stop only if a verdict needs their judgment.
 
 ## 3. Worktree on the PR branch
