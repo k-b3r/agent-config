@@ -2,6 +2,7 @@
 // PR automation for the reusable auto-merge workflow. Run from any directory:
 //   pr-automation merge-if-ready <owner/repo> <sha>
 //   pr-automation diff-unchanged <owner/repo> <base> <before-sha> <after-sha> [generated-path...]
+//   pr-automation review-covered <owner/repo> <sha>
 // Merges the open PR whose head is <sha> once it is opted in, green and current
 // with its base; otherwise reports which condition holds it. Writes a markdown
 // table to stdout (the run log, readable with `gh run view --log`) and to
@@ -12,6 +13,8 @@
 // (e.g. pr-upkeep merged the base in cleanly, or only regenerated files under
 // the generated paths), so pr-review keeps `human-approved` and skips
 // re-reviewing; any other outcome, errors included, exits 1.
+// review-covered exits 0 when an agent review covered <sha>'s diff, 1 otherwise;
+// pr-review skips a diff-unchanged push only when it does.
 import { execFileSync } from 'node:child_process'
 import { appendFileSync, realpathSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -122,9 +125,32 @@ export function prDiffUnchanged({ repo, base, before, after, generatedPaths = []
   }
 }
 
+// pr-review's last agent-review step, run only when the review covered the
+// diff: Claude reviewed it, or a diff-unchanged push inherited a covered
+// commit. A green job alone proves nothing: skips succeed too, and before
+// this check a skip after a failed review let PRs merge unreviewed
+// (k-b3r/buy-and-sell-ai#36..#42, 2026-10-06).
+export const REVIEW_COVERED_STEP = 'Mark the diff as reviewed'
+
+export function reviewCovered({ repo, sha, gh }) {
+  try {
+    const runs = JSON.parse(gh(['api', `repos/${repo}/actions/runs?head_sha=${sha}&event=pull_request&per_page=100`]))
+    return runs.workflow_runs.some((run) =>
+      JSON.parse(gh(['api', `repos/${repo}/actions/runs/${run.id}/jobs`])).jobs.some(
+        (job) =>
+          job.name.endsWith('agent-review') &&
+          job.steps.some((step) => step.name === REVIEW_COVERED_STEP && step.conclusion === 'success'),
+      ),
+    )
+  } catch {
+    return false
+  }
+}
+
 const USAGE = [
   'usage: pr-automation merge-if-ready <owner/repo> <sha>',
   '       pr-automation diff-unchanged <owner/repo> <base> <before-sha> <after-sha> [generated-path...]',
+  '       pr-automation review-covered <owner/repo> <sha>',
 ].join('\n')
 
 function main([command, repo, ...rest]) {
@@ -132,6 +158,9 @@ function main([command, repo, ...rest]) {
   if (command === 'diff-unchanged' && repo && rest.length >= 3) {
     const [base, before, after, ...generatedPaths] = rest
     return prDiffUnchanged({ repo, base, before, after, generatedPaths, gh }) ? 0 : 1
+  }
+  if (command === 'review-covered' && repo && rest.length === 1) {
+    return reviewCovered({ repo, sha: rest[0], gh }) ? 0 : 1
   }
   const [sha] = rest
   if (command !== 'merge-if-ready' || !repo || !sha) {

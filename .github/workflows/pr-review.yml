@@ -55,6 +55,7 @@ jobs:
       pull-requests: write
       issues: write
       id-token: write
+      actions: read # review-covered reads the previous commit's runs
     concurrency:
       group: agent-review-${{ github.event.pull_request.number }}
       cancel-in-progress: true
@@ -88,9 +89,15 @@ jobs:
           GENERATED_PATHS: ${{ inputs.generated-paths }}
         run: |
           # shellcheck disable=SC2086 # GENERATED_PATHS is a space-separated list
-          if node .agent-config/scripts/pr-automation.mjs diff-unchanged "$REPO" "$BASE" "$BEFORE" "$AFTER" $GENERATED_PATHS; then
+          if ! node .agent-config/scripts/pr-automation.mjs diff-unchanged "$REPO" "$BASE" "$BEFORE" "$AFTER" $GENERATED_PATHS; then
+            exit 0
+          fi
+          # Skipping is safe only if the previous commit's diff was reviewed.
+          if node .agent-config/scripts/pr-automation.mjs review-covered "$REPO" "$BEFORE"; then
             echo "PR diff unchanged by this push: keeping approval, skipping re-review"
             echo "unchanged=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "PR diff unchanged, but no review covered it yet: reviewing"
           fi
 
       - name: Drop approval of older commits
@@ -172,6 +179,13 @@ jobs:
           jq -r '[.[] | select(.type == "result")] | last // empty
             | "agent review: \(.num_turns) turns, \(.duration_ms / 1000 | floor)s, $\(.total_cost_usd // "n/a")"' \
             "$EXECUTION_FILE" >> "$GITHUB_STEP_SUMMARY" || echo "agent review: transcript unreadable" >> "$GITHUB_STEP_SUMMARY"
+
+      # The marker review-covered looks for on the next push (scripts/pr-automation.mjs
+      # REVIEW_COVERED_STEP; keep the names in sync). Runs only when Claude
+      # reviewed this diff or a covered review carried over.
+      - name: Mark the diff as reviewed
+        if: steps.diff.outputs.unchanged == 'true' || steps.claude.outcome == 'success'
+        run: echo "review covers this diff"
 
       # claude-code-action skips (and still succeeds) when the PR changes the
       # workflow that runs it, so the gate would pass unreviewed code.
