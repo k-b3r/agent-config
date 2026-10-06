@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { prDiffUnchanged, mergeDecision, mergeIfReady, sameChange } from './pr-automation.mjs'
+import { prDiffUnchanged, mergeDecision, mergeIfReady, reviewCovered, REVIEW_COVERED_STEP, sameChange } from './pr-automation.mjs'
 
 const SHA = 'abc123'
 const greenPr = {
@@ -196,4 +196,34 @@ test('prDiffUnchanged is false when the PR diff changed or cannot be fetched', (
   assert.equal(prDiffUnchanged({ repo: 'o/r', base: 'main', before: 'old', after: 'new', gh: changed.gh }), false)
   const failing = fakeGh({})
   assert.equal(prDiffUnchanged({ repo: 'o/r', base: 'main', before: 'old', after: 'new', gh: failing.gh }), false)
+})
+
+const reviewRuns = (jobsByRun) => ({
+  'api repos/o/r/actions/runs?head_sha=old&event=pull_request&per_page=100': JSON.stringify({
+    workflow_runs: Object.keys(jobsByRun).map((id) => ({ id: Number(id) })),
+  }),
+  ...Object.fromEntries(
+    Object.entries(jobsByRun).map(([id, jobs]) => [`api repos/o/r/actions/runs/${id}/jobs`, JSON.stringify({ jobs })]),
+  ),
+})
+const reviewJob = (conclusion) => ({
+  name: 'review / agent-review',
+  steps: [{ name: 'Run anthropics/claude-code-action@v1', conclusion: 'success' }, { name: REVIEW_COVERED_STEP, conclusion }],
+})
+
+test('reviewCovered is true when an agent-review job on the commit marked its diff as reviewed', () => {
+  const { gh } = fakeGh(reviewRuns({ 1: [{ name: 'ci / unit tests', steps: [] }], 2: [reviewJob('success')] }))
+  assert.equal(reviewCovered({ repo: 'o/r', sha: 'old', gh }), true)
+})
+
+test('reviewCovered is false when the review on the commit failed, was skipped or never ran', () => {
+  for (const jobs of [[reviewJob('skipped')], [{ name: 'review / agent-review', steps: [] }], []]) {
+    const { gh } = fakeGh(reviewRuns({ 3: jobs }))
+    assert.equal(reviewCovered({ repo: 'o/r', sha: 'old', gh }), false)
+  }
+})
+
+test('reviewCovered is false when the runs cannot be fetched', () => {
+  const { gh } = fakeGh({})
+  assert.equal(reviewCovered({ repo: 'o/r', sha: 'old', gh }), false)
 })
