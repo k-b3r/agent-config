@@ -69,7 +69,7 @@ Record filed ids in the row.
 
 ## 6. Close the round
 
-- After each merge: remove that agent's worktree and local branch (`git worktree remove`, `git branch -d`); skip any that are locked or have unpushed commits, and tell the user.
+- After each merge: check the ticket closed itself (tracker's GitHub integration via `Closes <id>`); set it Done only if it didn't. Remove that agent's worktree and local branch (`git worktree remove`, `git branch -d`); skip any that are locked or have unpushed commits, and tell the user.
 - Report from the progress file:
 
 ```
