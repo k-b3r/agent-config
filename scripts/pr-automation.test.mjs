@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { mergeDecision, mergeIfReady } from './pr-automation.mjs'
+import { prDiffUnchanged, mergeDecision, mergeIfReady, sameChange } from './pr-automation.mjs'
 
 const SHA = 'abc123'
 const greenPr = {
@@ -118,4 +118,47 @@ test('mergeIfReady does nothing when no open PR has the commit', () => {
   assert.equal(mergeIfReady({ repo: 'o/r', sha: SHA, gh, report: (line) => lines.push(line) }), null)
   assert.equal(calls.length, 1)
   assert.match(lines.join('\n'), /no open PR/)
+})
+
+const prDiff = (indexLine, hunkHeader, context) => `diff --git a/src/a.ts b/src/a.ts
+${indexLine}
+--- a/src/a.ts
++++ b/src/a.ts
+${hunkHeader}
+ ${context}
+-old line
++new line
+`
+
+test('sameChange treats a diff that only moved (new blob ids, shifted line numbers) as the same change', () => {
+  const before = prDiff('index 1111111..2222222 100644', '@@ -10,3 +10,3 @@ function f() {', 'kept')
+  const after = prDiff('index 3333333..4444444 100644', '@@ -14,3 +14,3 @@ function f() {', 'kept')
+  assert.equal(sameChange(before, after), true)
+})
+
+test('sameChange sees an edited line or changed context as a different change', () => {
+  const before = prDiff('index 1111111..2222222 100644', '@@ -10,3 +10,3 @@', 'kept')
+  assert.equal(sameChange(before, before.replace('+new line', '+newer line')), false)
+  assert.equal(sameChange(before, prDiff('index 1111111..2222222 100644', '@@ -10,3 +10,3 @@', 'changed by main')), false)
+})
+
+test('prDiffUnchanged compares the PR diff against its base before and after the push', () => {
+  const diff = prDiff('index 1111111..2222222 100644', '@@ -10,3 +10,3 @@', 'kept')
+  const { gh, calls } = fakeGh({
+    'api -H Accept: application/vnd.github.diff repos/o/r/compare/main...old': diff,
+    'api -H Accept: application/vnd.github.diff repos/o/r/compare/main...new': diff.replace('@@ -10,3 +10,3 @@', '@@ -12,3 +12,3 @@'),
+  })
+  assert.equal(prDiffUnchanged({ repo: 'o/r', base: 'main', before: 'old', after: 'new', gh }), true)
+  assert.equal(calls.length, 2)
+})
+
+test('prDiffUnchanged is false when the PR diff changed or cannot be fetched', () => {
+  const diff = prDiff('index 1111111..2222222 100644', '@@ -10,3 +10,3 @@', 'kept')
+  const changed = fakeGh({
+    'api -H Accept: application/vnd.github.diff repos/o/r/compare/main...old': diff,
+    'api -H Accept: application/vnd.github.diff repos/o/r/compare/main...new': diff.replace('+new line', '+other line'),
+  })
+  assert.equal(prDiffUnchanged({ repo: 'o/r', base: 'main', before: 'old', after: 'new', gh: changed.gh }), false)
+  const failing = fakeGh({})
+  assert.equal(prDiffUnchanged({ repo: 'o/r', base: 'main', before: 'old', after: 'new', gh: failing.gh }), false)
 })
