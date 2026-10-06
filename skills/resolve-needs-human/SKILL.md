@@ -23,8 +23,9 @@ Gather (silently):
 - `node ~/.claude/skills/address-pr-review/scripts/review-threads.mjs list <pr>`: labels, review summary, unresolved threads
 - `gh pr view <pr> --json body,files,statusCheckRollup,mergeable` and `gh pr diff <pr>`
 - Linked ticket (from title or body) if the tracker is reachable. "Not found": check the connector's workspace before concluding the ticket is missing.
+- Decisions already recorded elsewhere: the ticket, `SESSION_RESUME.md`, earlier `Human decision:` comments
 
-Find what the summary says the human must decide. Several decisions on one PR: handle each. Then verify: read the flagged code and its callers, check the claim (reviewers overstate and are sometimes wrong). If the "decision" turns out to be checkable from code, say so and settle it.
+Find what the summary says the human must decide. Several decisions on one PR: handle each. Compare what the PR implements against the recorded decisions; a mismatch goes in the presentation as `Differs from record:`. Then verify: read the flagged code and its callers, check the claim (reviewers overstate and are sometimes wrong). If the "decision" turns out to be checkable from code, say so and settle it.
 
 Present, short:
 
