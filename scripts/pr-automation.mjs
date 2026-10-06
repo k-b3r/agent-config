@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // PR automation for the reusable auto-merge workflow. Run from any directory:
 //   pr-automation merge-if-ready <owner/repo> <sha>
-//   pr-automation diff-unchanged <owner/repo> <base> <before-sha> <after-sha>
+//   pr-automation diff-unchanged <owner/repo> <base> <before-sha> <after-sha> [generated-path...]
 // Merges the open PR whose head is <sha> once it is opted in, green and current
 // with its base; otherwise reports which condition holds it. Writes a markdown
 // table to stdout (the run log, readable with `gh run view --log`) and to
@@ -9,9 +9,9 @@
 // with a token whose merge triggers push workflows (a GitHub App token, not
 // GITHUB_TOKEN).
 // diff-unchanged exits 0 when a push left the PR's own change as it was
-// (e.g. pr-upkeep merged the base in cleanly), so pr-review keeps
-// `human-approved` and skips re-reviewing; any other outcome, errors
-// included, exits 1.
+// (e.g. pr-upkeep merged the base in cleanly, or only regenerated files under
+// the generated paths), so pr-review keeps `human-approved` and skips
+// re-reviewing; any other outcome, errors included, exits 1.
 import { execFileSync } from 'node:child_process'
 import { appendFileSync, realpathSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -92,22 +92,31 @@ export function mergeIfReady({ repo, sha, gh, report }) {
 // What a human approved is the PR's diff against its base. Blob ids and hunk
 // line numbers shift when the base moves under an unchanged change; anything
 // else (an edited line, context the base changed) counts as a new change.
-function normalizeDiff(diff) {
-  return diff
-    .split('\n')
-    .filter((line) => !line.startsWith('index '))
-    .map((line) => line.replace(/^@@ -\d+(,\d+)? \+\d+(,\d+)? @@/, '@@'))
-    .join('\n')
+// Files under generatedPaths (what pr-upkeep regenerates) are left out: they
+// follow from the source a human saw, so regenerating them changes nothing.
+function normalizeDiff(diff, generatedPaths) {
+  const prefixes = generatedPaths.map((path) => path.replace(/\/*$/, '/'))
+  const generated = (file) => prefixes.some((prefix) => file.startsWith(prefix))
+  let skipping = false
+  const kept = []
+  for (const line of diff.split('\n')) {
+    const header = line.match(/^diff --git a\/(.*) b\/(.*)$/)
+    if (header) skipping = generated(header[1]) && generated(header[2])
+    // Empty lines are only the text's trailing newline (blank context is ' ').
+    if (skipping || line === '' || line.startsWith('index ')) continue
+    kept.push(line.replace(/^@@ -\d+(,\d+)? \+\d+(,\d+)? @@/, '@@'))
+  }
+  return kept.join('\n')
 }
 
-export function sameChange(diffBefore, diffAfter) {
-  return normalizeDiff(diffBefore) === normalizeDiff(diffAfter)
+export function sameChange(diffBefore, diffAfter, generatedPaths = []) {
+  return normalizeDiff(diffBefore, generatedPaths) === normalizeDiff(diffAfter, generatedPaths)
 }
 
-export function prDiffUnchanged({ repo, base, before, after, gh }) {
+export function prDiffUnchanged({ repo, base, before, after, generatedPaths = [], gh }) {
   const diff = (sha) => gh(['api', '-H', 'Accept: application/vnd.github.diff', `repos/${repo}/compare/${base}...${sha}`])
   try {
-    return sameChange(diff(before), diff(after))
+    return sameChange(diff(before), diff(after), generatedPaths)
   } catch {
     return false
   }
@@ -115,14 +124,14 @@ export function prDiffUnchanged({ repo, base, before, after, gh }) {
 
 const USAGE = [
   'usage: pr-automation merge-if-ready <owner/repo> <sha>',
-  '       pr-automation diff-unchanged <owner/repo> <base> <before-sha> <after-sha>',
+  '       pr-automation diff-unchanged <owner/repo> <base> <before-sha> <after-sha> [generated-path...]',
 ].join('\n')
 
 function main([command, repo, ...rest]) {
   const gh = (args) => execFileSync('gh', args, { encoding: 'utf8' })
-  if (command === 'diff-unchanged' && repo && rest.length === 3) {
-    const [base, before, after] = rest
-    return prDiffUnchanged({ repo, base, before, after, gh }) ? 0 : 1
+  if (command === 'diff-unchanged' && repo && rest.length >= 3) {
+    const [base, before, after, ...generatedPaths] = rest
+    return prDiffUnchanged({ repo, base, before, after, generatedPaths, gh }) ? 0 : 1
   }
   const [sha] = rest
   if (command !== 'merge-if-ready' || !repo || !sha) {
