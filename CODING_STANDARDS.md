@@ -102,6 +102,7 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR once the r
 Read the matching file before writing code in that language:
 
 - TypeScript: `~/.claude/languages/typescript.md`
+- Go: `~/.claude/languages/go.md`
 
 ## Testing
 
