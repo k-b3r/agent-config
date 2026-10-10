@@ -152,10 +152,22 @@ jobs:
             - `hint`: mention only when the diff makes the smell clearly worse.
             - `process`: flag only when the diff itself shows the rule was broken.
 
-            Stale docs: if the diff changes behavior, commands, file layout, or setup that
-            a living doc describes (README.md, CONTEXT.md, other top-level *.md) and the PR
-            doesn't update it, that's a finding. Dated docs (plans, specs, reviews with a
-            date in the name or path) are snapshots; skip them.
+            Severity (decides `agent-changes-requested`):
+            - A violation of a `review` rule, or of a `tool` rule this repo doesn't wire,
+              by code this diff adds or changes is blocking. That includes the judgment
+              rules: a pass-through wrapper that hides nothing, or a comment that restates
+              the code instead of saying why, blocks like any bug does.
+            - `hint` findings, and taste that no tagged rule covers, are non-blocking.
+            - Code the diff doesn't touch is never blocking.
+
+            Stale docs: for every command, script name, CLI flag, setting key, env var or
+            file path the diff renames, removes or changes in behavior, grep README.md,
+            CONTEXT.md and the other top-level *.md for the old name. Each hit is a blocking
+            finding: name the file and line and say what it should now say, so the PR's
+            author can fix it. Never list a stale doc under non-blocking. Add `needs-human`
+            only when the doc and the diff conflict and you can't tell which is right.
+            Dated docs (plans, specs, reviews with a date in the name or path) are
+            snapshots; skip them.
 
             Output:
             - Inline comments for specific problems (one comment per problem, say what
@@ -167,9 +179,9 @@ jobs:
             - Blocking issues found: add `agent-changes-requested`. None: remove it.
             - Add `needs-human` when correctness depends on a judgment you can't verify
               from the code: business rules, pricing or money, irreversible data changes
-              or migrations, security trade-offs, product intent, stale docs (name the
-              doc and section; the human updates it or approves as is). Say in the summary
-              exactly what the human must decide. Never remove `needs-human` or
+              or migrations, security trade-offs, product intent, or a doc that conflicts
+              with the diff (see Stale docs). Say in the summary exactly what the human
+              must decide. Never remove `needs-human` or
               `human-approved`; only a human does. Don't re-add `needs-human` for a
               decision a human already made on this PR (an "Approved via `/approve`"
               or "Human decision:" comment covers it) unless new commits change it.
