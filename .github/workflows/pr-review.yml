@@ -263,6 +263,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       pull-requests: read
+      actions: read
     steps:
       - name: Check review result and labels
         env:
@@ -270,7 +271,10 @@ jobs:
           REVIEW_RESULT: ${{ needs.agent-review.result }}
         run: |
           if [ "$REVIEW_RESULT" = "failure" ] || [ "$REVIEW_RESULT" = "cancelled" ]; then
-            echo "::error::agent review did not complete ($REVIEW_RESULT)"
+            # Name the step that failed, so a red gate says why without opening the run.
+            failed=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs" \
+              --jq '[.jobs[] | select(.name | test("agent-review")) | .steps[] | select(.conclusion == "failure" or .conclusion == "cancelled") | .name] | join("; ")' 2>/dev/null || true)
+            echo "::error::agent review did not complete ($REVIEW_RESULT); failed step: ${failed:-unknown, see the agent-review job}"
             exit 1
           fi
           # Read labels fresh: the agent's own label edits don't trigger workflows.
