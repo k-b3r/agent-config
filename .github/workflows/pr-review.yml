@@ -184,8 +184,10 @@ jobs:
             Degrading: for every catch, retry or fallback the diff removes or narrows around
             an external call (LLM, HTTP, Facebook, a batch), check what happens on failure.
             If the run now crashes where it used to skip the item or stop cleanly with a
-            log, that is blocking unless the PR explains why. Tests changed to expect the
-            crash are part of the same finding.
+            log, that is blocking, even when the PR says the crash is intended: a stated
+            intent is not a reason. Add `needs-human` so a person confirms the trade-off,
+            and name the callers that now see the throw. Tests changed to expect the crash
+            are part of the same finding.
 
             Output:
             - Inline comments for specific problems (one comment per problem, say what
