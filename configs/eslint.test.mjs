@@ -17,6 +17,8 @@ const eslint = new ESLint({
     entryPoints: ['src/entry.ts'],
     delayModules: ['src/delay.ts'],
     defaultExportAllowed: ['tests/integration/global-setup.ts'],
+    parameterizedSqlFiles: ['src/domain/**'],
+    noConsoleFiles: ['src/domain/**'],
   }),
 })
 
@@ -38,6 +40,8 @@ const violations = [
   ['src/inline-sleep.ts', 'no-restricted-syntax'],
   ['src/floating-promise.ts', '@typescript-eslint/no-floating-promises'],
   ['src/value-type-import.ts', '@typescript-eslint/consistent-type-imports'],
+  ['src/domain/interpolated-sql.ts', 'agent-config/no-interpolated-sql'],
+  ['src/domain/console-log.ts', 'no-console'],
 ]
 
 for (const [file, rule] of violations) {
@@ -80,4 +84,12 @@ test('baseConfig lets CommonJS config files use require', async () => {
 
 test('baseConfig reports long parameter lists as a warning, not an error', async () => {
   assert.deepEqual(await lint('src/many-params.ts'), [{ rule: 'max-params', severity: 'warn' }])
+})
+
+test('baseConfig lets SQL interpolate a constant fragment while values stay parameters', async () => {
+  assert.deepEqual(await errors('src/domain/safe-sql.ts'), [])
+})
+
+test('baseConfig leaves SQL and console alone outside the opted-in domain files', async () => {
+  assert.deepEqual(await errors('src/entry.ts'), [])
 })
