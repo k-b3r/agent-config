@@ -6,6 +6,7 @@ import eslintComments from '@eslint-community/eslint-plugin-eslint-comments/conf
 import prettier from 'eslint-config-prettier'
 import globals from 'globals'
 import tseslint from 'typescript-eslint'
+import { DEFAULT_SQL_FRAGMENT, noInterpolatedSql } from './no-interpolated-sql.mjs'
 
 // Hints (warn only): smells that trigger a look, not a block.
 const MAX_LINES = 400
@@ -37,6 +38,9 @@ const AMBIENT_ENV = {
  * @param {string[]} [options.entryPoints] composition roots that may read process.env (workers, server index, scripts)
  * @param {string[]} [options.delayModules] the injectable delay util, the only place allowed to sleep
  * @param {string[]} [options.defaultExportAllowed] framework files that must default-export (Next.js pages, Playwright global setup), tests included
+ * @param {string[]} [options.parameterizedSqlFiles] domain code where `.query()` SQL takes values as $n parameters (opt-in; see no-interpolated-sql.mjs)
+ * @param {string} [options.sqlFragment] regex naming the interpolations that are safe SQL fragments (constants, builders)
+ * @param {string[]} [options.noConsoleFiles] domain code that logs through the injected Logger, never console.*
  * @param {string[]} [options.ignores]
  */
 export function baseConfig({
@@ -45,6 +49,9 @@ export function baseConfig({
   entryPoints = [],
   delayModules = [],
   defaultExportAllowed = [],
+  parameterizedSqlFiles = [],
+  sqlFragment = DEFAULT_SQL_FRAGMENT,
+  noConsoleFiles = [],
   ignores = [],
 }) {
   // A later block's no-restricted-syntax replaces earlier options, so each
@@ -80,6 +87,16 @@ export function baseConfig({
         complexity: ['warn', MAX_COMPLEXITY],
       },
     },
+    parameterizedSqlFiles.length
+      ? {
+          files: parameterizedSqlFiles,
+          ignores: TEST_FILES,
+          plugins: { 'agent-config': { rules: { 'no-interpolated-sql': noInterpolatedSql } } },
+          rules: { 'agent-config/no-interpolated-sql': ['error', { fragment: sqlFragment }] },
+        }
+      : {},
+    // Domain code logs through the injected Logger, which redacts secrets; console bypasses it.
+    noConsoleFiles.length ? { files: noConsoleFiles, ignores: TEST_FILES, rules: { 'no-console': 'error' } } : {},
     entryPoints.length ? { files: entryPoints, rules: { 'no-restricted-properties': 'off' } } : {},
     delayModules.length ? { files: delayModules, rules: syntax(EXPORT_ALL, DEFAULT_EXPORT) } : {},
     {

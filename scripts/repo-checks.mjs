@@ -8,6 +8,7 @@
 //   test-placement           unit tests sit next to their module; integration/e2e under tests/
 //   entry-scripts            every entry file has a package.json script
 //   test-db-env              integration/e2e code never reads the app's database env var
+//   workflow-permissions     no workflow grants `permissions: write-all` (least-privilege tokens)
 //   audit                    the repo wires every shared check (fails on what's missing)
 //   all <base>               everything above
 // Per-repo settings live in package.json "agentConfig" (see DEFAULTS).
@@ -150,6 +151,17 @@ export function testDbEnvLeaks(files, appDbEnv) {
     .map(({ path }) => path)
 }
 
+// files: { path, text } of tracked workflow files. `write-all` hands every token
+// scope to code that runs on pull requests; name the scopes a job needs instead.
+export function writeAllWorkflows(files) {
+  return files
+    .filter(({ path }) => /^\.github\/workflows\/.+\.ya?ml$/.test(path))
+    .filter(({ text }) => /^\s*permissions:\s*write-all\b/m.test(withoutHashComments(text)))
+    .map(({ path }) => path)
+}
+
+const withoutHashComments = (text) => text.replace(/#.*$/gm, '')
+
 const REQUIRED_SCRIPTS = ['check', 'lint', 'typecheck', 'test', 'format:check', 'depcruise', 'knip']
 
 // repo: tracked path -> text ('' when the content isn't needed). Each finding names
@@ -274,6 +286,12 @@ const COMMANDS = {
       .map((path) => ({ path, text: showAt('HEAD', path) }))
     const leaks = testDbEnvLeaks(files, config.appDbEnv)
     return report('test-db-env', leaks.map((p) => `${p}: use the test-only database env var`), 'ok')
+  },
+  'workflow-permissions'() {
+    const files = trackedAt('HEAD')
+      .filter((path) => /^\.github\/workflows\/.+\.ya?ml$/.test(path))
+      .map((path) => ({ path, text: readFileSync(path, 'utf8') }))
+    return report('workflow-permissions', writeAllWorkflows(files).map((p) => `${p}: replace write-all with the scopes the job needs`), 'ok')
   },
   audit() {
     const WANTED = /(^|\/)(CLAUDE|CONTEXT)\.md$|^\.gitignore$|^lefthook\.yml$|^eslint\.config\.|^\.dependency-cruiser\.cjs$|^package\.json$|^\.github\/workflows\//
