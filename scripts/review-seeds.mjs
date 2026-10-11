@@ -10,7 +10,9 @@
 // --seeds replays another list (a seed may set `base` to diff against something other than origin/main,
 // e.g. a merged PR's first parent, to check clean history for false positives); --out saves each review.
 // --model defaults to the workflow's pinned model. --repeat runs each seed N times; the review is probabilistic, so one run proves little.
-// Exits 1 when any run misses its expectation. Needs the `claude` CLI and the seed
+// Exits 1 when a run misses its expectation, 2 when none missed but some runs gave no
+// verdict (usage limit hit, claude crashed): an error is not a miss, the review never ran.
+// Needs the `claude` CLI and the seed
 // branches fetched as origin/<branch>. Dry run only: nothing is posted anywhere.
 import { spawn } from 'node:child_process'
 import { mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
@@ -88,6 +90,19 @@ export function judge(expect, got) {
   return expect.needsHuman === undefined || got.needsHuman === expect.needsHuman
 }
 
+// The Claude Code usage-limit notice ("You've hit your session limit · resets 4:40pm"), or null.
+export function limitNotice(output) {
+  const line = output.split('\n').find((l) => /hit your .*limit/i.test(l))
+  return line ? line.trim() : null
+}
+
+// ok / miss / error for one run. A run with no LABELS line has no verdict to judge.
+export function classifyRun(expect, output) {
+  const got = parseLabels(output)
+  if (!got) return { status: 'error', got, notice: limitNotice(output) }
+  return { status: judge(expect, got) ? 'ok' : 'miss', got, notice: null }
+}
+
 function runClaude(promptText, { repo, model }) {
   return new Promise((resolveRun) => {
     const child = spawn('claude', ['-p', '--model', model, '--allowedTools', ALLOWED_TOOLS], {
@@ -150,19 +165,19 @@ async function main() {
     Array.from({ length: opts.repeat }, (_, run) => async () => {
       const output = await runClaude(buildSimPrompt(prompt, seed), opts)
       if (opts.out) writeFileSync(join(opts.out, `${seed.name}-${run + 1}.txt`), output)
-      return { seed, got: parseLabels(output) }
+      return { seed, ...classifyRun(seed.expect, output) }
     }),
   )
   const results = await pool(tasks, opts.jobs)
-  let failed = 0
   for (const seed of seeds) {
-    const runs = results.filter((r) => r.seed === seed)
-    const marks = runs.map((r) => `${judge(seed.expect, r.got) ? 'ok' : 'MISS'}:${describe(r.got)}`)
-    failed += marks.filter((m) => m.startsWith('MISS')).length
+    const marks = results.filter((r) => r.seed === seed).map((r) => `${r.status === 'error' ? 'ERR' : r.status === 'ok' ? 'ok' : 'MISS'}:${describe(r.got)}`)
     console.log(`${seed.name.padEnd(36)} ${seed.rule.padEnd(40)} ${marks.join(' ')}`)
   }
-  console.log(`\n${results.length - failed}/${results.length} runs matched (${opts.model}, ${opts.repeat}x)`)
-  process.exit(failed ? 1 : 0)
+  const count = (status) => results.filter((r) => r.status === status).length
+  const notice = results.find((r) => r.notice)?.notice
+  if (notice) console.log(`\n${notice}`)
+  console.log(`\n${count('ok')}/${results.length} runs matched, ${count('miss')} missed, ${count('error')} without a verdict (${opts.model}, ${opts.repeat}x)`)
+  process.exit(count('miss') ? 1 : count('error') ? 2 : 0)
 }
 
 if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
