@@ -41,6 +41,13 @@ on:
           that only changes files under them keeps `human-approved` and skips the re-review.
         type: string
         default: ''
+      model:
+        description: >-
+          Claude model the review runs on. Pinned so reviews stay comparable run to run;
+          the review-seeds suite reads this default, so a change here is tested with the
+          same model. Logged in each run's step summary.
+        type: string
+        default: claude-opus-5-5
       allowed-bots:
         description: >-
           Comma-separated bot accounts whose pushes still get a review (claude-code-action
@@ -206,6 +213,7 @@ jobs:
               decision a human already made on this PR (an "Approved via `/approve`"
               or "Human decision:" comment covers it) unless new commits change it.
           claude_args: |
+            --model ${{ inputs.model }}
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh pr edit:*),Read,Glob,Grep"
 
       # Telemetry for tuning the review prompt: the full transcript as an
@@ -221,9 +229,10 @@ jobs:
         if: always() && steps.claude.outputs.execution_file != ''
         env:
           EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
+          REVIEW_MODEL: ${{ inputs.model }}
         run: |
           jq -r '[.[] | select(.type == "result")] | last // empty
-            | "agent review: \(.num_turns) turns, \(.duration_ms / 1000 | floor)s, $\(.total_cost_usd // "n/a")"' \
+            | "agent review: \(.num_turns) turns, \(.duration_ms / 1000 | floor)s, $\(.total_cost_usd // "n/a"), model \($ENV.REVIEW_MODEL)"' \
             "$EXECUTION_FILE" >> "$GITHUB_STEP_SUMMARY" || echo "agent review: transcript unreadable" >> "$GITHUB_STEP_SUMMARY"
 
       # The marker review-covered looks for on the next push (scripts/pr-automation.mjs
@@ -263,6 +272,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       pull-requests: read
+      actions: read
     steps:
       - name: Check review result and labels
         env:
@@ -270,7 +280,10 @@ jobs:
           REVIEW_RESULT: ${{ needs.agent-review.result }}
         run: |
           if [ "$REVIEW_RESULT" = "failure" ] || [ "$REVIEW_RESULT" = "cancelled" ]; then
-            echo "::error::agent review did not complete ($REVIEW_RESULT)"
+            # Name the step that failed, so a red gate says why without opening the run.
+            failed=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs" \
+              --jq '[.jobs[] | select(.name | test("agent-review")) | .steps[] | select(.conclusion == "failure" or .conclusion == "cancelled") | .name] | join("; ")' 2>/dev/null || true)
+            echo "::error::agent review did not complete ($REVIEW_RESULT); failed step: ${failed:-unknown, see the agent-review job}"
             exit 1
           fi
           # Read labels fresh: the agent's own label edits don't trigger workflows.

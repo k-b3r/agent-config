@@ -9,7 +9,7 @@
 // --workflow tests a prompt change before it merges (default: this repo's own file).
 // --seeds replays another list (a seed may set `base` to diff against something other than origin/main,
 // e.g. a merged PR's first parent, to check clean history for false positives); --out saves each review.
-// --repeat runs each seed N times; the review is probabilistic, so one run proves little.
+// --model defaults to the workflow's pinned model. --repeat runs each seed N times; the review is probabilistic, so one run proves little.
 // Exits 1 when any run misses its expectation. Needs the `claude` CLI and the seed
 // branches fetched as origin/<branch>. Dry run only: nothing is posted anywhere.
 import { spawn } from 'node:child_process'
@@ -21,7 +21,6 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(HERE, '..')
 const SEEDS_FILE = join(ROOT, 'review-seeds', 'seeds.json')
 const DEFAULT_WORKFLOW = join(ROOT, '.github', 'workflows', 'pr-review.yml')
-const DEFAULT_MODEL = 'claude-sonnet-5-5'
 const DEFAULT_JOBS = 4
 const RUN_TIMEOUT_MS = 600_000
 const PROMPT_INDENT = 12
@@ -29,6 +28,14 @@ const ALLOWED_TOOLS = 'Bash(git diff:*),Bash(git show:*),Bash(git log:*),Read,Gl
 const BLOCK_LABEL = 'agent-changes-requested'
 const HUMAN_LABEL = 'needs-human'
 const BASE = 'origin/main'
+
+// The model the review workflow pins (its `model` input default), so the suite
+// tests the prompt on the model CI runs it on.
+export function extractModel(workflowYaml) {
+  const match = workflowYaml.match(/\n {6}model:\n(?: {8}.*\n)*? {8}default: (\S+)/)
+  if (!match) throw new Error('no model input default found in the workflow')
+  return match[1]
+}
 
 // The prompt block of the claude-code-action step, dedented, with the workflow
 // expressions filled in and standards paths pointed at this checkout.
@@ -115,7 +122,7 @@ function describe(got) {
 }
 
 function parseArgs(argv) {
-  const opts = { seeds: SEEDS_FILE, out: null, workflow: DEFAULT_WORKFLOW, model: DEFAULT_MODEL, repeat: 1, jobs: DEFAULT_JOBS, only: null, repo: null }
+  const opts = { seeds: SEEDS_FILE, out: null, workflow: DEFAULT_WORKFLOW, model: null, repeat: 1, jobs: DEFAULT_JOBS, only: null, repo: null }
   for (let i = 0; i < argv.length; i += 2) {
     const [flag, value] = [argv[i], argv[i + 1]]
     if (flag === '--repo') opts.repo = resolve(value)
@@ -138,6 +145,7 @@ async function main() {
   if (opts.out) mkdirSync(opts.out, { recursive: true })
   const workflow = readFileSync(opts.workflow, 'utf8')
   const prompt = extractPrompt(workflow)
+  opts.model ??= extractModel(workflow)
   const tasks = seeds.flatMap((seed) =>
     Array.from({ length: opts.repeat }, (_, run) => async () => {
       const output = await runClaude(buildSimPrompt(prompt, seed), opts)
