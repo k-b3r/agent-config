@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
-import { buildSimPrompt, extractModel, extractPrompt, judge, parseLabels } from './review-seeds.mjs'
+import { buildSimPrompt, classifyRun, extractModel, extractPrompt, judge, limitNotice, parseLabels } from './review-seeds.mjs'
 
 const WORKFLOW = [
   '      - uses: anthropics/claude-code-action@v1',
@@ -71,4 +71,20 @@ test('extractModel reads the workflow model input default', () => {
 test('extractModel reads the real review workflow', () => {
   const real = readFileSync(new URL('../.github/workflows/pr-review.yml', import.meta.url), 'utf8')
   assert.match(extractModel(real), /^claude-/)
+})
+
+test('limitNotice finds the usage-limit line and returns null for a real review', () => {
+  assert.equal(limitNotice("You've hit your session limit · resets 4:40pm (Asia/Manila)\n"), "You've hit your session limit · resets 4:40pm (Asia/Manila)")
+  assert.equal(limitNotice('No issues found.\nLABELS: remove `agent-changes-requested`'), null)
+})
+
+test('classifyRun scores a limit reply as an error, not a miss', () => {
+  const run = classifyRun({ blocking: true }, "You've hit your session limit · resets 4:40pm")
+  assert.equal(run.status, 'error')
+  assert.match(run.notice, /session limit/)
+})
+
+test('classifyRun scores a verdict against the expectation', () => {
+  assert.equal(classifyRun({ blocking: true }, 'LABELS: add `agent-changes-requested`').status, 'ok')
+  assert.equal(classifyRun({ blocking: true }, 'LABELS: remove `agent-changes-requested`').status, 'miss')
 })
