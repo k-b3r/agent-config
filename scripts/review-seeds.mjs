@@ -106,6 +106,11 @@ async function pool(tasks, jobs) {
   return results
 }
 
+function describe(got) {
+  if (!got) return 'no-labels'
+  return `${got.blocking ? 'block' : 'pass'}${got.needsHuman ? '+nh' : ''}`
+}
+
 function parseArgs(argv) {
   const opts = { workflow: DEFAULT_WORKFLOW, model: DEFAULT_MODEL, repeat: 1, jobs: DEFAULT_JOBS, only: null, repo: null }
   for (let i = 0; i < argv.length; i += 2) {
@@ -137,8 +142,8 @@ async function main() {
   let failed = 0
   for (const seed of seeds) {
     const runs = results.filter((r) => r.seed === seed)
-    const marks = runs.map((r) => (judge(seed.expect, r.got) ? 'ok' : `MISS(${r.got ? (r.got.blocking ? 'block' : 'pass') : 'no labels'})`))
-    failed += marks.filter((m) => m !== 'ok').length
+    const marks = runs.map((r) => `${judge(seed.expect, r.got) ? 'ok' : 'MISS'}:${describe(r.got)}`)
+    failed += marks.filter((m) => m.startsWith('MISS')).length
     console.log(`${seed.name.padEnd(36)} ${seed.rule.padEnd(40)} ${marks.join(' ')}`)
   }
   console.log(`\n${results.length - failed}/${results.length} runs matched (${opts.model}, ${opts.repeat}x)`)
