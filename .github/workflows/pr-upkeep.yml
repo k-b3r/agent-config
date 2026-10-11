@@ -133,12 +133,13 @@ jobs:
           token: ${{ steps.app.outputs.token }}
       - uses: pnpm/action-setup@v6
         if: inputs.regenerate != ''
+      # No pnpm cache here: this job installs only when a PR conflicts in generated
+      # files, so on most pushes no store exists and the cache's post step fails
+      # ("Path Validation Error", pr-upkeep on buy-and-sell main, 2026-10-10).
       - uses: actions/setup-node@v7
         if: inputs.regenerate != ''
         with:
           node-version: ${{ inputs.node-version }}
-          cache: pnpm
-          cache-dependency-path: '**/pnpm-lock.yaml'
       - name: Merge the default branch into open PRs that are behind
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
