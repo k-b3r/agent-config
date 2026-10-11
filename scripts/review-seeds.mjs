@@ -4,13 +4,16 @@
 // breaking one standard, plus clean controls) through the prompt offline with
 // `claude -p`, and checks the verdict against what each seed should get.
 //   review-seeds --repo <checkout holding the seed branches>
-//                [--workflow <pr-review.yml>] [--only a,b] [--model <id>] [--repeat N] [--jobs N]
+//                [--workflow <pr-review.yml>] [--seeds <file>] [--only a,b] [--model <id>] [--repeat N]
+//                [--jobs N] [--out <dir>]
 // --workflow tests a prompt change before it merges (default: this repo's own file).
+// --seeds replays another list (a seed may set `base` to diff against something other than origin/main,
+// e.g. a merged PR's first parent, to check clean history for false positives); --out saves each review.
 // --repeat runs each seed N times; the review is probabilistic, so one run proves little.
 // Exits 1 when any run misses its expectation. Needs the `claude` CLI and the seed
 // branches fetched as origin/<branch>. Dry run only: nothing is posted anywhere.
 import { spawn } from 'node:child_process'
-import { readFileSync, realpathSync } from 'node:fs'
+import { mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -45,11 +48,11 @@ export function extractPrompt(workflowYaml, { repository = 'owner/repo', number 
     .trimEnd()
 }
 
-export function buildSimPrompt(prompt, { branch, body = '' }) {
+export function buildSimPrompt(prompt, { branch, body = '', base = BASE }) {
   return [
-    `SIMULATION: offline dry run of the review prompt below. Do not post comments or edit labels. You cannot run gh. The PR is branch origin/${branch} against ${BASE}: get its diff with`,
-    `  git diff ${BASE}...origin/${branch} -- . ':(exclude).github/workflows/pr-review.yml'`,
-    `read changed files with \`git show origin/${branch}:<path>\`. Where the prompt says \`gh pr view --json commits\`, use \`git log --format=%s ${BASE}..origin/${branch}\` (the commit headlines). Ignore the workflow-file change entirely.`,
+    `SIMULATION: offline dry run of the review prompt below. Do not post comments or edit labels. You cannot run gh. The PR is branch origin/${branch} against ${base}: get its diff with`,
+    `  git diff ${base}...origin/${branch} -- . ':(exclude).github/workflows/pr-review.yml'`,
+    `read changed files with \`git show origin/${branch}:<path>\`. Where the prompt says \`gh pr view --json commits\`, use \`git log --format=%s ${base}..origin/${branch}\` (the commit headlines). Ignore the workflow-file change entirely.`,
     body ? `PR body: ${body}` : 'The PR body is empty.',
     "Answer exactly as the prompt instructs for the summary comment, and finish with one line: LABELS: <add/remove list as the prompt's Labels section would apply>.",
     '',
@@ -112,7 +115,7 @@ function describe(got) {
 }
 
 function parseArgs(argv) {
-  const opts = { workflow: DEFAULT_WORKFLOW, model: DEFAULT_MODEL, repeat: 1, jobs: DEFAULT_JOBS, only: null, repo: null }
+  const opts = { seeds: SEEDS_FILE, out: null, workflow: DEFAULT_WORKFLOW, model: DEFAULT_MODEL, repeat: 1, jobs: DEFAULT_JOBS, only: null, repo: null }
   for (let i = 0; i < argv.length; i += 2) {
     const [flag, value] = [argv[i], argv[i + 1]]
     if (flag === '--repo') opts.repo = resolve(value)
@@ -120,6 +123,8 @@ function parseArgs(argv) {
     else if (flag === '--model') opts.model = value
     else if (flag === '--repeat') opts.repeat = Number(value)
     else if (flag === '--jobs') opts.jobs = Number(value)
+    else if (flag === '--seeds') opts.seeds = resolve(value)
+    else if (flag === '--out') opts.out = resolve(value)
     else if (flag === '--only') opts.only = value.split(',')
     else throw new Error(`unknown flag ${flag}`)
   }
@@ -129,12 +134,14 @@ function parseArgs(argv) {
 
 async function main() {
   const opts = parseArgs(process.argv.slice(2))
-  const seeds = JSON.parse(readFileSync(SEEDS_FILE, 'utf8')).filter((s) => !opts.only || opts.only.includes(s.name))
+  const seeds = JSON.parse(readFileSync(opts.seeds, 'utf8')).filter((s) => !opts.only || opts.only.includes(s.name))
+  if (opts.out) mkdirSync(opts.out, { recursive: true })
   const workflow = readFileSync(opts.workflow, 'utf8')
   const prompt = extractPrompt(workflow)
   const tasks = seeds.flatMap((seed) =>
-    Array.from({ length: opts.repeat }, () => async () => {
+    Array.from({ length: opts.repeat }, (_, run) => async () => {
       const output = await runClaude(buildSimPrompt(prompt, seed), opts)
+      if (opts.out) writeFileSync(join(opts.out, `${seed.name}-${run + 1}.txt`), output)
       return { seed, got: parseLabels(output) }
     }),
   )

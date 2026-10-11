@@ -32,6 +32,12 @@ test('buildSimPrompt names the seed branch, the PR body and the labels line the 
   assert.ok(text.endsWith('PROMPT'))
 })
 
+test('buildSimPrompt diffs against the seed base when one is given', () => {
+  const text = buildSimPrompt('PROMPT', { branch: 'pr-head', base: 'abc123' })
+  assert.match(text, /git diff abc123\.\.\.origin\/pr-head/)
+  assert.match(text, /git log --format=%s abc123\.\.origin\/pr-head/)
+})
+
 test('parseLabels reads which labels the closing LABELS line adds', () => {
   assert.deepEqual(parseLabels('x\nLABELS: add `agent-changes-requested`; no `needs-human`'), { blocking: true, needsHuman: false })
   assert.deepEqual(parseLabels('LABELS: add `agent-changes-requested` and `needs-human`'), { blocking: true, needsHuman: true })
