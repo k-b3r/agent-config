@@ -26,6 +26,7 @@ Every `tool` rule in CODING_STANDARDS.md counts as `review` until a repo wires i
    gh label create human-approved --color 0E8A16 --description "Human reviewed a needs-human PR and signs off" --force
    gh label create automerge --color 1D76DB --description "Merge automatically once green and current" --force
    gh label create merge-conflict --color B60205 --description "Main couldn't be merged in automatically" --force
+   gh label create review-opus --color 5319E7 --description "Agent review runs on the Opus model (read at push time)" --force
    ```
    The `CLAUDE_CODE_OAUTH_TOKEN` secret is the user's: ask them to run `! claude setup-token` and `! gh secret set CLAUDE_CODE_OAUTH_TOKEN`. Never handle the token yourself.
    `auto-merge.yml` / `pr-upkeep.yml` need the user's GitHub App (`k-b3r-ci`) installed on the repo, plus `! gh variable set CI_APP_ID` and `! gh secret set CI_APP_PRIVATE_KEY < key.pem`. Set `regenerate` / `regenerate-paths` in `pr-upkeep.yml` if the repo has generated files, and the same paths as `generated-paths` in `pr-review.yml` (so upkeep's regen commits keep `human-approved`); a different App name also goes in `pr-review.yml`'s `allowed-bots` (default `k-b3r-ci`) so its pushes still get reviewed; add `e2e` to `auto-merge.yml`'s workflow list if the repo has `e2e.yml`.
