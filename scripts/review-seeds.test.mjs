@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
-import { buildSimPrompt, extractPrompt, judge, parseLabels } from './review-seeds.mjs'
+import { buildSimPrompt, extractModel, extractPrompt, judge, parseLabels } from './review-seeds.mjs'
 
 const WORKFLOW = [
   '      - uses: anthropics/claude-code-action@v1',
@@ -61,4 +61,14 @@ test('seeds.json names are unique and every seed states a branch, a rule and an 
   for (const seed of seeds) {
     assert.ok(seed.branch && seed.rule && typeof seed.expect.blocking === 'boolean', seed.name)
   }
+})
+
+test('extractModel reads the workflow model input default', () => {
+  const yaml = 'on:\n  workflow_call:\n    inputs:\n      model:\n        description: >-\n          pinned\n        type: string\n        default: claude-opus-5-5\n      other:\n        default: x\n'
+  assert.equal(extractModel(yaml), 'claude-opus-5-5')
+})
+
+test('extractModel reads the real review workflow', () => {
+  const real = readFileSync(new URL('../.github/workflows/pr-review.yml', import.meta.url), 'utf8')
+  assert.match(extractModel(real), /^claude-/)
 })
