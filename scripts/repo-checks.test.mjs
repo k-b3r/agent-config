@@ -11,6 +11,7 @@ import {
   newlyUntested,
   sourcePaths,
   testDbEnvLeaks,
+  writeAllWorkflows,
   untestedModules,
 } from './repo-checks.mjs'
 
@@ -160,4 +161,14 @@ test('auditWiring accepts env templates like .env.local.example', () => {
 test('auditWiring flags a review caller that cannot take /approve comments', () => {
   const repo = { ...wiredRepo, '.github/workflows/pr-review.yml': 'uses: k-b3r/agent-config/.github/workflows/pr-review.yml@main' }
   assert.deepEqual(auditWiring(repo), ['Workflow: pr-review caller triggers on issue_comment (for /approve)'])
+})
+
+test('writeAllWorkflows flags a workflow that grants write-all and ignores commented or scoped permissions', () => {
+  const files = [
+    { path: '.github/workflows/ci.yml', text: 'name: ci\npermissions: write-all\njobs: {}\n' },
+    { path: '.github/workflows/ok.yml', text: 'permissions:\n  contents: read\n' },
+    { path: '.github/workflows/note.yml', text: '# permissions: write-all was too broad\npermissions:\n  contents: read\n' },
+    { path: 'docs/ci.yml', text: 'permissions: write-all\n' },
+  ]
+  assert.deepEqual(writeAllWorkflows(files), ['.github/workflows/ci.yml'])
 })
