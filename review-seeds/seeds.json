@@ -245,16 +245,6 @@
     }
   },
   {
-    "name": "clean-stop-collect",
-    "branch": "buy-58-stop-collect",
-    "base": "647559b9cf58cb6cfe8c2671b77da4eee63a9ea9",
-    "rule": "clean control: merged PR, nothing to flag",
-    "expect": {
-      "blocking": false
-    },
-    "body": "make worker stop actually stop collect (real merged PR #2)"
-  },
-  {
     "name": "clean-tunnel-host-fix",
     "branch": "fix-tunnel-host",
     "base": "c8b05b61b7716689a201d52f45b8c5f6c83d48d2",
@@ -283,5 +273,77 @@
       "blocking": false
     },
     "body": "move specs from docs/superpowers/specs to docs/specs (real merged PR #42)"
+  },
+  {
+    "name": "unbounded-retry",
+    "branch": "photo-fetch-retry",
+    "rule": "retries are bounded (max attempts, delay)",
+    "expect": {
+      "blocking": true
+    },
+    "body": "A photo download that hits a network error is almost always a one-off CDN blip, so go again instead of skipping the photo."
+  },
+  {
+    "name": "unvalidated-external-data",
+    "branch": "refresh-product-limit",
+    "rule": "validate external data at the boundary",
+    "expect": {
+      "blocking": true
+    },
+    "body": "Lets the dashboard cap a product refresh to its first N listings for a quick partial check."
+  },
+  {
+    "name": "orphaned-setting",
+    "branch": "check-listings-deals-every-lap",
+    "rule": "remove what your change orphaned",
+    "expect": {
+      "blocking": true
+    },
+    "body": "Deal candidates are rechecked on every lap, so the worker no longer spaces them by hours."
+  },
+  {
+    "name": "dead-gate",
+    "branch": "deals-priority-always-on",
+    "rule": "remove the gate once behavior is permanent",
+    "expect": {
+      "blocking": true
+    },
+    "body": "Deals-first checking has been on in production since 2026-10-10 and nothing has gone wrong, so make it the default."
+  },
+  {
+    "name": "hide-information",
+    "branch": "review-queue-skip-overridden",
+    "rule": "module owns its data; callers do not reach into it",
+    "expect": {
+      "blocking": true
+    },
+    "body": "Products a human already included in pricing no longer show up in the review queue."
+  },
+  {
+    "name": "dashboard-direct-sql",
+    "branch": "listing-count-query",
+    "rule": "dashboard queries live in module queries.ts",
+    "expect": {
+      "blocking": true
+    },
+    "body": "Adds the unsold listing count the dashboard header will show."
+  },
+  {
+    "name": "fat-interface",
+    "branch": "deal-candidates-take-run-context",
+    "rule": "keep injected interfaces minimal",
+    "expect": {
+      "blocking": true
+    },
+    "body": "Passes the check-listings run context to the deal candidate query so later changes need no signature change."
+  },
+  {
+    "name": "validation-removed",
+    "branch": "refresh-read-id-directly",
+    "rule": "validate external data at the boundary",
+    "expect": {
+      "blocking": true
+    },
+    "body": "The dashboard always sends a string id, so the handler can read it directly instead of checking it again."
   }
 ]
