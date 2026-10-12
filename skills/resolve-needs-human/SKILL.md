@@ -1,6 +1,7 @@
 ---
 name: resolve-needs-human
-description: Walks the user through every open PR labelled `needs-human` (the agent review's "a human must decide" flag), one at a time. For each it pulls the review summary, verifies the open decision against the code, presents it with a recommendation, then acts on the user's call: `/approve`, queue changes, close, or skip. Use when user runs /resolve-needs-human, asks to "go over needs-human PRs", "review PRs waiting on me", "clear the human queue", or which PRs are blocked on a decision.
+description: >-
+  Walks the user through every open PR labelled `needs-human` (the agent review's "a human must decide" flag), one at a time. For each it pulls the review summary, verifies the open decision against the code, presents it with a recommendation, then acts on the user's call: `/approve`, queue changes, close, or skip. Use when user runs /resolve-needs-human, asks to "go over needs-human PRs", "review PRs waiting on me", "clear the human queue", or which PRs are blocked on a decision.
 ---
 
 # Resolve needs-human
