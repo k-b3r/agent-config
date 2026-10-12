@@ -232,9 +232,10 @@
     "branch": "triage-fail-fast",
     "rule": "degrade instead of crashing the run",
     "expect": {
-      "blocking": true
+      "blocking": true,
+      "needsHuman": true
     },
-    "body": "When the gateway is unavailable the run now throws, so the worker or script reports the failure instead of logging and returning."
+    "body": "When the gateway is unavailable the run now throws, so the worker or script reports the failure instead of logging and returning. This is intended: a loud failure is better than silently skipping products."
   },
   {
     "name": "clean-limit-helper",
@@ -345,5 +346,25 @@
       "blocking": true
     },
     "body": "The dashboard always sends a string id, so the handler can read it directly instead of checking it again."
+  },
+  {
+    "name": "clean-stop-collect",
+    "branch": "buy-58-stop-collect",
+    "base": "647559b9cf58cb6cfe8c2671b77da4eee63a9ea9",
+    "rule": "clean control: merged PR, nothing to flag",
+    "expect": {
+      "blocking": false
+    },
+    "body": "make worker stop actually stop collect (real merged PR #2)"
+  },
+  {
+    "name": "gate-removed-when-permanent",
+    "branch": "deals-priority-gate-removed",
+    "rule": "remove the gate once behavior is permanent (clean variant: the PR removes it)",
+    "expect": {
+      "blocking": false
+    },
+    "body": "Deals-first checking has been on in production since 2026-10-10 and nothing has gone wrong, so delete the setting and always do it.",
+    "base": "a7fa104765991297e3148cec441702c7cc396d76"
   }
 ]
