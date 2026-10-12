@@ -202,6 +202,14 @@ jobs:
             and name the callers that now see the throw. Tests changed to expect the crash
             are part of the same finding.
 
+            Boundaries: a module owns its tables and internals. If the diff adds SQL or
+            code in one module that names a table, column or private helper owned by
+            another module (the one whose code writes that table or defines the helper),
+            and the owner does not export it for this use, that is blocking even when the
+            query is correct. Name the owning module and the exported function to call, or
+            to add there. An owner's exported SQL fragment (a LATERAL or CTE constant from
+            its index) is the intended way in and is fine.
+
             Output:
             - Inline comments for specific problems (one comment per problem, say what
               breaks and how to fix it).
