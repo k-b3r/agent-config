@@ -1,6 +1,6 @@
 ---
 name: spike-and-rebuild
-description: Plans a feature as committed data structures, invariants, interface stubs, and a touch-point list, builds a throwaway spike against it, has a fresh-context reviewer compare spike to plan from git evidence, then rebuilds properly with TDD. Use when user runs /spike-and-rebuild, or starts a new feature whose shape is unclear (new data model, several modules, unknown APIs). Skip for bug fixes and small changes.
+description: Plans a feature as committed data structures, invariants, interface stubs, and a touch-point list, builds a throwaway spike against it, has a fresh-context reviewer compare spike to plan from git evidence, has a fresh-context agent write contract tests from the stubs alone, then rebuilds properly with TDD. Use when user runs /spike-and-rebuild, or starts a new feature whose shape is unclear (new data model, several modules, unknown APIs). Skip for bug fixes and small changes.
 ---
 
 # spike-and-rebuild
@@ -17,7 +17,7 @@ Three **Gates** need the user; everything else runs without them.
 
 1. **Plan.** **Gate:** agree data structures + invariants with the user before writing stubs.
    - `PLAN.md` sections 1-2: data structures, invariants. Invariants shape types (status enum, not two booleans).
-   - Interfaces as real code stubs in their final locations: types plus signatures whose bodies throw `not implemented`. Stubs must typecheck. `PLAN.md` section 3 lists them.
+   - Interfaces as real code stubs in their final locations: types plus signatures whose bodies throw `not implemented`. Stubs must typecheck. `PLAN.md` section 3 lists them. Each exported stub carries a doc comment with its behavior, boundaries and the input shape of loosely typed parameters: the contract tests in phase 6b are written from nothing else.
    - `TODO.md`: one bullet per file to change, path first (`` - `src/x.ts`: why ``). A folder ending in `/` covers new files under it.
    - Commit on the feature branch: `plan <feature>`. This commit is the baseline the spike is measured against.
 2. **Spike** in a throwaway worktree, time-boxed (agree the box with the user, default one session):
@@ -32,11 +32,13 @@ Three **Gates** need the user; everything else runs without them.
    - the prompt for a new session: `Build <feature> per docs/spikes/<f>/PLAN.md and TODO.md (/spike-and-rebuild phase 6).`
 6. **Build** in a fresh session. Read only `PLAN.md`, `TODO.md`, and the stubs; never `REVIEW.md`, `evidence.md`, or the spike. Plan unclear or wrong: stop and ask, then fix the plan.
    - **6a. Preparatory refactors** (`TODO.md` > Before) first: behavior-preserving only, one commit each, tests green after each; thin coverage gets characterization tests first. A refactor that crosses a module boundary is its own PR (its own fresh session), merged before the feature.
-   - **6b. Feature, TDD.** Each invariant first becomes a failing test, then each interface stub gets its tests, then implementation. Normal coding standards apply; no `SPIKE-HACK` may survive (grep before each commit).
+   - **6b. Contract tests** (on by default; skip only when the feature has no public interface worth pinning, and say so). Spawn a subagent with clean context in a worktree at the `revise plan` commit (`git worktree add ../<repo>-contract-<feature> <sha>`), where every stub body throws. It reads only the stub files and `PLAN.md` sections 1-2, writes `<module>.contract.test.ts` beside each stub, runs them (all red, "not implemented"), and lists in its reply every behavior it could not determine from the contract. Fill those gaps in the stubs' doc comments first, have the author update, then commit `add contract tests <feature>` on the feature branch and remove the worktree. From here the implementer never edits `*.contract.test.ts` (CI enforces it): a test that looks wrong goes back to the author with the reason.
+   - **6c. Feature, TDD.** Make the contract tests pass, and drive internals with your own red-green-refactor tests in `<module>.test.ts`: each invariant a failing test first, then implementation. Normal coding standards apply; no `SPIKE-HACK` may survive (grep before each commit).
 
 ## Rules
 
 - The spike never merges, not even "the good parts". Rewrite them in phase 6.
+- The contract author's context is stubs and `PLAN.md` sections 1-2, nothing else: not the spike, not `REVIEW.md`, not the builder's implementation.
 - The builder's context is the plan, nothing else. A gap the builder hits is a phase 4 bug: fix the plan, don't dig through the review.
 - No placeholders in `PLAN.md` or `TODO.md` at the `revise plan` commit: no "TBD", "handle errors appropriately", "same as above" or "similar to <other item>". Write the actual decision; the builder can't ask what you meant.
 - The spike author never writes the verdict. The reviewer gets plan, evidence, and spike diff only, not the spike conversation.
