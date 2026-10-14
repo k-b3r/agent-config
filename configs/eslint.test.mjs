@@ -56,6 +56,10 @@ for (const [file, rule] of violations) {
   })
 }
 
+test('baseConfig ignores the sandbox copies a mutation run leaves behind', async () => {
+  assert.equal(await eslint.isPathIgnored(join(fixtures, '.stryker-tmp/0/src/clean.ts')), true)
+})
+
 test('baseConfig passes the clean control fixture', async () => {
   assert.deepEqual(await lint('src/clean.ts'), [])
 })

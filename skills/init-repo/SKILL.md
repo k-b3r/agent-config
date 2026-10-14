@@ -16,7 +16,7 @@ Every `tool` rule in CODING_STANDARDS.md counts as `review` until a repo wires i
 5. **Fit the configs to the shape** picked in step 2:
    - `eslint.config.js`: `entryPoints` = composition roots (workers, server index, scripts), `delayModules` = the delay util, `defaultExportAllowed` = framework files (Next.js pages, ...), `pureCorePaths` = `src/modules/*/domain/**` once modules exist (pure code always lives in a module's `domain/`).
    - `.dependency-cruiser.cjs`: `publicApis` = one folder per feature module, `heavyDeps` = each heavy package and its single owner file, `inner` / `entryPoints` folders.
-   - `package.json` `agentConfig`: `sourceDirs`, `entries` (same as ESLint `entryPoints`), `appDbEnv`, `generatedPaths` (globs excluded from the diff-size limit; same files as `regenerate-paths`), `maxDiffLines` only to move off the default 800.
+   - `package.json` `agentConfig`: `sourceDirs`, `entries` (same as ESLint `entryPoints`), `appDbEnv`, `generatedPaths` (globs excluded from the diff-size limit; same files as `regenerate-paths`), `mutationPaths` (same globs as ESLint `pureCorePaths`; the mutation report runs on changed files under them), `maxDiffLines` only to move off the default 800.
    - `knip.json` entries; `integration.yml` paths. Repo has a UI or HTTP flow: add an `e2e.yml` caller (`jobs: e2e`) and a Playwright config.
 6. **Install.** `pnpm install`. Check `.git/hooks/pre-push` exists and `pnpm exec lefthook version` works: if `node_modules` is missing the hook prints "Can't find lefthook in PATH" and lets the push through unchecked.
 7. **GitHub.** Create the review labels (idempotent):
@@ -28,6 +28,7 @@ Every `tool` rule in CODING_STANDARDS.md counts as `review` until a repo wires i
    gh label create merge-conflict --color B60205 --description "Main couldn't be merged in automatically" --force
    gh label create review-opus --color 5319E7 --description "Agent review runs on the Opus model (read at push time)" --force
    gh label create large-diff-approved --color C5DEF5 --description "Waives the diff-size limit for this PR (re-push or reopen to apply)" --force
+   gh label create contract-change-approved --color C5DEF5 --description "Allows editing contract tests in this PR (re-push or reopen to apply)" --force
    ```
    The `CLAUDE_CODE_OAUTH_TOKEN` secret is the user's: ask them to run `! claude setup-token` and `! gh secret set CLAUDE_CODE_OAUTH_TOKEN`. Never handle the token yourself.
    `auto-merge.yml` / `pr-upkeep.yml` need the user's GitHub App (`k-b3r-ci`) installed on the repo, plus `! gh variable set CI_APP_ID` and `! gh secret set CI_APP_PRIVATE_KEY < key.pem`. Set `regenerate` / `regenerate-paths` in `pr-upkeep.yml` if the repo has generated files, and the same paths as `generated-paths` in `pr-review.yml` (so upkeep's regen commits keep `human-approved`); a different App name also goes in `pr-review.yml`'s `allowed-bots` (default `k-b3r-ci`) so its pushes still get reviewed; add `e2e` to `auto-merge.yml`'s workflow list if the repo has `e2e.yml`.
