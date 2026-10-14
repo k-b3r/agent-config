@@ -137,6 +137,17 @@ const order = await getOrder(db, id)                                            
 await setDiscount(db, id, loyaltyDiscount(order))
 ```
 
+Smell: a rule that can only be tested with a mock means the rule and the effect share a function.
+```ts
+// needs a fake db and a fake mailer just to check "10+ orders earns a discount"
+it('discounts loyal customers', async () => {
+  const db = { query: vi.fn().mockResolvedValue({ rows: [{ orders: 12 }] }) }
+  await applyLoyaltyDiscount(db, 'o1')
+  expect(db.query).toHaveBeenCalledWith(expect.stringContaining('UPDATE'), [0.1, 'o1'])
+})
+// after the split: expect(loyaltyDiscount(orderWith(12))).toBe(0.1), no mock
+```
+
 ## Inject only I/O, wire once
 
 Don't: inject pure logic, or resolve deps from a container or event bus.
