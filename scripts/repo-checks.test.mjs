@@ -7,6 +7,7 @@ import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import {
   auditWiring,
+  changedContractTests,
   checkCommitMessage,
   countEscapeHatches,
   diffSize,
@@ -14,6 +15,7 @@ import {
   escapeHatchGrowth,
   globToRegExp,
   misplacedTests,
+  mutationTargets,
   movedLinesByFile,
   newlyUntested,
   parseNumstat,
@@ -305,4 +307,54 @@ test('repo-checks diff-size still fails once new lines beyond the limit ride alo
   const { code, out } = diffSizeIn(repoWithMove(60), 'main')
   assert.equal(code, 1, out)
   assert.match(out, /limit 50/)
+})
+
+const nameStatus = (...tokens) => tokens.join('\0') + '\0'
+
+test('changedContractTests flags modified, deleted and renamed contract tests but lets new ones through', () => {
+  const output = nameStatus(
+    'A', 'src/a/a.contract.test.ts',
+    'M', 'src/b/b.contract.test.ts',
+    'D', 'src/c/c.contract.test.ts',
+    'R100', 'src/d/d.contract.test.ts', 'src/d/e.contract.test.ts',
+    'M', 'src/f/f.test.ts',
+    'M', 'src/g/g.ts',
+  )
+  assert.deepEqual(changedContractTests(output), [
+    'M src/b/b.contract.test.ts',
+    'D src/c/c.contract.test.ts',
+    'R src/d/d.contract.test.ts',
+  ])
+})
+
+test('changedContractTests ignores a diff with no contract tests', () => {
+  assert.deepEqual(changedContractTests(nameStatus('M', 'src/a.ts', 'A', 'src/a.test.ts')), [])
+})
+
+test('mutationTargets lists added, modified and renamed source files under the mutation globs, never tests', () => {
+  const output = nameStatus(
+    'M', 'src/modules/pricing/domain/clean-median.ts',
+    'A', 'src/modules/pricing/domain/clean-median.contract.test.ts',
+    'A', 'src/modules/catalog/domain/merge.ts',
+    'R100', 'src/modules/catalog/domain/old.ts', 'src/modules/catalog/domain/new.ts',
+    'D', 'src/modules/catalog/domain/gone.ts',
+    'M', 'src/modules/catalog/store/products.ts',
+  )
+  assert.deepEqual(mutationTargets(output, ['src/modules/*/domain/**']), [
+    'src/modules/pricing/domain/clean-median.ts',
+    'src/modules/catalog/domain/merge.ts',
+    'src/modules/catalog/domain/new.ts',
+  ])
+})
+
+test('misplacedTests accepts a contract test beside its module and flags one without a module', () => {
+  assert.deepEqual(misplacedTests(['src/a.ts', 'src/a.contract.test.ts']), [])
+  assert.deepEqual(misplacedTests(['src/a.contract.test.ts']), [
+    'src/a.contract.test.ts: unit test has no sibling module (expected src/a.ts)',
+  ])
+})
+
+test('untestedModules counts a contract test as the module test', () => {
+  const paths = ['src/a.ts', 'src/a.contract.test.ts', 'src/b.ts']
+  assert.deepEqual(untestedModules(paths, { sourceDirs: ['src'], untestedExempt: [] }), ['src/b.ts'])
 })

@@ -12,6 +12,10 @@
 //   diff-size <base>         the PR changes at most maxDiffLines lines outside lockfiles, generatedPaths and
 //                            moved blocks (override: env ALLOW_LARGE_DIFF=true, CI sets it from label
 //                            large-diff-approved)
+//   contracts-unmodified <base>  contract tests (*.contract.test.*) are only added, never changed or deleted
+//                            (override: env ALLOW_CONTRACT_CHANGES=true, CI sets it from label contract-change-approved)
+//   mutation-targets <base>  prints the changed source files under agentConfig.mutationPaths (not in `all`;
+//                            input for the mutation report job)
 //   audit                    the repo wires every shared check (fails on what's missing)
 //   all <base>               everything above
 // Per-repo settings live in package.json "agentConfig" (see DEFAULTS).
@@ -35,6 +39,7 @@ const DEFAULTS = {
   appDbEnv: null,
   maxDiffLines: MAX_DIFF_LINES,
   generatedPaths: [],
+  mutationPaths: [],
 }
 
 // Unanchored: Claude Code's footer starts with an emoji, and hooks see the
@@ -75,6 +80,9 @@ export function escapeHatchGrowth(base, head) {
 
 const isSource = (path) => /\.[cm]?tsx?$/.test(path) && !path.endsWith('.d.ts')
 const isTest = (path) => /\.(test|spec)\.[cm]?tsx?$/.test(path)
+// Written blind from the stubs and contract before the implementation (see /spike-and-rebuild).
+const isContractTest = (path) => /\.contract\.test\.[cm]?tsx?$/.test(path)
+const testTarget = (path) => path.replace(/(\.contract)?\.(test|spec)(\.[cm]?tsx?)$/, '')
 
 // -z: without it git C-quotes non-ASCII paths, which then fail the extension filter and go uncounted.
 export function sourcePaths(lsTreeZ, exemptPrefixes) {
@@ -106,7 +114,7 @@ const matchesAny = (path, globs) => globs.some((glob) => globToRegExp(glob).test
 const withoutExtension = (path) => path.replace(/\.[cm]?tsx?$/, '')
 
 export function untestedModules(paths, { sourceDirs, untestedExempt }) {
-  const tested = new Set(paths.filter(isTest).map((path) => path.replace(/\.(test|spec)(\.[cm]?tsx?)$/, '')))
+  const tested = new Set(paths.filter(isTest).map(testTarget))
   return paths.filter(
     (path) =>
       sourceDirs.some((dir) => path.startsWith(`${dir}/`)) &&
@@ -132,7 +140,7 @@ export function misplacedTests(paths) {
     } else if (/\.spec\.[cm]?tsx?$/.test(path)) {
       if (!path.startsWith('tests/e2e/')) problems.push(`${path}: e2e tests live in tests/e2e/`)
     } else if (!path.startsWith('tests/')) {
-      const module = path.replace(/\.test(\.[cm]?tsx?)$/, '')
+      const module = path.replace(/(\.contract)?\.test(\.[cm]?tsx?)$/, '')
       if (!modules.has(module)) {
         const ext = path.match(/\.test(\.[cm]?tsx?)$/)[1]
         problems.push(`${path}: unit test has no sibling module (expected ${module}${ext})`)
@@ -244,6 +252,35 @@ const GIT_DIFF_COLORS = [
   ...['oldMoved', 'newMoved', 'oldMovedAlternative', 'newMovedAlternative'].flatMap((name) => ['-c', `color.diff.${name}=magenta`]),
 ]
 const GIT_DIFF_MOVED = ['--color=always', '--color-moved=zebra', '--color-moved-ws=allow-indentation-change', '--no-prefix', '-U0']
+
+// `git diff --name-status -z -M`: "S\0path\0", or for renames/copies "R100\0old\0new\0".
+function parseNameStatus(nameStatusZ) {
+  const tokens = nameStatusZ.split('\0')
+  const entries = []
+  for (let i = 0; i + 1 < tokens.length; ) {
+    const status = tokens[i][0]
+    if (!status) break
+    const paths = status === 'R' || status === 'C' ? [tokens[i + 1], tokens[i + 2]] : [tokens[i + 1]]
+    entries.push({ status, paths })
+    i += 1 + paths.length
+  }
+  return entries
+}
+
+// A contract test pins the interface as the plan stated it. The implementer adds tests of
+// their own and never edits these; a wrong one goes back to its author with the reason.
+export function changedContractTests(nameStatusZ) {
+  return parseNameStatus(nameStatusZ)
+    .filter(({ status, paths }) => status !== 'A' && status !== 'C' && isContractTest(paths[0]))
+    .map(({ status, paths }) => `${status} ${paths[0]}`)
+}
+
+export function mutationTargets(nameStatusZ, globs) {
+  return parseNameStatus(nameStatusZ)
+    .filter(({ status }) => status !== 'D')
+    .map(({ paths }) => paths[paths.length - 1])
+    .filter((path) => isSource(path) && !isTest(path) && matchesAny(path, globs))
+}
 
 const REQUIRED_SCRIPTS = ['check', 'lint', 'typecheck', 'test', 'format:check', 'depcruise', 'knip']
 
@@ -393,6 +430,19 @@ const COMMANDS = {
     const movedNote = movedTotal ? `, ${movedTotal} moved lines not counted` : ''
     return report('diff-size', problems, `${lines} changed lines versus ${base}${movedNote}, limit ${config.maxDiffLines}`)
   },
+  'contracts-unmodified'(base) {
+    if (process.env.ALLOW_CONTRACT_CHANGES === 'true') {
+      return report('contracts-unmodified', [], 'skipped (label contract-change-approved)')
+    }
+    const changed = changedContractTests(git('diff', '--name-status', '-z', '-M', `${base}...HEAD`))
+    const problems = changed.map((entry) => `${entry}: contract tests are never edited; fix the contract comment and have its author update the test, or label contract-change-approved`)
+    return report('contracts-unmodified', problems, `no contract test changed versus ${base}`)
+  },
+  'mutation-targets'(base, config) {
+    const targets = mutationTargets(git('diff', '--name-status', '-z', '-M', `${base}...HEAD`), config.mutationPaths)
+    for (const target of targets) console.log(target)
+    return 0
+  },
   audit() {
     const WANTED = /(^|\/)(CLAUDE|CONTEXT)\.md$|^\.gitignore$|^lefthook\.yml$|^eslint\.config\.|^\.dependency-cruiser\.cjs$|^package\.json$|^\.github\/workflows\//
     const repo = Object.fromEntries(
@@ -402,8 +452,8 @@ const COMMANDS = {
   },
 }
 
-const NEEDS_BASE = new Set(['commits', 'escape-hatches', 'untested-modules', 'diff-size', 'all'])
-const NOT_IN_ALL = new Set(['commit-msg'])
+const NEEDS_BASE = new Set(['commits', 'escape-hatches', 'untested-modules', 'diff-size', 'contracts-unmodified', 'mutation-targets', 'all'])
+const NOT_IN_ALL = new Set(['commit-msg', 'mutation-targets'])
 
 function main([command, base]) {
   if (!(command in COMMANDS) && command !== 'all') {
