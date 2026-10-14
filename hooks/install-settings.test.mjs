@@ -17,3 +17,11 @@ test('withGuard is a no-op when the guard is already wired', () => {
   const once = withGuard({}, COMMAND)
   assert.equal(withGuard(once, COMMAND), once)
 })
+
+test('withGuard widens the matcher of an installed guard so it also sees Read', () => {
+  const old = { hooks: { PreToolUse: [{ matcher: 'Bash|Edit|Write', hooks: [{ type: 'command', command: COMMAND, timeout: 10 }] }] } }
+  const result = withGuard(old, COMMAND)
+  assert.equal(result.hooks.PreToolUse.length, 1)
+  assert.match(result.hooks.PreToolUse[0].matcher, /\bRead\b/)
+  assert.equal(result.hooks.PreToolUse[0].hooks[0].command, COMMAND)
+})

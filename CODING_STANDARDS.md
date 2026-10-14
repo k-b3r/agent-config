@@ -157,6 +157,7 @@ Read the matching file before writing code in that language:
 ## Security
 
 - `tool` No secrets in the repo: env vars or a secret store, `.env*` gitignored, an `.env.example` committed. _(secret scanning)_
+- `tool` Agents never read secret files (`.env*`, keys, cloud credentials), delete recursively outside the workspace, run `DROP`/`TRUNCATE`, or apply migrations against a database that isn't a test one; a human applies migrations elsewhere. _(PreToolUse guard hook)_
 - `tool`+`review` Never log secrets, tokens, or personal data; redact at the logger. _(no-console in domain code via `noConsoleFiles`; what a logged object contains is review)_
 - `tool`+`review` Parameterized queries and argument arrays only; never interpolate input into SQL or shell commands. _(no-interpolated-sql via `parameterizedSqlFiles`: only constant SQL fragments may be interpolated; whether a fragment is constant is review)_
 - `tool`+`review` Least privilege: scoped, read-only tokens where possible. _(`repo-checks workflow-permissions` bans `write-all`; whether each scope is needed is review)_

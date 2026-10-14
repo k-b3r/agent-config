@@ -21,7 +21,7 @@ git clone git@github.com:k-b3r/agent-config.git ~/Develop/agent-config
 ~/Develop/agent-config/install.sh
 ```
 
-Symlinks config, adds the guard hook to `~/.claude/settings.json` (blocks pushes to main, `--no-verify`, AI attribution in commits/PRs, edits to lockfiles and `@generated` files, before CI would catch them), then installs each tool in `tools/` (pinned version, user-scope MCP, telemetry off). Existing non-linked files are moved to `~/.claude/backup-<timestamp>/`. Rerun after adding a skill or tool; `AGENT_CONFIG_SKIP_TOOLS=1` links only.
+Symlinks config, adds the guard hook to `~/.claude/settings.json` (blocks pushes to main, `--no-verify`, AI attribution in commits/PRs, edits to lockfiles and `@generated` files, before CI would catch them; also reads of secret files (`.env*`, keys, cloud credentials), recursive deletes outside the workspace, and destructive SQL or applied migrations unless the target is a test database; limits in the header of `hooks/guard.mjs`), then installs each tool in `tools/` (pinned version, user-scope MCP, telemetry off). Existing non-linked files are moved to `~/.claude/backup-<timestamp>/`. Rerun after adding a skill or tool; `AGENT_CONFIG_SKIP_TOOLS=1` links only.
 
 ## Shared configs
 
