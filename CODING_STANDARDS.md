@@ -44,6 +44,11 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR once the r
   5. Several teams with separate release cycles? Align module or service boundaries with teams.
   6. Event-driven or realtime core (chat, games, live trading)? Event or actor model for that core.
 - `review` Record the choice and the fit-check answer in the repo (ADR or `CONTEXT.md`) so it isn't relitigated.
+- `review` A module starts flat: `index.ts` (public API), `domain/` (pure decisions), shell and storage files beside it. Add `app/`, `store/`, `clients/` only when a trigger fires: about 6+ files, a second kind of leaf (DB and external API), or several use cases sharing rules. A layer that only forwards calls is deleted, not kept.
+- `tool`+`review` Pure code always lives in `domain/`, so one glob finds it in every module. _(`pureCorePaths: ['src/modules/*/domain/**']`; placement is review)_
+- `review` An adapter whose signature carries the module's domain types lives in that module. Generic plumbing (HTTP client, pool, logger, delay, clock) lives in `src/platform/` with no domain types or rules. Duplicate once, extract on the third use. Another module reaches an owner's adapter through the owner's `index.ts`, never past it.
+
+*Examples:* `~/.claude/standards/design.md` (Module layout)
 
 ## Design
 
@@ -70,6 +75,7 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR once the r
 ### Structure
 
 - `review` Keep domain logic out of entry points: workers, handlers and pipeline stages wire dependencies and loop, domains decide.
+- `review` HTTP routes, queue workers and CLI commands are entry edges outside `modules/`: parse and validate input, call one public module function, shape the output. They never import a module's `store/`, `clients/` or `domain/` directly.
 - `tool` Every runnable script gets a named command in the project's task runner (e.g. `package.json` script, `Makefile` target). _(script: every entry file has a task-runner command)_
 
 ## Writing Code

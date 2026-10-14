@@ -1,6 +1,6 @@
 # Design: examples
 
-Rules live in `CODING_STANDARDS.md` → Design. Snippets are TypeScript for illustration; the rules are language-agnostic.
+Rules live in `CODING_STANDARDS.md` → Design (and Architecture, for Module layout). Snippets are TypeScript for illustration; the rules are language-agnostic.
 
 ## Deep modules
 
@@ -213,4 +213,53 @@ while (true) {
   await delay(LOOP_DELAY_MS)
 }
 // domains/invoicing.ts holds every decision runInvoiceSync makes
+```
+
+## Module layout: flat first
+
+Do: a small module is a handful of files. Only `domain/` has a fixed name, so one lint glob finds the pure code everywhere.
+```
+modules/settings/
+  index.ts                # public API
+  domain/settings.ts      # pure decisions
+  store.ts                # SQL
+  load-settings.ts        # shell: fetch -> decide -> act
+```
+
+Do: add folders when a trigger fires (about 6+ files, a second kind of leaf, several use cases sharing rules).
+```
+modules/catalog/
+  index.ts
+  domain/
+  app/                    # one file per use case: renew.ts, cancel.ts, refund.ts
+  store/                  # SQL only, parameterized, no rules
+  clients/                # external APIs, thin, return domain types
+```
+
+Don't: a chain of layers that each forward one call. If a layer hides nothing, delete it.
+```ts
+// app/renew.ts -> domain/decide.ts -> store/get.ts: three files, one idea
+```
+
+Where an adapter lives: look at its signature.
+```ts
+// modules/billing/clients/payment-api.ts: domain types, so it stays in billing
+charge(subscription: Subscription, amountCents: number): Promise<ChargeResult>
+
+// platform/http.ts: primitives and vendor shapes, so it is shared plumbing
+request(url: string, init: RequestInit): Promise<Response>
+```
+
+Do: routes are entry edges. Parse, call one public function, shape the response.
+```ts
+// server/routes/renewals.ts
+router.post('/renewals/:id/renew', async (req, res) => {
+  const { id } = z.object({ id: z.string() }).parse(req.params)
+  res.json(toResponse(await renewals.renewSubscription(id))) // renewals/index.ts only
+})
+```
+
+Don't: import another module's internals, or let the module own its HTTP layer (importing it would then load the web framework).
+```ts
+import { getSubscription } from '../billing/store/subscriptions' // deep import: call billing's index.ts
 ```
