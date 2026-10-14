@@ -19,6 +19,7 @@ Shared, referenced from `@k-b3r/agent-config` (git dependency) so repos don't dr
 | Rule | Check |
 |---|---|
 | no `export *`, named exports only, no ambient env outside entry points, no inline sleeps, `ban-ts-comment`, `no-explicit-any`, `eslint-disable` with reason, `import type`, floating promises | `@k-b3r/agent-config/eslint` `baseConfig` |
+| pure core (`pureCorePaths`, opt-in): no `new Date()` / `Date.now()`, `Math.random()`, `fetch`, `process`; the caller passes `now`, ids and config | same |
 | size/params/complexity smells (`hint`) | same, as warnings |
 | no cycles, heavy deps only via their owner, `index.ts` stays light, no deep imports, domains never import entry points | `@k-b3r/agent-config/dependency-cruiser` `baseRules` |
 | escape-hatch ratchet, untested-module ratchet, test placement, entry scripts, test DB env, commit subjects | `repo-checks` |
