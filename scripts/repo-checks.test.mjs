@@ -123,6 +123,7 @@ const wiredRepo = {
   'eslint.config.js': "import { baseConfig } from '@k-b3r/agent-config/eslint'",
   '.dependency-cruiser.cjs': "require('@k-b3r/agent-config/dependency-cruiser')",
   'knip.json': '{}',
+  '.github/pull_request_template.md': '## Intent',
   '.github/workflows/ci.yml': 'uses: k-b3r/agent-config/.github/workflows/ci-typescript.yml@main',
   '.github/workflows/pr-review.yml':
     'on:\n  issue_comment:\njobs:\n  review:\n    uses: k-b3r/agent-config/.github/workflows/pr-review.yml@main',
@@ -154,6 +155,16 @@ test('auditWiring names each missing piece and the rule it enforces', () => {
     'Workflow: lefthook.yml runs pnpm check on pre-push',
     'Version Control: lefthook.yml runs repo-checks commit-msg on commit-msg',
   ])
+})
+
+test('auditWiring flags a repo without a pull request template', () => {
+  const { '.github/pull_request_template.md': _, ...repo } = wiredRepo
+  assert.deepEqual(auditWiring(repo), ['Workflow: .github/pull_request_template.md gives PR bodies their sections'])
+})
+
+test('auditWiring accepts the template in docs/ or the repo root', () => {
+  const { '.github/pull_request_template.md': _, ...repo } = wiredRepo
+  assert.deepEqual(auditWiring({ ...repo, 'docs/pull_request_template.md': '' }), [])
 })
 
 test('auditWiring accepts env templates like .env.local.example', () => {

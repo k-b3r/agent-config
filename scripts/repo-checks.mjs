@@ -246,6 +246,11 @@ export function auditWiring(repo) {
       'Design: .dependency-cruiser.cjs extends @k-b3r/agent-config/dependency-cruiser',
     ],
     [paths.some((path) => /^knip\.(json|jsonc|ts|js)$/.test(path)), 'Refactoring: knip config finds dead code'],
+    // The three places GitHub reads a default template from.
+    [
+      paths.some((path) => /^(\.github\/|docs\/)?pull_request_template\.md$/i.test(path)),
+      'Workflow: .github/pull_request_template.md gives PR bodies their sections',
+    ],
     [
       workflows.some((wf) => wf.includes('k-b3r/agent-config/.github/workflows/ci-typescript.yml')),
       'Workflow: a CI workflow calls k-b3r/agent-config ci-typescript.yml',

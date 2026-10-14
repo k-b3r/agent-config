@@ -36,7 +36,7 @@ Orchestrator side: `/dispatch-tickets`. Input from the orchestrator: ticket id, 
 - Subject: lowercase, imperative, no trailing period, at most 72 chars. No AI attribution.
 - After the first commit: push, then open a **draft** PR so the work survives the session.
   - Title: `<subject> (<TICKET>)`, at most ~65 chars (merge titles add a suffix).
-  - Body: `Closes <TICKET>`, or `Part of <TICKET>` when the ticket spans several PRs. What changed and why, in a few lines.
+  - Body: the repo's `.github/pull_request_template.md` sections, filled in (`gh pr create --body` skips the template, so copy it). `Closes <TICKET>`, or `Part of <TICKET>` when the ticket spans several PRs, goes under Intent. Verified lists commands you ran and their output, never "should work". A risk box you tick means: say so in your report, the orchestrator escalates.
 - Push output is long: redirect it to a file in your scratchpad, then read the tail and grep for errors.
 - Pre-push failed: fix and push again. Never `--no-verify`. Force-push only your own branch, only `--force-with-lease`, only to fix a commit message CI rejected.
 
