@@ -129,7 +129,7 @@ Read the matching file before writing code in that language:
 
 - `tool` Imperative, lowercase, concise, no trailing period: `add search page`, `fix reviewed items resurfacing in review queue`. _(commit-msg hook + CI commit check)_
 - `tool`+`review` One logical change per commit. Feature branches merge with `merge <branch>`. _(merge message format is tool; one logical change is review)_
-- `tool` A PR changes at most `maxDiffLines` (default 500, added plus deleted) outside lockfiles and generated paths; larger work becomes stacked PRs. Label `large-diff-approved` waives it. _(`repo-checks diff-size`)_
+- `tool` A PR changes at most `maxDiffLines` (default 800, added plus deleted) outside lockfiles, generated paths and moved blocks; larger work becomes stacked PRs. Label `large-diff-approved` waives it. _(`repo-checks diff-size`)_
 - `tool` Never commit a broken build or failing tests. Never `--no-verify`, never force-push `main`. _(CI + no-verify bypass caught by required checks)_
 - `tool` No AI attribution: no `Co-Authored-By` trailers in commits, no "Generated with" lines in PR descriptions. _(commit-message check)_
 - `tool` Never hand-edit generated files (lockfiles, CHANGELOG, generated clients, files marked `DO NOT EDIT` / `@generated`). Change the source, rerun the generator. _(rerun generators, git diff --exit-code; pnpm install --frozen-lockfile)_

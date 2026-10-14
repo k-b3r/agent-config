@@ -16,7 +16,7 @@ Every `tool` rule in CODING_STANDARDS.md counts as `review` until a repo wires i
 5. **Fit the configs to the shape** picked in step 2:
    - `eslint.config.js`: `entryPoints` = composition roots (workers, server index, scripts), `delayModules` = the delay util, `defaultExportAllowed` = framework files (Next.js pages, ...), `pureCorePaths` = the folders holding pure decision code (the fit check's domain folders).
    - `.dependency-cruiser.cjs`: `publicApis` = one folder per feature module, `heavyDeps` = each heavy package and its single owner file, `inner` / `entryPoints` folders.
-   - `package.json` `agentConfig`: `sourceDirs`, `entries` (same as ESLint `entryPoints`), `appDbEnv`, `generatedPaths` (globs excluded from the diff-size limit; same files as `regenerate-paths`), `maxDiffLines` only to move off the default 500.
+   - `package.json` `agentConfig`: `sourceDirs`, `entries` (same as ESLint `entryPoints`), `appDbEnv`, `generatedPaths` (globs excluded from the diff-size limit; same files as `regenerate-paths`), `maxDiffLines` only to move off the default 800.
    - `knip.json` entries; `integration.yml` paths. Repo has a UI or HTTP flow: add an `e2e.yml` caller (`jobs: e2e`) and a Playwright config.
 6. **Install.** `pnpm install`. Check `.git/hooks/pre-push` exists and `pnpm exec lefthook version` works: if `node_modules` is missing the hook prints "Can't find lefthook in PATH" and lets the push through unchecked.
 7. **GitHub.** Create the review labels (idempotent):

@@ -9,8 +9,9 @@
 //   entry-scripts            every entry file has a package.json script
 //   test-db-env              integration/e2e code never reads the app's database env var
 //   workflow-permissions     no workflow grants `permissions: write-all` (least-privilege tokens)
-//   diff-size <base>         the PR changes at most maxDiffLines lines outside lockfiles and generatedPaths
-//                            (override: env ALLOW_LARGE_DIFF=true, CI sets it from label large-diff-approved)
+//   diff-size <base>         the PR changes at most maxDiffLines lines outside lockfiles, generatedPaths and
+//                            moved blocks (override: env ALLOW_LARGE_DIFF=true, CI sets it from label
+//                            large-diff-approved)
 //   audit                    the repo wires every shared check (fails on what's missing)
 //   all <base>               everything above
 // Per-repo settings live in package.json "agentConfig" (see DEFAULTS).
@@ -21,9 +22,10 @@ import { basename } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const MAX_SUBJECT = 72
-// ~250 lines of change plus their tests (TDD roughly doubles a diff): the most
-// one reviewer can hold in their head, and for a solo dev the reviewer is you.
-const MAX_DIFF_LINES = 500
+// Measured 2026-10-14 on k-b3r/buy-and-sell (40 merged PRs, median 266 lines): 15 PRs
+// passed 500 and 10 passed 800. With moved blocks not counted, 15 became 10 and 10
+// became 6 (4 features, 2 layout refactors), all large enough to want slicing.
+const MAX_DIFF_LINES = 800
 const DIFF_LARGEST_SHOWN = 3
 const DEFAULTS = {
   sourceDirs: ['src', 'server'],
@@ -188,15 +190,60 @@ export function parseNumstat(numstatZ) {
   return entries
 }
 
-export function diffSize(entries, { generatedPaths }) {
-  const counted = entries.filter(({ path }) => !LOCKFILES.has(basename(path)) && !matchesAny(path, generatedPaths))
+const ESC = String.fromCharCode(27)
+const ANSI_LINE = new RegExp(`^${ESC}\\[([0-9;]*)m(.*)$`)
+const ANSI_CODE = new RegExp(`${ESC}\\[[0-9;]*m`, 'g')
+// Colors the patch is requested with (see GIT_DIFF_COLORS): plain added/removed lines
+// are 32/31 and file headers are exactly 1; any other +/- line is part of a moved block.
+const COLOR_ADDED = '32'
+const COLOR_REMOVED = '31'
+const COLOR_HEADER = '1'
+
+// Lines per file that `git diff --color-moved` shows as moved: they were removed in one
+// place and added in another, so a reviewer reads them once, not twice.
+export function movedLinesByFile(coloredPatch) {
+  const moved = new Map()
+  let current = null
+  for (const raw of coloredPatch.split('\n')) {
+    const match = raw.match(ANSI_LINE)
+    if (!match) continue
+    const [, code, rest] = match
+    const text = rest.replace(ANSI_CODE, '')
+    if (code === COLOR_HEADER) {
+      // A deleted file's `+++` is /dev/null, so its path comes from the `---` line.
+      // Git appends a tab to names with spaces.
+      const path = text.replace(/^(---|\+\+\+) /, '').replace(/\t$/, '')
+      if (/^(---|\+\+\+) /.test(text) && path !== '/dev/null') current = path
+      continue
+    }
+    if (code === COLOR_ADDED || code === COLOR_REMOVED || !/^[+-]/.test(text) || current === null) continue
+    moved.set(current, (moved.get(current) ?? 0) + 1)
+  }
+  return moved
+}
+
+export function diffSize(entries, { generatedPaths }, moved = new Map()) {
+  const counted = entries
+    .filter(({ path }) => !LOCKFILES.has(basename(path)) && !matchesAny(path, generatedPaths))
+    .map(({ path, changed }) => ({ path, changed: Math.max(0, changed - (moved.get(path) ?? 0)) }))
   const largest = counted
     .filter(({ changed }) => changed > 0)
     .sort((a, b) => b.changed - a.changed)
     .slice(0, DIFF_LARGEST_SHOWN)
     .map(({ path, changed }) => `${path} (${changed})`)
-  return { lines: counted.reduce((sum, { changed }) => sum + changed, 0), largest }
+  const movedOut = entries.reduce((sum, { path, changed }) => sum + Math.min(changed, moved.get(path) ?? 0), 0)
+  return { lines: counted.reduce((sum, { changed }) => sum + changed, 0), largest, moved: movedOut }
 }
+
+// Fixed colors so the patch parses the same whatever the user's git config sets.
+const GIT_DIFF_COLORS = [
+  '-c', 'core.quotepath=off',
+  '-c', 'color.diff.meta=bold',
+  '-c', 'color.diff.old=red',
+  '-c', 'color.diff.new=green',
+  ...['oldMoved', 'newMoved', 'oldMovedAlternative', 'newMovedAlternative'].flatMap((name) => ['-c', `color.diff.${name}=magenta`]),
+]
+const GIT_DIFF_MOVED = ['--color=always', '--color-moved=zebra', '--color-moved-ws=allow-indentation-change', '--no-prefix', '-U0']
 
 const REQUIRED_SCRIPTS = ['check', 'lint', 'typecheck', 'test', 'format:check', 'depcruise', 'knip']
 
@@ -336,12 +383,15 @@ const COMMANDS = {
   },
   'diff-size'(base, config) {
     if (process.env.ALLOW_LARGE_DIFF === 'true') return report('diff-size', [], 'skipped (label large-diff-approved)')
-    const { lines, largest } = diffSize(parseNumstat(git('diff', '--numstat', '-z', `${base}...HEAD`)), config)
+    const entries = parseNumstat(git('diff', '--numstat', '-z', `${base}...HEAD`))
+    const moved = movedLinesByFile(git(...GIT_DIFF_COLORS, 'diff', ...GIT_DIFF_MOVED, `${base}...HEAD`))
+    const { lines, largest, moved: movedTotal } = diffSize(entries, config, moved)
     const problems =
       lines > config.maxDiffLines
         ? [`${lines} changed lines, limit ${config.maxDiffLines}: split into stacked PRs (largest: ${largest.join(', ')}) or label large-diff-approved`]
         : []
-    return report('diff-size', problems, `${lines} changed lines versus ${base}, limit ${config.maxDiffLines}`)
+    const movedNote = movedTotal ? `, ${movedTotal} moved lines not counted` : ''
+    return report('diff-size', problems, `${lines} changed lines versus ${base}${movedNote}, limit ${config.maxDiffLines}`)
   },
   audit() {
     const WANTED = /(^|\/)(CLAUDE|CONTEXT)\.md$|^\.gitignore$|^lefthook\.yml$|^eslint\.config\.|^\.dependency-cruiser\.cjs$|^package\.json$|^\.github\/workflows\//
