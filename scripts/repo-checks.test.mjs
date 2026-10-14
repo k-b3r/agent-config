@@ -4,11 +4,13 @@ import {
   auditWiring,
   checkCommitMessage,
   countEscapeHatches,
+  diffSize,
   entriesWithoutScript,
   escapeHatchGrowth,
   globToRegExp,
   misplacedTests,
   newlyUntested,
+  parseNumstat,
   sourcePaths,
   testDbEnvLeaks,
   writeAllWorkflows,
@@ -171,4 +173,36 @@ test('writeAllWorkflows flags a workflow that grants write-all and ignores comme
     { path: 'docs/ci.yml', text: 'permissions: write-all\n' },
   ]
   assert.deepEqual(writeAllWorkflows(files), ['.github/workflows/ci.yml'])
+})
+
+const numstat = (...rows) => rows.join('\0') + '\0'
+
+test('parseNumstat reads added and deleted counts, takes the new path of a rename, and counts binary files as 0', () => {
+  const output = numstat('10\t2\tsrc/a.ts', '-\t-\tlogo.png', '0\t0\t', 'src/old.ts', 'src/new.ts')
+  assert.deepEqual(parseNumstat(output), [
+    { path: 'src/a.ts', changed: 12 },
+    { path: 'logo.png', changed: 0 },
+    { path: 'src/new.ts', changed: 0 },
+  ])
+})
+
+test('diffSize sums added and deleted lines, skipping lockfiles and generated paths', () => {
+  const entries = [
+    { path: 'src/a.ts', changed: 120 },
+    { path: 'src/a.test.ts', changed: 80 },
+    { path: 'pnpm-lock.yaml', changed: 900 },
+    { path: 'drizzle/0001_init.sql', changed: 300 },
+  ]
+  const size = diffSize(entries, { generatedPaths: ['drizzle/**'], maxDiffLines: 500 })
+  assert.equal(size.lines, 200)
+  assert.deepEqual(size.largest, ['src/a.ts (120)', 'src/a.test.ts (80)'])
+})
+
+test('diffSize names the three largest files so the split is easy to plan', () => {
+  const entries = ['a', 'b', 'c', 'd'].map((name, i) => ({ path: `src/${name}.ts`, changed: (i + 1) * 10 }))
+  assert.deepEqual(diffSize(entries, { generatedPaths: [], maxDiffLines: 5 }).largest, [
+    'src/d.ts (40)',
+    'src/c.ts (30)',
+    'src/b.ts (20)',
+  ])
 })

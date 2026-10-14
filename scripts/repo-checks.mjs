@@ -9,21 +9,30 @@
 //   entry-scripts            every entry file has a package.json script
 //   test-db-env              integration/e2e code never reads the app's database env var
 //   workflow-permissions     no workflow grants `permissions: write-all` (least-privilege tokens)
+//   diff-size <base>         the PR changes at most maxDiffLines lines outside lockfiles and generatedPaths
+//                            (override: env ALLOW_LARGE_DIFF=true, CI sets it from label large-diff-approved)
 //   audit                    the repo wires every shared check (fails on what's missing)
 //   all <base>               everything above
 // Per-repo settings live in package.json "agentConfig" (see DEFAULTS).
 // commitlint was skipped: its parser expects a `type:` prefix these repos don't use.
 import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync, realpathSync } from 'node:fs'
+import { basename } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const MAX_SUBJECT = 72
+// ~250 lines of change plus their tests (TDD roughly doubles a diff): the most
+// one reviewer can hold in their head, and for a solo dev the reviewer is you.
+const MAX_DIFF_LINES = 500
+const DIFF_LARGEST_SHOWN = 3
 const DEFAULTS = {
   sourceDirs: ['src', 'server'],
   untestedExempt: [],
   escapeHatchExempt: ['tests/lint-fixtures/'],
   entries: [],
   appDbEnv: null,
+  maxDiffLines: MAX_DIFF_LINES,
+  generatedPaths: [],
 }
 
 // Unanchored: Claude Code's footer starts with an emoji, and hooks see the
@@ -162,6 +171,33 @@ export function writeAllWorkflows(files) {
 
 const withoutHashComments = (text) => text.replace(/#.*$/gm, '')
 
+const LOCKFILES = new Set(['pnpm-lock.yaml', 'package-lock.json', 'yarn.lock', 'bun.lockb', 'Cargo.lock', 'poetry.lock', 'uv.lock', 'go.sum'])
+
+// `git diff --numstat -z`: "added\tdeleted\tpath\0", or for a rename
+// "added\tdeleted\t\0old\0new\0". Binary files report "-" and count as 0.
+export function parseNumstat(numstatZ) {
+  const tokens = numstatZ.split('\0')
+  const entries = []
+  for (let i = 0; i < tokens.length; i++) {
+    const row = tokens[i].match(/^(\d+|-)\t(\d+|-)\t(.*)$/)
+    if (!row) continue
+    const [, added, deleted, path] = row
+    if (path === '') i += 2
+    entries.push({ path: path === '' ? tokens[i] : path, changed: (Number(added) || 0) + (Number(deleted) || 0) })
+  }
+  return entries
+}
+
+export function diffSize(entries, { generatedPaths }) {
+  const counted = entries.filter(({ path }) => !LOCKFILES.has(basename(path)) && !matchesAny(path, generatedPaths))
+  const largest = counted
+    .filter(({ changed }) => changed > 0)
+    .sort((a, b) => b.changed - a.changed)
+    .slice(0, DIFF_LARGEST_SHOWN)
+    .map(({ path, changed }) => `${path} (${changed})`)
+  return { lines: counted.reduce((sum, { changed }) => sum + changed, 0), largest }
+}
+
 const REQUIRED_SCRIPTS = ['check', 'lint', 'typecheck', 'test', 'format:check', 'depcruise', 'knip']
 
 // repo: tracked path -> text ('' when the content isn't needed). Each finding names
@@ -293,6 +329,15 @@ const COMMANDS = {
       .map((path) => ({ path, text: readFileSync(path, 'utf8') }))
     return report('workflow-permissions', writeAllWorkflows(files).map((p) => `${p}: replace write-all with the scopes the job needs`), 'ok')
   },
+  'diff-size'(base, config) {
+    if (process.env.ALLOW_LARGE_DIFF === 'true') return report('diff-size', [], 'skipped (label large-diff-approved)')
+    const { lines, largest } = diffSize(parseNumstat(git('diff', '--numstat', '-z', `${base}...HEAD`)), config)
+    const problems =
+      lines > config.maxDiffLines
+        ? [`${lines} changed lines, limit ${config.maxDiffLines}: split into stacked PRs (largest: ${largest.join(', ')}) or label large-diff-approved`]
+        : []
+    return report('diff-size', problems, `${lines} changed lines versus ${base}, limit ${config.maxDiffLines}`)
+  },
   audit() {
     const WANTED = /(^|\/)(CLAUDE|CONTEXT)\.md$|^\.gitignore$|^lefthook\.yml$|^eslint\.config\.|^\.dependency-cruiser\.cjs$|^package\.json$|^\.github\/workflows\//
     const repo = Object.fromEntries(
@@ -302,7 +347,7 @@ const COMMANDS = {
   },
 }
 
-const NEEDS_BASE = new Set(['commits', 'escape-hatches', 'untested-modules', 'all'])
+const NEEDS_BASE = new Set(['commits', 'escape-hatches', 'untested-modules', 'diff-size', 'all'])
 const NOT_IN_ALL = new Set(['commit-msg'])
 
 function main([command, base]) {
