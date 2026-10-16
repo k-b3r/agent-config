@@ -13,17 +13,72 @@ const slug = (path) => path.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '')
 
 const DEFAULT_TEST_FILES = ['\\.test\\.tsx?$', '\\.spec\\.tsx?$', '^tests/', '\\.config\\.[cm]?ts$']
 
+// A module imports only modules in lower tiers, so the graph is acyclic by construction and
+// two modules at one tier can't depend on each other (one moves up, or what they share moves
+// down into a lower module or platform/). Unlisted modules fail, so adding a module forces
+// choosing its tier. Callers that sit above every module (src/processes) stay out of the
+// list; keep modules from importing them with `inner` + `entryPoints`.
+function tierRules(moduleTiers) {
+  if (!moduleTiers?.tiers?.length) return []
+  const { dir, tiers } = moduleTiers
+  const listed = tiers.flat()
+  const module = (name) => `${under(dir)}${escape(name)}/`
+  const unlisted = `${under(dir)}(?!(?:${listed.map(escape).join('|')})/)[^/]+/`
+  return [
+    ...tiers.flatMap((tier, index) =>
+      tier.flatMap((name) => {
+        // An empty `path` list would match every dependency, so a module with nothing above or beside it gets no rule.
+        const forbidden = tiers.slice(index).flat().filter((other) => other !== name)
+        return forbidden.length
+          ? [
+              {
+                name: `module-tier-${slug(name)}`,
+                severity: 'error',
+                comment: `${name} is tier ${index}: it imports only modules in tiers below ${index}. Move shared code down into a lower module or platform/.`,
+                from: { path: module(name) },
+                to: { path: forbidden.map(module) },
+              },
+            ]
+          : []
+      }),
+    ),
+    {
+      name: 'module-tier-unlisted',
+      severity: 'error',
+      comment: `A module under ${dir} must be listed in moduleTiers so its tier is a decision, not an accident.`,
+      from: { path: unlisted },
+      to: { pathNot: unlisted },
+    },
+    {
+      name: 'module-tier-unlisted-target',
+      severity: 'error',
+      comment: `A module under ${dir} must be listed in moduleTiers before another module imports it.`,
+      from: { pathNot: unlisted },
+      to: { path: unlisted },
+    },
+  ]
+}
+
 /**
  * @param {object} options
  * @param {string[]} [options.publicApis] folders whose index.ts is their only entry from outside
  * @param {{ packages: string[], owner: string }[]} [options.heavyDeps] heavy or side-effecting packages and the one file allowed to import them
  * @param {string[]} [options.inner] folders holding domain logic (modules, domains, platform)
  * @param {string[]} [options.entryPoints] folders of composition roots (workers, scripts, server); inner code never imports them
+ * @param {{ dir: string, tiers: string[][] }} [options.moduleTiers] modules under `dir`, lowest tier first: a module may import only modules in lower tiers (never its own tier), and every module must be listed
  * @param {string[]} [options.testFiles] path regexes exempt from the heavy-dep rule
  */
-function baseRules({ publicApis = [], heavyDeps = [], inner = [], entryPoints = [], testFiles = DEFAULT_TEST_FILES }) {
+function baseRules({
+  publicApis = [],
+  heavyDeps = [],
+  inner = [],
+  entryPoints = [],
+  moduleTiers,
+  testFiles = DEFAULT_TEST_FILES,
+}) {
   const owners = heavyDeps.map((dep) => exactly(dep.owner))
   return [
+    ...tierRules(moduleTiers),
     {
       name: 'no-circular',
       severity: 'error',
