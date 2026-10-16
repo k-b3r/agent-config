@@ -22,7 +22,7 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR once the r
 - `tool` Every change reaches `main` through a pull request; never push to `main`. _(guard hook, branch protection)_
 - `tool` New repos start from `/init-repo`; a missing shared check fails CI. _(`repo-checks audit`)_
 - `tool` The canonical check (e.g. `pnpm check`) runs before every push. _(pre-push hook)_
-- `process` Each check runs in one place: pre-push runs the canonical check, CI runs everything else. Don't run either by hand or re-run CI's checks locally; run targeted tests while iterating and regenerate generated files (CI can only verify them). After pushing, watch CI and fix what fails. Delegated-agent prompts follow the same rule.
+- `process` Each check runs in one place: pre-push runs the canonical check, CI runs everything else. Don't run either by hand or re-run CI's checks locally, except once when setting up or retrofitting a repo (`/init-repo` runs `pnpm check` and `repo-checks audit` to prove the wiring); run targeted tests while iterating and regenerate generated files (CI can only verify them). After pushing, watch CI and fix what fails. Delegated-agent prompts follow the same rule.
 - `tool` Every repo ships `.github/pull_request_template.md`. _(`repo-checks audit`)_
 - `process` Every PR body fills the template in, including the risk boxes (auth, money, user data, migrations, infra). A ticked box means stop and get the human decision.
 - `tool` A PR merges only when CI is green, including the agent review and its gate. _(required status checks)_
