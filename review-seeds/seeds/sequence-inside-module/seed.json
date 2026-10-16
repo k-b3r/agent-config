@@ -1,0 +1,9 @@
+{
+  "name": "sequence-inside-module",
+  "rule": "a cross-module sequence lives in the caller's run.ts",
+  "covers": "A sequence that spans modules lives in its caller's `run.ts`",
+  "expect": {
+    "blocking": true
+  },
+  "message": "move listing recording into pricing module"
+}

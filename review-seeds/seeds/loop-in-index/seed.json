@@ -1,0 +1,9 @@
+{
+  "name": "loop-in-index",
+  "rule": "a worker's index.ts only wires; the loop lives in run.ts",
+  "covers": "A worker or CLI entry point is a folder",
+  "expect": {
+    "blocking": true
+  },
+  "message": "add refresh worker"
+}

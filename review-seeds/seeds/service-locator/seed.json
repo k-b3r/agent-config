@@ -1,0 +1,9 @@
+{
+  "name": "service-locator",
+  "rule": "dependencies are passed in, never fetched from a registry",
+  "covers": "Inject only I/O (db, network, clock, delay, model clients)",
+  "expect": {
+    "blocking": true
+  },
+  "message": "add latest price lookup with shared service registry"
+}

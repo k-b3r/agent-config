@@ -1,0 +1,9 @@
+{
+  "name": "undocumented-contract",
+  "rule": "loosely typed parameters need their shape in a doc comment",
+  "covers": "A public function's contract lives in its doc comment",
+  "expect": {
+    "blocking": true
+  },
+  "message": "add listing parser to pricing domain"
+}

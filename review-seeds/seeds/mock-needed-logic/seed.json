@@ -1,0 +1,9 @@
+{
+  "name": "mock-needed-logic",
+  "rule": "split a decision from its effect so it tests without mocks",
+  "covers": "Smell test: a function that needs mocks",
+  "expect": {
+    "blocking": true
+  },
+  "message": "mark deep discounts as markdowns"
+}
