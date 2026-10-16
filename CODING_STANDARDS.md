@@ -24,6 +24,7 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR once the r
 - `tool` New repos start from `/init-repo`, which wires every `tool` check below; `repo-checks audit` fails CI when one goes missing. _(audit)_
 - `tool` The canonical check (e.g. `pnpm check`) runs before every push. _(pre-push hook)_
 - `process` Each check runs in one place: the pre-push hook runs the canonical check, CI runs everything else. Don't run either by hand before pushing, and don't re-run CI's checks locally. Locally: targeted tests while iterating (the TDD loop), and regenerate generated files, since CI can only verify them. After pushing, watch CI and fix what fails. Prompts for delegated agents follow the same rule.
+- `tool` Every repo ships `.github/pull_request_template.md` (intent, changed / not changed, risks, verified, unresolved questions) and every PR body fills it in, including the risk boxes for auth, money, user data, migrations and infra. A ticked box means stop and get the human decision. _(audit: the template exists)_
 - `tool` A PR merges only when CI is green: format, lint, typecheck, unit, integration, e2e, agent review, and the review gate. _(required status checks)_
 - `process` When the agent review labels a PR `needs-human`, stop and get the human decision; never add `human-approved` yourself. `/resolve-needs-human` walks the user through the open ones and posts `/approve` (adds `human-approved`, clears `needs-human`) only on their explicit per-PR answer.
 - `process` A delegated agent shipping a ticket as a PR loads `/ship-ticket`; its prompt carries only the ticket, its file scope and cross-PR notes. The orchestrating session runs the round with `/dispatch-tickets`.
@@ -57,7 +58,7 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR once the r
 - `review` Define errors out of existence where possible (APIs whose normal semantics cover the edge case) instead of adding exceptions callers must handle.
 - `review` Design it twice: consider one alternative before committing to an interface.
 - `tool`+`review` Minimize parameters: derive any value the function can work out from what it's given. Inject outside-world dependencies; never derive from ambient state (globals, singletons, env). Pass a whole object when the function works on that entity, a single value when it's a utility. _(env/global reads banned outside entry points; parameter count is review)_
-- `review` Functional core, imperative shell: pure logic takes data and returns data; I/O stays at the edges.
+- `tool`+`review` Functional core, imperative shell: pure logic takes data and returns data; I/O stays at the edges. _(`pureCorePaths` bans clock, randomness, `fetch` and `process` in the core; what else counts as I/O is review)_
 - `review` Inject only I/O (db, network, clock, delay, model clients); pure logic takes plain data. Wire dependencies in one composition root per entry point. No DI containers, service locators, singletons, or in-process event buses.
 - `review` Interfaces only at I/O boundaries (adapters); no one-implementation interfaces elsewhere. Strategies are plain functions. Composition over inheritance.
 - `review` Use a design pattern when the code already has its shape (rule of three), not in advance. Simplest form first: a function before a class, a class before a hierarchy.
@@ -128,6 +129,7 @@ Read the matching file before writing code in that language:
 
 - `tool` Imperative, lowercase, concise, no trailing period: `add search page`, `fix reviewed items resurfacing in review queue`. _(commit-msg hook + CI commit check)_
 - `tool`+`review` One logical change per commit. Feature branches merge with `merge <branch>`. _(merge message format is tool; one logical change is review)_
+- `tool` A PR changes at most `maxDiffLines` (default 800, added plus deleted) outside lockfiles, generated paths and moved blocks; larger work becomes stacked PRs. Label `large-diff-approved` waives it. _(`repo-checks diff-size`)_
 - `tool` Never commit a broken build or failing tests. Never `--no-verify`, never force-push `main`. _(CI + no-verify bypass caught by required checks)_
 - `tool` No AI attribution: no `Co-Authored-By` trailers in commits, no "Generated with" lines in PR descriptions. _(commit-message check)_
 - `tool` Never hand-edit generated files (lockfiles, CHANGELOG, generated clients, files marked `DO NOT EDIT` / `@generated`). Change the source, rerun the generator. _(rerun generators, git diff --exit-code; pnpm install --frozen-lockfile)_
@@ -156,6 +158,7 @@ Read the matching file before writing code in that language:
 ## Security
 
 - `tool` No secrets in the repo: env vars or a secret store, `.env*` gitignored, an `.env.example` committed. _(secret scanning)_
+- `tool` Agents never read secret files (`.env*`, keys, cloud credentials), delete recursively outside the workspace, run `DROP`/`TRUNCATE`, or apply migrations against a database that isn't a test one; a human applies migrations elsewhere. _(PreToolUse guard hook)_
 - `tool`+`review` Never log secrets, tokens, or personal data; redact at the logger. _(no-console in domain code via `noConsoleFiles`; what a logged object contains is review)_
 - `tool`+`review` Parameterized queries and argument arrays only; never interpolate input into SQL or shell commands. _(no-interpolated-sql via `parameterizedSqlFiles`: only constant SQL fragments may be interpolated; whether a fragment is constant is review)_
 - `tool`+`review` Least privilege: scoped, read-only tokens where possible. _(`repo-checks workflow-permissions` bans `write-all`; whether each scope is needed is review)_

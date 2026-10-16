@@ -7,6 +7,9 @@ export default [
     entryPoints: ['src/workers/*/index.ts'],
     // The injectable delay; the only place allowed to sleep.
     delayModules: ['src/platform/delay.ts'],
+    // Pure decision code (no clock, randomness, fetch, process). Uncomment once the
+    // architecture fit check has a domain folder, e.g. 'src/modules/*/domain/**'.
+    // pureCorePaths: ['src/domain/**'],
   }),
   // Repo-specific blocks (framework plugins, extra bans) go here.
 ]

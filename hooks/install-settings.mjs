@@ -5,11 +5,17 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
-const MATCHER = 'Bash|Edit|Write|MultiEdit|NotebookEdit'
+const MATCHER = 'Bash|Read|Edit|Write|MultiEdit|NotebookEdit'
 
 export function withGuard(settings, command) {
   const preToolUse = settings.hooks?.PreToolUse ?? []
-  if (preToolUse.some((entry) => entry.hooks?.some((hook) => hook.command === command))) return settings
+  const isGuard = (entry) => entry.hooks?.some((hook) => hook.command === command)
+  if (preToolUse.some((entry) => isGuard(entry) && entry.matcher === MATCHER)) return settings
+  // An install from before the guard watched Read keeps its entry; only the matcher widens.
+  if (preToolUse.some(isGuard)) {
+    const entries = preToolUse.map((entry) => (isGuard(entry) ? { ...entry, matcher: MATCHER } : entry))
+    return { ...settings, hooks: { ...settings.hooks, PreToolUse: entries } }
+  }
   return {
     ...settings,
     hooks: {
@@ -26,6 +32,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   if (after === before) console.log('guard hook already in settings.json')
   else {
     writeFileSync(settingsPath, `${JSON.stringify(after, null, 2)}\n`)
-    console.log(`added guard hook to ${settingsPath}`)
+    console.log(`wired guard hook in ${settingsPath}`)
   }
 }

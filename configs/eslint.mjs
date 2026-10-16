@@ -25,6 +25,24 @@ const INLINE_SLEEP = {
     "NewExpression[callee.name='Promise'] > ArrowFunctionExpression > CallExpression[callee.name='setTimeout']",
   message: 'Inject a delay function so tests can pass a no-op; only the delay module sleeps.',
 }
+const AMBIENT_CLOCK = [
+  {
+    selector: "NewExpression[callee.name='Date'][arguments.length=0]",
+    message: 'Pass `now` in: pure code never reads the clock.',
+  },
+  {
+    selector: "CallExpression[callee.object.name='Date'][callee.property.name='now']",
+    message: 'Pass `now` in: pure code never reads the clock.',
+  },
+  {
+    selector: "CallExpression[callee.object.name='Math'][callee.property.name='random']",
+    message: 'Inject randomness (or an id) as an argument: pure code never draws its own.',
+  },
+]
+const PURE_CORE_GLOBALS = ['fetch', 'process'].map((name) => ({
+  name,
+  message: 'Pure code has no network or process access: take the value as an argument, do the call in the shell.',
+}))
 const AMBIENT_ENV = {
   object: 'process',
   property: 'env',
@@ -41,6 +59,7 @@ const AMBIENT_ENV = {
  * @param {string[]} [options.parameterizedSqlFiles] domain code where `.query()` SQL takes values as $n parameters (opt-in; see no-interpolated-sql.mjs)
  * @param {string} [options.sqlFragment] regex naming the interpolations that are safe SQL fragments (constants, builders)
  * @param {string[]} [options.noConsoleFiles] domain code that logs through the injected Logger, never console.*
+ * @param {string[]} [options.pureCorePaths] pure functional core (e.g. `src/modules/*\/domain/**`): no clock, randomness, `fetch` or `process`; callers pass those in
  * @param {string[]} [options.ignores]
  */
 export function baseConfig({
@@ -52,6 +71,7 @@ export function baseConfig({
   parameterizedSqlFiles = [],
   sqlFragment = DEFAULT_SQL_FRAGMENT,
   noConsoleFiles = [],
+  pureCorePaths = [],
   ignores = [],
 }) {
   // A later block's no-restricted-syntax replaces earlier options, so each
@@ -97,6 +117,17 @@ export function baseConfig({
       : {},
     // Domain code logs through the injected Logger, which redacts secrets; console bypasses it.
     noConsoleFiles.length ? { files: noConsoleFiles, ignores: TEST_FILES, rules: { 'no-console': 'error' } } : {},
+    // Same-input-same-output code: decisions take `now`, ids and config as arguments, so tests need no fake timers.
+    pureCorePaths.length
+      ? {
+          files: pureCorePaths,
+          ignores: TEST_FILES,
+          rules: {
+            'no-restricted-globals': ['error', ...PURE_CORE_GLOBALS],
+            ...syntax(EXPORT_ALL, DEFAULT_EXPORT, INLINE_SLEEP, ...AMBIENT_CLOCK),
+          },
+        }
+      : {},
     entryPoints.length ? { files: entryPoints, rules: { 'no-restricted-properties': 'off' } } : {},
     delayModules.length ? { files: delayModules, rules: syntax(EXPORT_ALL, DEFAULT_EXPORT) } : {},
     {

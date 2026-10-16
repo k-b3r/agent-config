@@ -19,6 +19,7 @@ const eslint = new ESLint({
     defaultExportAllowed: ['tests/integration/global-setup.ts'],
     parameterizedSqlFiles: ['src/domain/**'],
     noConsoleFiles: ['src/domain/**'],
+    pureCorePaths: ['src/core/**'],
   }),
 })
 
@@ -42,6 +43,11 @@ const violations = [
   ['src/value-type-import.ts', '@typescript-eslint/consistent-type-imports'],
   ['src/domain/interpolated-sql.ts', 'agent-config/no-interpolated-sql'],
   ['src/domain/console-log.ts', 'no-console'],
+  ['src/core/new-date.ts', 'no-restricted-syntax'],
+  ['src/core/date-now.ts', 'no-restricted-syntax'],
+  ['src/core/math-random.ts', 'no-restricted-syntax'],
+  ['src/core/fetch.ts', 'no-restricted-globals'],
+  ['src/core/process.ts', 'no-restricted-globals'],
 ]
 
 for (const [file, rule] of violations) {
@@ -91,5 +97,23 @@ test('baseConfig lets SQL interpolate a constant fragment while values stay para
 })
 
 test('baseConfig leaves SQL and console alone outside the opted-in domain files', async () => {
+  assert.deepEqual(await errors('src/entry.ts'), [])
+})
+
+test('baseConfig tells pure code to take the clock and randomness as arguments', async () => {
+  const messageOf = async (file) => {
+    const [result] = await eslint.lintFiles([join(fixtures, file)])
+    return result.messages.map((m) => m.message).join('\n')
+  }
+  assert.match(await messageOf('src/core/new-date.ts'), /Pass `now` in/)
+  assert.match(await messageOf('src/core/date-now.ts'), /Pass `now` in/)
+  assert.match(await messageOf('src/core/math-random.ts'), /randomness/)
+})
+
+test('baseConfig lets pure code build dates from arguments', async () => {
+  assert.deepEqual(await lint('src/core/clean.ts'), [])
+})
+
+test('baseConfig leaves clock, randomness and fetch alone outside the opted-in pure core', async () => {
   assert.deepEqual(await errors('src/entry.ts'), [])
 })

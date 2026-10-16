@@ -13,6 +13,10 @@
 #       with: { jobs: static unit }
 #   # .github/workflows/integration.yml: same, with `on: pull_request: paths: [...]`
 #   # and `jobs: integration` (likewise e2e.yml with `jobs: e2e`).
+#
+# `repo-checks diff-size` fails a PR over agentConfig.maxDiffLines. Label
+# `large-diff-approved` waives it; the label is read from the event payload, so
+# add it, then push or close and reopen the PR (a job re-run keeps the old payload).
 
 name: ci-typescript
 
@@ -84,6 +88,7 @@ jobs:
         run: pnpm exec repo-checks all "origin/$BASE"
         env:
           BASE: ${{ github.base_ref || github.event.repository.default_branch }}
+          ALLOW_LARGE_DIFF: ${{ contains(github.event.pull_request.labels.*.name, 'large-diff-approved') }}
       - name: secret scan
         if: ${{ !cancelled() }}
         env:

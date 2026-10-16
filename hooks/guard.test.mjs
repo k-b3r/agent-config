@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { checkBash, checkEdit } from './guard.mjs'
+import { checkBash, checkEdit, checkSecretPath } from './guard.mjs'
 
 test('checkBash blocks --no-verify on commit and push', () => {
   assert.match(checkBash('git commit --no-verify -m "x"', 'feature'), /--no-verify/)
@@ -49,4 +49,106 @@ test('checkEdit blocks lockfiles and files marked generated', () => {
 test('checkEdit allows ordinary files, including ones mentioning generation later on', () => {
   assert.equal(checkEdit('/repo/src/a.ts', 'export const a = 1\n'.repeat(10) + '// @generated sample'), null)
   assert.equal(checkEdit('/repo/new.ts', null), null)
+})
+
+test('checkSecretPath blocks env files, keys and cloud credentials but not templates or public keys', () => {
+  for (const path of [
+    '/repo/.env',
+    '/repo/.env.local',
+    '/repo/apps/web/.env.production',
+    '/home/kim/.aws/credentials',
+    '/home/kim/.ssh/id_ed25519',
+    '/home/kim/.config/gcloud/application_default_credentials.json',
+    '/repo/certs/server.pem',
+    '/repo/deploy.key',
+    '/home/kim/.kube/config',
+    '/home/kim/.netrc',
+  ]) {
+    assert.match(checkSecretPath(path), /secret/i, path)
+  }
+  for (const path of ['/repo/.env.example', '/repo/.env.local.example', '/home/kim/.ssh/id_ed25519.pub', '/repo/src/env.ts', '/repo/docs/environment.md']) {
+    assert.equal(checkSecretPath(path), null, path)
+  }
+})
+
+test('checkBash blocks reading secret files with read-style commands and redirects', () => {
+  for (const command of [
+    'cat .env',
+    'cat apps/web/.env.local | head',
+    'grep -n KEY .env.production',
+    'source .env',
+    'cp ~/.aws/credentials /tmp/x',
+    'sudo cat ~/.ssh/id_rsa',
+    'FOO=1 head -c 100 server.pem',
+    'node -e "x" < .env',
+    'cd app && tail -f .env',
+  ]) {
+    assert.match(checkBash(command, 'feature'), /secret/i, command)
+  }
+})
+
+test('checkBash leaves env templates, listing and unrelated mentions alone', () => {
+  for (const command of ['cat .env.example', 'ls -la .env', 'git add .env.example', 'grep -rn "process.env" src', 'echo ".env*" >> .gitignore']) {
+    assert.equal(checkBash(command, 'feature'), null, command)
+  }
+})
+
+test('checkBash blocks recursive deletes outside the workspace and of unresolvable targets', () => {
+  const cwd = '/home/kim/repo'
+  for (const command of ['rm -rf /', 'rm -rf ~', 'rm -rf $HOME/x', 'rm -rf ..', 'rm -rf ../other', 'rm -fr /etc/foo', 'rm -r /home/kim/other', 'rm --recursive --force /var/lib', 'rm -rf "$DIR"', 'rm -rf .', 'rm -rf /tmp']) {
+    assert.match(checkBash(command, 'feature', cwd), /rm|delet/i, command)
+  }
+})
+
+test('checkBash allows recursive deletes inside the workspace and under /tmp subfolders', () => {
+  const cwd = '/home/kim/repo'
+  for (const command of ['rm -rf node_modules', 'rm -rf dist coverage', 'rm -rf ./build/cache', 'rm -rf /home/kim/repo/dist', 'rm -rf /tmp/claude-1000/scratch', 'rm file.txt', 'rm -f /etc/hosts.bak']) {
+    assert.equal(checkBash(command, 'feature', cwd), null, command)
+  }
+})
+
+test('checkBash blocks DROP, TRUNCATE and FLUSH through a database client unless the target is a test database', () => {
+  for (const command of [
+    'psql $DATABASE_URL -c "DROP TABLE users"',
+    'psql -d app -c "truncate table orders"',
+    'docker compose exec db psql -U app -c "DROP DATABASE app"',
+    'mysql -e "DROP SCHEMA shop"',
+    'redis-cli FLUSHALL',
+  ]) {
+    assert.match(checkBash(command, 'feature'), /destructive|drop|truncate|flush/i, command)
+  }
+  for (const command of [
+    'psql $TEST_DATABASE_URL -c "TRUNCATE users"',
+    'psql -d app_test -c "DROP TABLE users"',
+    'git commit -m "drop table users from the seed"',
+    'echo "DROP TABLE x"',
+  ]) {
+    assert.equal(checkBash(command, 'feature'), null, command)
+  }
+})
+
+test('checkBash blocks applying migrations but allows generating them and applying to a test database', () => {
+  for (const command of [
+    'pnpm drizzle-kit migrate',
+    'npx drizzle-kit push',
+    'prisma migrate deploy',
+    'pnpm db:migrate',
+    'npm run migrate',
+    'alembic upgrade head',
+    'rails db:migrate',
+    'python manage.py migrate',
+    'goose up',
+    'DATABASE_URL=$PROD_URL pnpm drizzle-kit migrate',
+  ]) {
+    assert.match(checkBash(command, 'feature'), /migration/i, command)
+  }
+  for (const command of [
+    'pnpm drizzle-kit generate',
+    'prisma migrate diff',
+    'pnpm db:generate',
+    'DATABASE_URL=$TEST_DATABASE_URL pnpm drizzle-kit migrate',
+    'pnpm test:migrations',
+  ]) {
+    assert.equal(checkBash(command, 'feature'), null, command)
+  }
 })
