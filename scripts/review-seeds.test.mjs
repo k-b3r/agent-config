@@ -1,7 +1,21 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
 import { test } from 'node:test'
-import { buildSimPrompt, classifyRun, extractModel, extractPrompt, judge, limitNotice, parseLabels } from './review-seeds.mjs'
+import {
+  buildSeedRepo,
+  buildSimPrompt,
+  classifyRun,
+  extractModel,
+  extractPrompt,
+  judge,
+  limitNotice,
+  loadSeeds,
+  parseLabels,
+  validateSeed,
+} from './review-seeds.mjs'
 
 const WORKFLOW = [
   '      - uses: anthropics/claude-code-action@v1',
@@ -87,4 +101,73 @@ test('classifyRun scores a limit reply as an error, not a miss', () => {
 test('classifyRun scores a verdict against the expectation', () => {
   assert.equal(classifyRun({ blocking: true }, 'LABELS: add `agent-changes-requested`').status, 'ok')
   assert.equal(classifyRun({ blocking: true }, 'LABELS: remove `agent-changes-requested`').status, 'miss')
+})
+
+// A throwaway base project and seeds directory, written from a map of relative path -> text.
+function scratch(files) {
+  const root = mkdtempSync(join(tmpdir(), 'seeds-test-'))
+  for (const [path, text] of Object.entries(files)) {
+    mkdirSync(dirname(join(root, path)), { recursive: true })
+    writeFileSync(join(root, path), text)
+  }
+  return root
+}
+
+const seedJson = (extra = {}) =>
+  JSON.stringify({ name: 'one', rule: 'a rule', covers: 'a distinctive rule substring', expect: { blocking: true }, message: 'change a', ...extra })
+
+const git = (repo, ...args) => execFileSync('git', ['-C', repo, ...args], { encoding: 'utf8' })
+
+test('loadSeeds reads seed.json and an overlay, and names the branch after the seed', () => {
+  const root = scratch({ 'one/seed.json': seedJson(), 'one/files/src/a.ts': 'export const a = 2\n' })
+  const [seed] = loadSeeds(root)
+  assert.equal(seed.name, 'one')
+  assert.equal(seed.branch, 'one')
+  assert.deepEqual(seed.steps.map((s) => s.message), ['change a'])
+})
+
+test('loadSeeds orders steps by directory name and reads each step message', () => {
+  const root = scratch({
+    'two/seed.json': seedJson({ name: 'two', message: undefined }),
+    'two/steps/02-behavior/message.txt': 'add the setting\n',
+    'two/steps/02-behavior/files/src/a.ts': 'x\n',
+    'two/steps/01-refactor/message.txt': 'rename helper\n',
+    'two/steps/01-refactor/files/src/a.ts': 'y\n',
+  })
+  const [seed] = loadSeeds(root)
+  assert.deepEqual(seed.steps.map((s) => s.message), ['rename helper', 'add the setting'])
+})
+
+test('buildSeedRepo commits the base as origin/main and each seed as its own origin branch with one commit per step', () => {
+  const base = scratch({ 'src/a.ts': 'export const a = 1\n', 'src/gone.ts': 'export const g = 1\n' })
+  const seeds = scratch({
+    'one/seed.json': seedJson(),
+    'one/files/src/a.ts': 'export const a = 2\n',
+    'one/files/src/new.ts': 'export const n = 1\n',
+    'one/remove.txt': 'src/gone.ts\n',
+    'two/seed.json': seedJson({ name: 'two', message: undefined }),
+    'two/steps/01-first/message.txt': 'first step\n',
+    'two/steps/01-first/files/src/a.ts': 'export const a = 3\n',
+    'two/steps/02-second/message.txt': 'second step\n',
+    'two/steps/02-second/files/src/a.ts': 'export const a = 4\n',
+  })
+  const repo = buildSeedRepo({ baseDir: base, seeds: loadSeeds(seeds) })
+  assert.deepEqual(git(repo, 'diff', '--name-status', 'origin/main...origin/one').trim().split('\n').toSorted(), ['A\tsrc/new.ts', 'D\tsrc/gone.ts', 'M\tsrc/a.ts'])
+  assert.deepEqual(git(repo, 'log', '--format=%s', 'origin/main..origin/two').trim().split('\n'), ['second step', 'first step'])
+  assert.equal(git(repo, 'show', 'origin/main:src/a.ts'), 'export const a = 1\n')
+})
+
+test('validateSeed accepts a well-formed seed and a control with no covers', () => {
+  assert.deepEqual(validateSeed({ name: 'one', rule: 'r', covers: 'a distinctive rule substring', expect: { blocking: true }, steps: [{ message: 'change a' }] }), [])
+  assert.deepEqual(validateSeed({ name: 'c', rule: 'control', covers: null, expect: { blocking: false }, steps: [{ message: 'fix typo' }] }), [])
+})
+
+test('validateSeed names each problem: bad name, short covers, missing expectation, bad commit message, no steps', () => {
+  const problems = validateSeed({ name: 'Bad Name', rule: '', covers: 'short', expect: {}, steps: [{ message: 'Add thing.' }] })
+  assert.ok(problems.some((p) => /name/.test(p)))
+  assert.ok(problems.some((p) => /covers/.test(p)))
+  assert.ok(problems.some((p) => /rule/.test(p)))
+  assert.ok(problems.some((p) => /blocking/.test(p)))
+  assert.ok(problems.some((p) => /commit message/.test(p)))
+  assert.ok(validateSeed({ name: 'x', rule: 'r', covers: null, expect: { blocking: false }, steps: [] }).some((p) => /step/.test(p)))
 })
