@@ -228,7 +228,7 @@ while (true) {
 
 ## Module layout: flat first
 
-Do: a small module is a handful of files. Only `domain/` has a fixed name, so one lint glob finds the pure code everywhere.
+Do: a small module is a handful of files. `domain/` is the default home for pure code, so one lint glob finds it everywhere; a repo that lays pure code out differently lists its files in `pureCorePaths` and records that in its `CODING_STANDARDS.md`.
 ```
 modules/settings/
   index.ts                # public API
@@ -273,4 +273,41 @@ router.post('/renewals/:id/renew', async (req, res) => {
 Don't: import another module's internals, or let the module own its HTTP layer (importing it would then load the web framework).
 ```ts
 import { getSubscription } from '../billing/store/subscriptions' // deep import: call billing's index.ts
+```
+
+## Module spec, tiers and processes
+
+Do: each module has a `README.md` that says what it is, so its layers are a recorded choice.
+```md
+# pricing
+Features: peer medians, discount detection, price lookup.
+Tables owned: product_prices, price_reviews, listing_price_review.
+Public API: index.ts (summarizeDiscounts, getDeals, computeMedians, ...).
+Layers: flat capability files plus store/ (all SQL).
+```
+
+Do: list modules lowest tier first. A module imports only lower tiers, through `index.ts`.
+```js
+moduleTiers: { dir: 'src/modules', tiers: [['collection'], ['catalog'], ['pricing']] }
+// pricing may import catalog and collection; catalog may not import pricing
+```
+
+Don't: close a loop between two modules. The code they share belongs one tier down.
+```ts
+// catalog/index.ts imports pricing (higher tier)  ->  move isJunkPrice into a lower module
+```
+
+Do: a sequence over several modules lives in its caller's `run.ts`; a second caller moves it to `src/processes/`, which sequences and decides nothing.
+```ts
+// processes/refresh-product.ts
+export async function refreshProduct(deps: Deps, id: string) {
+  const listings = await collection.fetchListings(deps.db, id) // collection tier
+  const product = await catalog.classify(deps.db, listings)    // catalog tier
+  return pricing.price(deps.db, product)                       // pricing tier; no rule lives here
+}
+```
+
+Don't: touch another module's tables with your own SQL.
+```ts
+await db.query('SELECT * FROM product_prices WHERE ...') // inside catalog: call pricing's index.ts
 ```

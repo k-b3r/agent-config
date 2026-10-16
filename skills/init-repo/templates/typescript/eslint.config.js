@@ -8,7 +8,7 @@ export default [
     // The injectable delay; the only place allowed to sleep.
     delayModules: ['src/platform/delay.ts'],
     // Pure decision code (no clock, randomness, fetch, process). Uncomment once the
-    // architecture fit check has modules; pure code always lives in a module's domain/.
+    // architecture fit check has modules; pure code defaults to a module's domain/ (list files instead if the repo lays it out differently, and record that in CODING_STANDARDS.md).
     // pureCorePaths: ['src/modules/*/domain/**'],
   }),
   // Repo-specific blocks (framework plugins, extra bans) go here.
