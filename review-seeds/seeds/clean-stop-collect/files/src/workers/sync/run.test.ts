@@ -14,5 +14,6 @@ describe('runSync', () => {
     const listing = { name: 'x', price: 500, referencePrice: 900, day: '2026-10-17' }
     await runSync({ db, logger, delay: async () => {}, settings: { get: () => undefined }, shouldStop }, [listing, listing])
     expect(logger.warn).toHaveBeenCalledTimes(1)
+    expect(logger.info).toHaveBeenCalledWith('sync stopped early: shutdown requested', { remaining: 2 })
   })
 })

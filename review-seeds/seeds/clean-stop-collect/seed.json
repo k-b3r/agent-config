@@ -3,7 +3,8 @@
   "rule": "clean control: small tested feature that follows every rule",
   "covers": null,
   "expect": {
-    "blocking": false
+    "blocking": false,
+    "needsHuman": false
   },
   "message": "let the sync loop stop between listings"
 }

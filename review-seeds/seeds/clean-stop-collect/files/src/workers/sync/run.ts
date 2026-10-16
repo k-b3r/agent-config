@@ -28,7 +28,10 @@ export interface Listing {
 // Sequences catalog and pricing for each listing; the rules live in the modules.
 export async function runSync(deps: SyncDeps, listings: Listing[] = []): Promise<void> {
   for (const listing of listings) {
-    if (deps.shouldStop?.()) break
+    if (deps.shouldStop?.()) {
+      deps.logger.info('sync stopped early: shutdown requested', { remaining: listings.length - listings.indexOf(listing) })
+      break
+    }
     const productId = await findProductId(deps.db, normalizeName(listing.name))
     if (productId === null) {
       deps.logger.warn('skipped listing: unknown product', { name: listing.name })

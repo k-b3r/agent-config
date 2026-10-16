@@ -3,7 +3,8 @@
   "rule": "clean control: harmless doc fix",
   "covers": null,
   "expect": {
-    "blocking": false
+    "blocking": false,
+    "needsHuman": false
   },
   "message": "document savePrice upsert in pricing readme"
 }

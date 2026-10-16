@@ -3,7 +3,8 @@
   "rule": "clean control: nothing to flag",
   "covers": null,
   "expect": {
-    "blocking": false
+    "blocking": false,
+    "needsHuman": false
   },
   "message": "reject an empty price in the pricing route"
 }
