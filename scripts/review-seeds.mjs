@@ -10,7 +10,8 @@
 // throwaway git repo with the base as origin/main and every seed as origin/<name>.
 // --validate builds it and checks the seeds without calling the model; --keep leaves the repo on disk.
 //   review-seeds --repo <checkout holding the seed branches> [--seeds <file>]
-// Legacy mode: replays review-seeds/seeds.json against branches fetched as origin/<branch> in a target repo.
+// Legacy mode: `--repo <checkout> --seeds <file>` replays a JSON list of seeds against branches fetched as
+// origin/<branch> in a target repo (a repo's own seed branches).
 // --workflow tests a prompt change before it merges (default: this repo's own file).
 // --seeds replays another list (a seed may set `base` to diff against something other than origin/main,
 // e.g. a merged PR's first parent, to check clean history for false positives); --out saves each review.
@@ -27,7 +28,7 @@ import { fileURLToPath } from 'node:url'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(HERE, '..')
-const SEEDS_FILE = join(ROOT, 'review-seeds', 'seeds.json')
+const SEEDS_FILE = null
 const DEFAULT_WORKFLOW = join(ROOT, '.github', 'workflows', 'pr-review.yml')
 const SEEDS_DIR = join(ROOT, 'review-seeds', 'seeds')
 const BASE_DIR = join(ROOT, 'review-seeds', 'base')

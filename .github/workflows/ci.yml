@@ -29,6 +29,9 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
+      # No model call: the seeds build and validate, and every judgment rule has a seed or a stated excuse.
+      - run: node scripts/review-seeds.mjs --validate
+      - run: node scripts/review-seed-gaps.mjs
 
   actionlint:
     name: workflow lint

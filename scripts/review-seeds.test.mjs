@@ -69,11 +69,19 @@ test('judge checks blocking always and needsHuman only when the seed states it',
   assert.equal(judge({ blocking: true }, null), false)
 })
 
-test('seeds.json names are unique and every seed states a branch, a rule and an expectation', () => {
-  const seeds = JSON.parse(readFileSync(new URL('../review-seeds/seeds.json', import.meta.url), 'utf8'))
+test('the committed seeds are well formed, uniquely named, and cover violations and controls', () => {
+  const seeds = loadSeeds(new URL('../review-seeds/seeds', import.meta.url).pathname)
   assert.equal(new Set(seeds.map((s) => s.name)).size, seeds.length)
+  for (const seed of seeds) assert.deepEqual(validateSeed(seed), [], seed.name)
+  assert.ok(seeds.some((s) => s.covers === null), 'at least one clean control')
+  assert.ok(seeds.some((s) => s.expect.blocking), 'at least one violating seed')
+})
+
+test('the committed seeds build into one repo whose every seed branch differs from main', () => {
+  const seeds = loadSeeds(new URL('../review-seeds/seeds', import.meta.url).pathname)
+  const repo = buildSeedRepo({ baseDir: new URL('../review-seeds/base', import.meta.url).pathname, seeds })
   for (const seed of seeds) {
-    assert.ok(seed.branch && seed.rule && typeof seed.expect.blocking === 'boolean', seed.name)
+    assert.notEqual(git(repo, 'diff', '--shortstat', `origin/main...origin/${seed.branch}`).trim(), '', seed.name)
   }
 })
 

@@ -43,3 +43,18 @@ seeds/<name>/
 - A violation the review should find must be visible in the diff or in files the diff touches.
 - A control changes something harmless and correct (a rename, a doc fix, a small tested feature that follows every rule) and expects `{ "blocking": false }`.
 - Commit-hygiene seeds (one logical change per commit, refactor never shares a commit with behavior) use `steps/`.
+
+## Not carried from the old buy-and-sell seeds
+
+Two old seeds tested rules of buy-and-sell's own `CODING_STANDARDS.md`, not the global ones: data pages are `force-dynamic` (a Next.js rule) and dashboard queries live in a module's `queries.ts`. They belong with that repo's own review, so they were not ported.
+
+## Running
+
+```bash
+node scripts/review-seeds.mjs --validate                   # build and check, no model call
+node scripts/review-seeds.mjs --only route-imports-store --repeat 4
+node scripts/review-seeds.mjs --repeat 2                   # full run, about 15 minutes
+node scripts/review-seed-gaps.mjs                          # rules no seed covers
+```
+
+The review is probabilistic: a single miss proves little, so repeat a seed before treating it as a regression.
