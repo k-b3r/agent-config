@@ -1,0 +1,10 @@
+{
+  "name": "orphaned-setting",
+  "rule": "remove what your change orphaned",
+  "covers": "do remove what your own change orphaned",
+  "expect": {
+    "blocking": true
+  },
+  "message": "stop pausing between synced listings",
+  "body": "Each listing is a local lookup and write, so the worker no longer waits between them."
+}

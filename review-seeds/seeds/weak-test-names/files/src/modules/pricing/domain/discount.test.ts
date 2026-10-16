@@ -1,0 +1,16 @@
+import { computeDiscount } from './discount'
+
+describe('computeDiscount', () => {
+  it('computeDiscount returns the whole percent below the reference price', () => {
+    expect(computeDiscount(750, 1000)).toBe(25)
+  })
+  it('computeDiscount returns null when the price is below the valid minimum', () => {
+    expect(computeDiscount(50, 1000)).toBeNull()
+  })
+  it('boundary', () => {
+    expect(computeDiscount(100, 1000)).toBe(90)
+  })
+  it('test reference', () => {
+    expect(computeDiscount(500, 50)).toBeNull()
+  })
+})

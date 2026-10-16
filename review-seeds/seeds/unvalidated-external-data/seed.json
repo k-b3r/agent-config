@@ -1,0 +1,10 @@
+{
+  "name": "unvalidated-external-data",
+  "rule": "validate external data at the boundary",
+  "covers": "Treat external data as untrusted: validate and narrow it at the boundary",
+  "expect": {
+    "blocking": true
+  },
+  "message": "add save price route",
+  "body": "Lets the dashboard post a price for a product directly."
+}

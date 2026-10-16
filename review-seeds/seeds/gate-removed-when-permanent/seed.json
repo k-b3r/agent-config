@@ -1,0 +1,10 @@
+{
+  "name": "gate-removed-when-permanent",
+  "rule": "remove the gate once behavior is permanent (clean variant: the PR removes it)",
+  "covers": null,
+  "expect": {
+    "blocking": false
+  },
+  "message": "remove the save prices gate and setting",
+  "body": "Price saving has been on in production since 2026-10-10 and nothing has gone wrong, so delete the setting and always do it."
+}

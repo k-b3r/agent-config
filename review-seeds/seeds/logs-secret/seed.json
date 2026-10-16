@@ -1,0 +1,10 @@
+{
+  "name": "logs-secret",
+  "rule": "never log secrets",
+  "covers": "Never log secrets, tokens, or personal data",
+  "expect": {
+    "blocking": true
+  },
+  "message": "log sync source settings at startup",
+  "body": "Prints the price source url and key at startup so a misconfigured env is easy to spot in the log."
+}
