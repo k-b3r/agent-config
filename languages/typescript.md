@@ -21,7 +21,7 @@ Shared, referenced from `@k-b3r/agent-config` (git dependency) so repos don't dr
 | no `export *`, named exports only, no ambient env outside entry points, no inline sleeps, `ban-ts-comment`, `no-explicit-any`, `eslint-disable` with reason, `import type`, floating promises | `@k-b3r/agent-config/eslint` `baseConfig` |
 | pure core (`pureCorePaths`, opt-in; `'src/modules/*/domain/**'`): no `new Date()` / `Date.now()`, `Math.random()`, `fetch`, `process`; the caller passes `now`, ids and config | same |
 | size/params/complexity smells (`hint`) | same, as warnings |
-| no cycles, heavy deps only via their owner, `index.ts` stays light, no deep imports, domains never import entry points | `@k-b3r/agent-config/dependency-cruiser` `baseRules` |
+| no cycles, heavy deps only via their owner, `index.ts` stays light, no deep imports, domains never import entry points, modules import only lower tiers (`moduleTiers`, opt-in; unlisted modules fail) | `@k-b3r/agent-config/dependency-cruiser` `baseRules` |
 | escape-hatch ratchet, untested-module ratchet, test placement, entry scripts, test DB env, commit subjects | `repo-checks` |
 | dead code | knip |
 | secrets | gitleaks in `ci-typescript.yml` |
