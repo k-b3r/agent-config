@@ -1,0 +1,9 @@
+{
+  "name": "sql-interpolation",
+  "rule": "parameterized queries only",
+  "covers": "Parameterized queries and argument arrays only; never interpolate input into SQL",
+  "expect": {
+    "blocking": true
+  },
+  "message": "inline the product name in the catalog lookup"
+}

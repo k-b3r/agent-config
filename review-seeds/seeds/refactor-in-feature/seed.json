@@ -1,0 +1,9 @@
+{
+  "name": "refactor-in-feature",
+  "rule": "refactor never shares a commit with behavior",
+  "covers": "Separate refactoring commits from behavior changes",
+  "expect": {
+    "blocking": true
+  },
+  "body": "Logs how many listings each sync handles and renames listings to batch, which reads better next to the log field."
+}

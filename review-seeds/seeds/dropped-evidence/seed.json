@@ -1,0 +1,10 @@
+{
+  "name": "dropped-evidence",
+  "rule": "dated evidence for live observations",
+  "covers": "Include evidence and date when a choice came from a live observation",
+  "expect": {
+    "blocking": true
+  },
+  "message": "shorten the pause between sync items",
+  "body": "Confirmed live 2026-10-15: catalog lookups answered in 12-40ms across 200 listings, so the 500ms pause between items only slowed laps; 250ms kept a lap under a minute."
+}

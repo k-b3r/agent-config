@@ -1,0 +1,10 @@
+{
+  "name": "one-concern-per-file",
+  "rule": "one concern per file",
+  "covers": "One file owns one concern; when a file mixes unrelated features",
+  "expect": {
+    "blocking": true
+  },
+  "message": "format the asking price in the discount route",
+  "body": "Shows the asking price as a formatted amount in the discount response; the formatter sits beside normalizeName so other callers can reuse it."
+}

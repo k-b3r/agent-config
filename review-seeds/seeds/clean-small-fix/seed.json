@@ -1,0 +1,9 @@
+{
+  "name": "clean-small-fix",
+  "rule": "clean control: nothing to flag",
+  "covers": null,
+  "expect": {
+    "blocking": false
+  },
+  "message": "reject an empty price in the pricing route"
+}

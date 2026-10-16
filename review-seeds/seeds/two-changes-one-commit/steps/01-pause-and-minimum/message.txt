@@ -1,0 +1,1 @@
+shorten the sync pause and raise the valid price minimum

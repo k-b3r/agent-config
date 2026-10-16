@@ -1,0 +1,9 @@
+{
+  "name": "what-comments",
+  "rule": "comments carry why, not what",
+  "covers": "Comments carry what code can't: interface contracts, intent, and *why*",
+  "expect": {
+    "blocking": true
+  },
+  "message": "add comments to the sync loop"
+}

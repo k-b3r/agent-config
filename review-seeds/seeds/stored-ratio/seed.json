@@ -1,0 +1,9 @@
+{
+  "name": "stored-ratio",
+  "rule": "derive at query time, never store",
+  "covers": "Derive at query time instead of storing (ratios, totals, ages)",
+  "expect": {
+    "blocking": true
+  },
+  "message": "store the discount percent with each saved price"
+}

@@ -1,0 +1,9 @@
+{
+  "name": "clean-readme-title",
+  "rule": "clean control: nothing to flag",
+  "covers": null,
+  "expect": {
+    "blocking": false
+  },
+  "message": "capitalize the catalog readme title"
+}
