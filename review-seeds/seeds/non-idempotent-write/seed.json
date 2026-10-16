@@ -1,0 +1,10 @@
+{
+  "name": "non-idempotent-write",
+  "rule": "idempotent writes on rerun",
+  "covers": "Make operations idempotent wherever retries or reruns can happen",
+  "expect": {
+    "blocking": true
+  },
+  "message": "insert prices without upsert",
+  "body": "Sync writes each price once, so a plain insert is enough and avoids rewriting rows."
+}

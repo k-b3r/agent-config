@@ -1,0 +1,10 @@
+{
+  "name": "unbounded-retry",
+  "rule": "retries are bounded (max attempts, delay)",
+  "covers": "External calls retry with bounded attempts and delay",
+  "expect": {
+    "blocking": true
+  },
+  "message": "retry failed price writes",
+  "body": "A price write that hits a connection error is almost always a one-off blip, so go again instead of skipping the listing."
+}

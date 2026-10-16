@@ -1,0 +1,10 @@
+{
+  "name": "dead-gate",
+  "rule": "remove the gate once behavior is permanent",
+  "covers": "Once the behavior is permanent, remove the gate with its setting",
+  "expect": {
+    "blocking": true
+  },
+  "message": "always save prices during sync",
+  "body": "Price saving has been on in production since 2026-10-10 and nothing has gone wrong, so make it the default."
+}

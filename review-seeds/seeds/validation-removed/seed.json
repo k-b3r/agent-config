@@ -1,0 +1,10 @@
+{
+  "name": "validation-removed",
+  "rule": "validate external data at the boundary",
+  "covers": "Treat external data as untrusted: validate and narrow it at the boundary",
+  "expect": {
+    "blocking": true
+  },
+  "message": "read discount route params directly",
+  "body": "The dashboard always sends numbers, so the route can use them directly instead of checking again."
+}

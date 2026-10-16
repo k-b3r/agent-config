@@ -1,0 +1,10 @@
+{
+  "name": "rule-class-hierarchy",
+  "rule": "pattern only on rule of three",
+  "covers": "Use a design pattern when the code already has its shape (rule of three)",
+  "expect": {
+    "blocking": true
+  },
+  "message": "add junk price check",
+  "body": "Splits the floor and placeholder checks into rule objects so more junk rules can be added without touching isJunkPrice."
+}

@@ -1,0 +1,10 @@
+{
+  "name": "unasserted-query-shape",
+  "rule": "assert query shape",
+  "covers": "Assert on query shape and params where the query itself is the contract",
+  "expect": {
+    "blocking": true
+  },
+  "message": "add alphabetical product listing",
+  "body": "The product list is easier to scan when it is alphabetical."
+}

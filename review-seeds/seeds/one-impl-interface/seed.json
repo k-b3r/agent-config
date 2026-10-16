@@ -1,0 +1,10 @@
+{
+  "name": "one-impl-interface",
+  "rule": "interfaces only at I/O boundaries",
+  "covers": "Interfaces only at I/O boundaries (adapters); no one-implementation interfaces elsewhere",
+  "expect": {
+    "blocking": true
+  },
+  "message": "add junk price check",
+  "body": "Puts the junk price decision behind an interface so alternative checkers can be swapped in later."
+}
