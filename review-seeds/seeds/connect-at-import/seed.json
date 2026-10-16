@@ -1,0 +1,9 @@
+{
+  "name": "connect-at-import",
+  "rule": "importing a module must be cheap: no network at import time",
+  "covers": "Importing a module must be cheap and side-effect free",
+  "expect": {
+    "blocking": true
+  },
+  "message": "add currency rates to pricing"
+}

@@ -1,0 +1,9 @@
+{
+  "name": "route-imports-store",
+  "rule": "routes call public module functions, never store/",
+  "covers": "HTTP routes are entry edges outside `modules/`",
+  "expect": {
+    "blocking": true
+  },
+  "message": "add price recording route"
+}

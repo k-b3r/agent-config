@@ -1,0 +1,9 @@
+{
+  "name": "upward-import",
+  "rule": "a module imports only lower tiers, through index.ts",
+  "covers": "Modules import each other only through `index.ts`",
+  "expect": {
+    "blocking": true
+  },
+  "message": "flag bargain listings in catalog"
+}

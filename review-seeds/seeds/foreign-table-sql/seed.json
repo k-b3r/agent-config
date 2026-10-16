@@ -1,0 +1,9 @@
+{
+  "name": "foreign-table-sql",
+  "rule": "another module reaches a table through the owner's index.ts",
+  "covers": "A module owns as many tables as its feature needs",
+  "expect": {
+    "blocking": true
+  },
+  "message": "add latest price lookup to catalog"
+}

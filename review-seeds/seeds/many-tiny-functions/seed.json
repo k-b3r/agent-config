@@ -1,0 +1,9 @@
+{
+  "name": "many-tiny-functions",
+  "rule": "one computation is one function, not a chain of single-use one-liners",
+  "covers": "Prefer deep modules over many small functions",
+  "expect": {
+    "blocking": true
+  },
+  "message": "add margin percent to pricing domain"
+}

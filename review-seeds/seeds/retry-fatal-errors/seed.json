@@ -1,0 +1,9 @@
+{
+  "name": "retry-fatal-errors",
+  "rule": "fatal errors unwind, only transient ones retry",
+  "covers": "Distinguish fatal (e.g. quota exhausted) from transient errors",
+  "expect": {
+    "blocking": true
+  },
+  "message": "add retry helper for reference price calls"
+}

@@ -1,0 +1,9 @@
+{
+  "name": "widened-core-table",
+  "rule": "feature-specific data goes in a side table, not the core table",
+  "covers": "Feature-specific data goes in side tables",
+  "expect": {
+    "blocking": true
+  },
+  "message": "add reference price columns to products"
+}

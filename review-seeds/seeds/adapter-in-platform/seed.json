@@ -1,0 +1,9 @@
+{
+  "name": "adapter-in-platform",
+  "rule": "an adapter carrying a module's domain types lives in that module",
+  "covers": "An adapter whose signature carries the module's domain types lives in that module",
+  "expect": {
+    "blocking": true
+  },
+  "message": "add reference price adapter"
+}
