@@ -10,7 +10,8 @@
     "pr-automation": "./scripts/pr-automation.mjs",
     "ci-report": "./scripts/ci-report.mjs",
     "review-seeds": "./scripts/review-seeds.mjs",
-    "review-outcomes": "./scripts/review-outcomes.mjs"
+    "review-outcomes": "./scripts/review-outcomes.mjs",
+    "review-seed-gaps": "./scripts/review-seed-gaps.mjs"
   },
   "exports": {
     "./eslint": "./configs/eslint.mjs",
