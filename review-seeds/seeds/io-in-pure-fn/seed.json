@@ -1,0 +1,9 @@
+{
+  "name": "io-in-pure-fn",
+  "rule": "functional core, logger injected",
+  "covers": "pure logic takes data and returns data; I/O stays at the edges",
+  "expect": {
+    "blocking": true
+  },
+  "message": "log prices rejected as unusable"
+}

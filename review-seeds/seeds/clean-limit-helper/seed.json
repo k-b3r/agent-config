@@ -1,0 +1,9 @@
+{
+  "name": "clean-limit-helper",
+  "rule": "clean control: nothing to flag",
+  "covers": null,
+  "expect": {
+    "blocking": false
+  },
+  "message": "add an optional limit argument to the sync worker"
+}

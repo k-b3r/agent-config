@@ -1,0 +1,10 @@
+{
+  "name": "stale-readme",
+  "rule": "stale docs block, author fixes",
+  "covers": "naming its features, the tables it owns, its public API and the layers it has",
+  "expect": {
+    "blocking": true,
+    "needsHuman": false
+  },
+  "message": "rename savePrice to upsertPrice"
+}

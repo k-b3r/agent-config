@@ -1,0 +1,9 @@
+{
+  "name": "two-changes-one-commit",
+  "rule": "one logical change per commit",
+  "covers": "One logical change per commit",
+  "expect": {
+    "blocking": true
+  },
+  "body": "A shorter pause lets a lap finish sooner, and a higher valid minimum keeps placeholder asks out of the discount math."
+}

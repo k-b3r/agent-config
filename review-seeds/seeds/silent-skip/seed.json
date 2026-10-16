@@ -1,0 +1,9 @@
+{
+  "name": "silent-skip",
+  "rule": "log every skip",
+  "covers": "Log every skip or degradation with id and reason",
+  "expect": {
+    "blocking": true
+  },
+  "message": "drop the unknown product warning from sync"
+}

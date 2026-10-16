@@ -1,0 +1,9 @@
+{
+  "name": "ungated-feature",
+  "rule": "new behavior gated behind a setting",
+  "covers": "is gated behind a setting that defaults to today's behavior",
+  "expect": {
+    "blocking": true
+  },
+  "message": "sync the biggest discounts first"
+}

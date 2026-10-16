@@ -1,0 +1,9 @@
+{
+  "name": "untested-rule",
+  "rule": "tests for changed behavior",
+  "covers": "review-prompt: tests for changed behavior",
+  "expect": {
+    "blocking": true
+  },
+  "message": "treat asks above 50 million as unusable"
+}
