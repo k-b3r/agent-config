@@ -79,7 +79,8 @@ export function baseConfig({
   const syntax = (...rules) => ({ 'no-restricted-syntax': ['error', ...rules] })
 
   return tseslint.config(
-    { ignores: ['**/node_modules/**', '**/dist/**', '**/coverage/**', ...ignores] },
+    // .stryker-tmp holds full copies of the sources while a mutation run is in progress.
+    { ignores: ['**/node_modules/**', '**/dist/**', '**/coverage/**', '**/.stryker-tmp/**', ...ignores] },
     js.configs.recommended,
     tseslint.configs.recommended,
     eslintComments.recommended,

@@ -17,6 +17,11 @@
 # `repo-checks diff-size` fails a PR over agentConfig.maxDiffLines. Label
 # `large-diff-approved` waives it; the label is read from the event payload, so
 # add it, then push or close and reopen the PR (a job re-run keeps the old payload).
+# `repo-checks contracts-unmodified` fails a PR that edits or deletes a
+# *.contract.test.* file; label `contract-change-approved` waives it, same rules.
+# The `mutation` job reports mutants that survive in the changed files under
+# agentConfig.mutationPaths. Report only: it never fails the PR. It skips itself
+# when the repo has no `test:mutation` script or no changed file under the paths.
 
 name: ci-typescript
 
@@ -24,9 +29,9 @@ on:
   workflow_call:
     inputs:
       jobs:
-        description: 'Space-separated subset of: static unit integration e2e'
+        description: 'Space-separated subset of: static unit integration e2e mutation'
         type: string
-        default: static unit
+        default: static unit mutation
       node-version:
         type: string
         default: '22'
@@ -89,6 +94,7 @@ jobs:
         env:
           BASE: ${{ github.base_ref || github.event.repository.default_branch }}
           ALLOW_LARGE_DIFF: ${{ contains(github.event.pull_request.labels.*.name, 'large-diff-approved') }}
+          ALLOW_CONTRACT_CHANGES: ${{ contains(github.event.pull_request.labels.*.name, 'contract-change-approved') }}
       - name: secret scan
         if: ${{ !cancelled() }}
         env:
@@ -126,6 +132,42 @@ jobs:
           DIRS: ${{ inputs.install-dirs }}
         run: for dir in $DIRS; do (cd "$dir" && pnpm install --frozen-lockfile); done
       - run: pnpm test
+
+  mutation:
+    if: contains(format(' {0} ', inputs.jobs), ' mutation ') && github.event_name == 'pull_request'
+    name: mutation report
+    runs-on: ubuntu-latest
+    # Report only until a floor is calibrated: surviving mutants point at tests that
+    # run code without asserting on it, but equivalent mutants add noise.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: pnpm
+          cache-dependency-path: '**/pnpm-lock.yaml'
+      - env:
+          DIRS: ${{ inputs.install-dirs }}
+        run: for dir in $DIRS; do (cd "$dir" && pnpm install --frozen-lockfile); done
+      - name: Mutate the changed files under agentConfig.mutationPaths
+        env:
+          BASE: ${{ github.base_ref || github.event.repository.default_branch }}
+        run: |
+          if ! jq -e '.scripts["test:mutation"]' package.json > /dev/null; then
+            echo "no test:mutation script: skipped" | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          targets=$(pnpm exec repo-checks mutation-targets "origin/$BASE" | paste -sd, -)
+          if [ -z "$targets" ]; then
+            echo "no changed file under agentConfig.mutationPaths: skipped" | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo "mutating: $targets" | tee -a "$GITHUB_STEP_SUMMARY"
+          pnpm test:mutation --mutate "$targets"
 
   integration:
     if: contains(format(' {0} ', inputs.jobs), ' integration ')

@@ -14,6 +14,7 @@
     "typecheck": "tsc -p .",
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:mutation": "stryker run",
     "check": "pnpm format:check && pnpm lint && pnpm depcruise && pnpm knip && pnpm typecheck && pnpm test"
   },
   "agentConfig": {
@@ -23,12 +24,17 @@
     "entries": [
       "src/workers/*/index.ts"
     ],
-    "appDbEnv": "DATABASE_URL"
+    "appDbEnv": "DATABASE_URL",
+    "mutationPaths": [
+      "src/modules/*/domain/**"
+    ]
   },
   "devDependencies": {
     "@eslint-community/eslint-plugin-eslint-comments": "^4.8.1",
     "@eslint/js": "^10.0.1",
     "@k-b3r/agent-config": "github:k-b3r/agent-config",
+    "@stryker-mutator/core": "^10.0.0",
+    "@stryker-mutator/vitest-runner": "^10.0.0",
     "@types/node": "^22.0.0",
     "dependency-cruiser": "^18.5.0",
     "eslint": "^10.11.0",

@@ -4,6 +4,6 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    exclude: ['**/node_modules/**', '.claude/**', '**/*.int.test.ts', 'tests/e2e/**'],
+    exclude: ['**/node_modules/**', '.claude/**', '.stryker-tmp/**', '**/*.int.test.ts', 'tests/e2e/**'],
   },
 })

@@ -11,4 +11,4 @@ jobs:
   ci:
     uses: k-b3r/agent-config/.github/workflows/ci-typescript.yml@main
     with:
-      jobs: static unit
+      jobs: static unit mutation

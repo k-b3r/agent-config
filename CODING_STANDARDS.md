@@ -115,8 +115,12 @@ Read the matching file before writing code in that language:
 ## Testing
 
 - `tool`+`review` TDD by default: red, green, refactor. Every module gets a test file. _(test file exists per module is tool; TDD order is process)_
+- `process` A feature built through `/spike-and-rebuild` gets contract tests first, written by a fresh-context agent that sees only the committed stubs, their doc comments, and the plan's data structures and invariants, never the implementation. They sit beside the module as `foo.contract.test.ts` and start red because the stubs throw. The implementer's own red-green-refactor tests go in `foo.test.ts`. Bug fixes and small changes keep plain TDD by one agent.
+- `tool` Contract tests are only added in a PR, never changed or deleted; a wrong one goes back to its author with the reason and the contract comment gains the missing sentence. Label `contract-change-approved` waives it. _(`repo-checks contracts-unmodified`)_
+- `review` A public function's contract lives in its doc comment: behavior, boundaries, and the input shape of loosely typed parameters (`unknown`, `Record<string, unknown>`). The contract author has nothing else to go on.
+- `hint` Mutation report on changed files under `agentConfig.mutationPaths` (the pure core): a surviving mutant is a change no test notices. Report only; equivalent mutants make 100% the wrong target. _(CI `mutation` job; becomes `tool` once a floor is calibrated)_
 - `tool` Test placement (default, unless the language's tooling dictates otherwise): _(script)_
-  - Unit tests sit next to the module they test (`foo.ts` + `foo.test.ts`), so they move and die with it.
+  - Unit tests sit next to the module they test (`foo.ts` + `foo.test.ts`, contract tests `foo.contract.test.ts`), so they move and die with it.
   - Integration and e2e tests (real DB, several modules, full flows) live in top-level `tests/integration/` and `tests/e2e/`; they belong to no single file.
 - `tool`+`review` Inject dependencies as params (db client, logger, delay fn, API clients). No hidden singletons. _(ban top-level clients/pools in domain code)_
 - `review` Keep injected interfaces minimal (a db client is one `query` method) so tests fake them in a few lines.
