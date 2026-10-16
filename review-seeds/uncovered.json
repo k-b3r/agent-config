@@ -1,0 +1,38 @@
+[
+  {
+    "match": "Record the choice and the fit-check answer",
+    "reason": "a repo-level artifact (ADR or CONTEXT.md), not something a PR diff shows going wrong"
+  },
+  {
+    "match": "Pure code lives where the repo's",
+    "reason": "its tool half (pureCorePaths) is tested by the eslint fixtures; placement alone is a repo decision"
+  },
+  {
+    "match": "Hide information. Each module owns its decisions",
+    "reason": "its observable parts are tested by hide-information, foreign-table-sql and upward-import; the tool half (no deep imports) by the dependency-cruiser fixtures"
+  },
+  {
+    "match": "Pull complexity downward",
+    "reason": "pure judgment of design taste; a seed would pass or fail on the reviewer's mood, not on a rule"
+  },
+  {
+    "match": "Define errors out of existence",
+    "reason": "pure judgment of design taste; no diff shape is unambiguously wrong"
+  },
+  {
+    "match": "Design it twice",
+    "reason": "a process step before writing code, invisible in a diff"
+  },
+  {
+    "match": "Cross-reference sibling code",
+    "reason": "a style nicety; a violation is a missed comment, not a defect a reviewer should block"
+  },
+  {
+    "match": "Respect each service's ToS",
+    "reason": "depends on facts outside the diff (the service's terms)"
+  },
+  {
+    "match": "$0 budget default",
+    "reason": "depends on cost facts outside the diff; judged per PR by the human"
+  }
+]
