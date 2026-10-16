@@ -6,5 +6,5 @@
     "blocking": false,
     "needsHuman": false
   },
-  "message": "let the sync loop stop between listings"
+  "message": "log the skipped count when a sync finishes"
 }

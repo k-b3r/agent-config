@@ -14,8 +14,6 @@ export interface SyncDeps {
   logger: Logger
   delay: DelayFn
   settings: Settings
-  // Checked before each listing so a shutdown request ends the run cleanly.
-  shouldStop?: () => boolean
 }
 
 export interface Listing {
@@ -27,14 +25,12 @@ export interface Listing {
 
 // Sequences catalog and pricing for each listing; the rules live in the modules.
 export async function runSync(deps: SyncDeps, listings: Listing[] = []): Promise<void> {
+  let skipped = 0
   for (const listing of listings) {
-    if (deps.shouldStop?.()) {
-      deps.logger.info('sync stopped early: shutdown requested', { remaining: listings.length - listings.indexOf(listing) })
-      break
-    }
     const productId = await findProductId(deps.db, normalizeName(listing.name))
     if (productId === null) {
       deps.logger.warn('skipped listing: unknown product', { name: listing.name })
+      skipped += 1
       continue
     }
     if (deps.settings.get(SAVE_PRICES_SETTING) === 1 && computeDiscount(listing.price, listing.referencePrice) !== null) {
@@ -42,4 +38,5 @@ export async function runSync(deps: SyncDeps, listings: Listing[] = []): Promise
     }
     await deps.delay(PAUSE_BETWEEN_ITEMS_MS)
   }
+  deps.logger.info('sync finished', { listings: listings.length, skipped })
 }
