@@ -14,7 +14,7 @@ Every `tool` rule in CODING_STANDARDS.md counts as `review` until a repo wires i
 3. **Branch.** Work on a branch (`init-repo`), never `main`.
 4. **Copy templates.** Copy every file from `templates/typescript/` that doesn't exist yet. Never overwrite: for an existing file, show the template beside it and merge only the missing pieces (scripts, devDependencies, `agentConfig`, `.gitignore` lines). Replace `REPO_NAME`.
 5. **Fit the configs to the shape** picked in step 2:
-   - `eslint.config.js`: `entryPoints` = composition roots (workers, server index, scripts), `delayModules` = the delay util, `defaultExportAllowed` = framework files (Next.js pages, ...), `pureCorePaths` = the folders holding pure decision code (the fit check's domain folders).
+   - `eslint.config.js`: `entryPoints` = composition roots (workers, server index, scripts), `delayModules` = the delay util, `defaultExportAllowed` = framework files (Next.js pages, ...), `pureCorePaths` = `src/modules/*/domain/**` once modules exist (pure code always lives in a module's `domain/`).
    - `.dependency-cruiser.cjs`: `publicApis` = one folder per feature module, `heavyDeps` = each heavy package and its single owner file, `inner` / `entryPoints` folders.
    - `package.json` `agentConfig`: `sourceDirs`, `entries` (same as ESLint `entryPoints`), `appDbEnv`, `generatedPaths` (globs excluded from the diff-size limit; same files as `regenerate-paths`), `maxDiffLines` only to move off the default 800.
    - `knip.json` entries; `integration.yml` paths. Repo has a UI or HTTP flow: add an `e2e.yml` caller (`jobs: e2e`) and a Playwright config.

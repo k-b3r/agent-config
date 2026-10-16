@@ -44,6 +44,11 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR once the r
   5. Several teams with separate release cycles? Align module or service boundaries with teams.
   6. Event-driven or realtime core (chat, games, live trading)? Event or actor model for that core.
 - `review` Record the choice and the fit-check answer in the repo (ADR or `CONTEXT.md`) so it isn't relitigated.
+- `review` A module starts flat: `index.ts` (public API), `domain/` (pure decisions), shell and storage files beside it. Add `app/`, `store/`, `clients/` only when a trigger fires: about 6+ files, a second kind of leaf (DB and external API), or several use cases sharing rules. A layer that only forwards calls is deleted, not kept.
+- `tool`+`review` Pure code always lives in `domain/`, so one glob finds it in every module. _(`pureCorePaths: ['src/modules/*/domain/**']`; placement is review)_
+- `review` An adapter whose signature carries the module's domain types lives in that module. Generic plumbing (HTTP client, pool, logger, delay, clock) lives in `src/platform/` with no domain types or rules. Duplicate once, extract on the third use. Another module reaches an owner's adapter through the owner's `index.ts`, never past it.
+
+*Examples:* `~/.claude/standards/design.md` (Module layout)
 
 ## Design
 
@@ -59,6 +64,7 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR once the r
 - `review` Design it twice: consider one alternative before committing to an interface.
 - `tool`+`review` Minimize parameters: derive any value the function can work out from what it's given. Inject outside-world dependencies; never derive from ambient state (globals, singletons, env). Pass a whole object when the function works on that entity, a single value when it's a utility. _(env/global reads banned outside entry points; parameter count is review)_
 - `tool`+`review` Functional core, imperative shell: pure logic takes data and returns data; I/O stays at the edges. _(`pureCorePaths` bans clock, randomness, `fetch` and `process` in the core; what else counts as I/O is review)_
+- `review` Smell test: a function that needs mocks to unit test mixes logic with effects. Split the decision into a pure function and test that with plain input and output; the shell keeps one integration test.
 - `review` Inject only I/O (db, network, clock, delay, model clients); pure logic takes plain data. Wire dependencies in one composition root per entry point. No DI containers, service locators, singletons, or in-process event buses.
 - `review` Interfaces only at I/O boundaries (adapters); no one-implementation interfaces elsewhere. Strategies are plain functions. Composition over inheritance.
 - `review` Use a design pattern when the code already has its shape (rule of three), not in advance. Simplest form first: a function before a class, a class before a hierarchy.
@@ -70,6 +76,7 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR once the r
 ### Structure
 
 - `review` Keep domain logic out of entry points: workers, handlers and pipeline stages wire dependencies and loop, domains decide.
+- `review` HTTP routes, queue workers and CLI commands are entry edges outside `modules/`: parse and validate input, call one public module function, shape the output. They never import a module's `store/`, `clients/` or `domain/` directly.
 - `tool` Every runnable script gets a named command in the project's task runner (e.g. `package.json` script, `Makefile` target). _(script: every entry file has a task-runner command)_
 
 ## Writing Code
