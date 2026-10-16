@@ -69,7 +69,7 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR once the r
 - `review` Interfaces only at I/O boundaries (adapters); no one-implementation interfaces elsewhere. Strategies are plain functions. Composition over inheritance.
 - `review` Use a design pattern when the code already has its shape (rule of three), not in advance. Simplest form first: a function before a class, a class before a hierarchy.
 - `review` Make operations idempotent wherever retries or reruns can happen.
-- `review` New behavior is gated behind a setting that defaults to today's behavior. Shipping a feature must not disrupt existing flows.
+- `review` New behavior that changes what an existing flow does or spends is gated behind a setting that defaults to today's behavior. Purely additive code (a new endpoint, a new page nothing links to yet) needs no gate. Once the behavior is permanent, remove the gate with its setting, schema row and settings-page entry in a follow-up; a gate that is always on is dead code.
 
 *Examples:* `~/.claude/standards/design.md`
 
@@ -81,7 +81,7 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR once the r
 
 ## Writing Code
 
-- `review` Tunables as named constants at top of file (`MAX_ATTEMPTS`, `RETRY_DELAY_MS`). Runtime-adjustable ones live in config/DB settings with code defaults as fallback.
+- `review` Tunables (thresholds, timeouts, batch sizes, caps) are named constants at top of file (`MAX_ATTEMPTS`, `RETRY_DELAY_MS`). Promote one to config/DB settings, with a code default as fallback, only when it must change without a deploy. The on/off gate from the Design section is not a tunable; that rule covers it.
 - `tool`+`review` Treat external data as untrusted: validate and narrow it at the boundary. _(strict types force narrowing; validation quality is review)_
 
 ### Naming and Comments

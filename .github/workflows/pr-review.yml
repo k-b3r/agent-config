@@ -183,9 +183,13 @@ jobs:
             snapshots; skip them.
 
             Evidence: a comment that records a live observation (a date, "Confirmed live
-            ...", a measurement) is the only record of why a value was chosen. If the diff
-            deletes or rewrites such a comment, or changes the value it justifies, without
-            giving the new value its own dated evidence, that is blocking.
+            ...", a measurement) is the only record of why a value was chosen. It is
+            blocking only when the diff deletes or weakens such a comment, or changes the
+            value it justifies, and leaves no dated observation behind for that behavior.
+            A new dated observation anywhere in the diff that covers the behavior the
+            value serves is enough: do not require the number itself to be re-measured
+            or a second comment on every constant. A value the diff adds with no earlier
+            evidence to lose is not an Evidence finding.
 
             Commits: run `gh pr view --json commits` and judge each commit from its headline
             and the diff. One logical change per commit, and a refactor (rename, move,
@@ -201,6 +205,14 @@ jobs:
             intent is not a reason. Add `needs-human` so a person confirms the trade-off,
             and name the callers that now see the throw. Tests changed to expect the crash
             are part of the same finding.
+
+            Boundaries: a module owns its tables and internals. If the diff adds SQL or
+            code in one module that names a table, column or private helper owned by
+            another module (the one whose code writes that table or defines the helper),
+            and the owner does not export it for this use, that is blocking even when the
+            query is correct. Name the owning module and the exported function to call, or
+            to add there. An owner's exported SQL fragment (a LATERAL or CTE constant from
+            its index) is the intended way in and is fine.
 
             Output:
             - Inline comments for specific problems (one comment per problem, say what

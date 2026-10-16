@@ -232,9 +232,10 @@
     "branch": "triage-fail-fast",
     "rule": "degrade instead of crashing the run",
     "expect": {
-      "blocking": true
+      "blocking": true,
+      "needsHuman": true
     },
-    "body": "When the gateway is unavailable the run now throws, so the worker or script reports the failure instead of logging and returning."
+    "body": "When the gateway is unavailable the run now throws, so the worker or script reports the failure instead of logging and returning. This is intended: a loud failure is better than silently skipping products."
   },
   {
     "name": "clean-limit-helper",
@@ -243,5 +244,127 @@
     "expect": {
       "blocking": false
     }
+  },
+  {
+    "name": "clean-tunnel-host-fix",
+    "branch": "fix-tunnel-host",
+    "base": "c8b05b61b7716689a201d52f45b8c5f6c83d48d2",
+    "rule": "clean control: merged PR, nothing to flag",
+    "expect": {
+      "blocking": false
+    },
+    "body": "fix tunnel host after history scrub (real merged PR #3)"
+  },
+  {
+    "name": "clean-readme-title",
+    "branch": "rename-readme-title",
+    "base": "146637cc163986b66a73da6f10945bfbe1356e5e",
+    "rule": "clean control: merged PR, nothing to flag",
+    "expect": {
+      "blocking": false
+    },
+    "body": "rename the readme title (real merged PR #8)"
+  },
+  {
+    "name": "clean-specs-move",
+    "branch": "move-specs-to-docs-specs",
+    "base": "0d4c88ad4a9a3f277b59458cbe3c3ff9627dcbb9",
+    "rule": "clean control: merged PR, nothing to flag",
+    "expect": {
+      "blocking": false
+    },
+    "body": "move specs from docs/superpowers/specs to docs/specs (real merged PR #42)"
+  },
+  {
+    "name": "unbounded-retry",
+    "branch": "photo-fetch-retry",
+    "rule": "retries are bounded (max attempts, delay)",
+    "expect": {
+      "blocking": true
+    },
+    "body": "A photo download that hits a network error is almost always a one-off CDN blip, so go again instead of skipping the photo."
+  },
+  {
+    "name": "unvalidated-external-data",
+    "branch": "refresh-product-limit",
+    "rule": "validate external data at the boundary",
+    "expect": {
+      "blocking": true
+    },
+    "body": "Lets the dashboard cap a product refresh to its first N listings for a quick partial check."
+  },
+  {
+    "name": "orphaned-setting",
+    "branch": "check-listings-deals-every-lap",
+    "rule": "remove what your change orphaned",
+    "expect": {
+      "blocking": true
+    },
+    "body": "Deal candidates are rechecked on every lap, so the worker no longer spaces them by hours."
+  },
+  {
+    "name": "dead-gate",
+    "branch": "deals-priority-always-on",
+    "rule": "remove the gate once behavior is permanent",
+    "expect": {
+      "blocking": true
+    },
+    "body": "Deals-first checking has been on in production since 2026-10-10 and nothing has gone wrong, so make it the default."
+  },
+  {
+    "name": "hide-information",
+    "branch": "review-queue-skip-overridden",
+    "rule": "module owns its data; callers do not reach into it",
+    "expect": {
+      "blocking": true
+    },
+    "body": "Products a human already included in pricing no longer show up in the review queue."
+  },
+  {
+    "name": "dashboard-direct-sql",
+    "branch": "listing-count-query",
+    "rule": "dashboard queries live in module queries.ts",
+    "expect": {
+      "blocking": true
+    },
+    "body": "Adds the unsold listing count the dashboard header will show."
+  },
+  {
+    "name": "fat-interface",
+    "branch": "deal-candidates-take-run-context",
+    "rule": "keep injected interfaces minimal",
+    "expect": {
+      "blocking": true
+    },
+    "body": "Passes the check-listings run context to the deal candidate query so later changes need no signature change."
+  },
+  {
+    "name": "validation-removed",
+    "branch": "refresh-read-id-directly",
+    "rule": "validate external data at the boundary",
+    "expect": {
+      "blocking": true
+    },
+    "body": "The dashboard always sends a string id, so the handler can read it directly instead of checking it again."
+  },
+  {
+    "name": "clean-stop-collect",
+    "branch": "buy-58-stop-collect",
+    "base": "647559b9cf58cb6cfe8c2671b77da4eee63a9ea9",
+    "rule": "clean control: merged PR, nothing to flag",
+    "expect": {
+      "blocking": false
+    },
+    "body": "make worker stop actually stop collect (real merged PR #2)"
+  },
+  {
+    "name": "gate-removed-when-permanent",
+    "branch": "deals-priority-gate-removed",
+    "rule": "remove the gate once behavior is permanent (clean variant: the PR removes it)",
+    "expect": {
+      "blocking": false
+    },
+    "body": "Deals-first checking has been on in production since 2026-10-10 and nothing has gone wrong, so delete the setting and always do it.",
+    "base": "a7fa104765991297e3148cec441702c7cc396d76"
   }
 ]

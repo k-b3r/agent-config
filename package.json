@@ -9,7 +9,8 @@
     "repo-checks": "./scripts/repo-checks.mjs",
     "pr-automation": "./scripts/pr-automation.mjs",
     "ci-report": "./scripts/ci-report.mjs",
-    "review-seeds": "./scripts/review-seeds.mjs"
+    "review-seeds": "./scripts/review-seeds.mjs",
+    "review-outcomes": "./scripts/review-outcomes.mjs"
   },
   "exports": {
     "./eslint": "./configs/eslint.mjs",
