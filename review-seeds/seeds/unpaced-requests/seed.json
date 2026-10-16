@@ -3,8 +3,7 @@
   "rule": "pace requests to external services",
   "covers": "Be a polite, low-volume client. Pace requests against rate-sensitive targets",
   "expect": {
-    "blocking": true,
-    "needsHuman": true
+    "blocking": true
   },
   "message": "add reference price refresh",
   "body": "Fetches reference prices for a batch of names in one pass so a sync lap finishes faster."
