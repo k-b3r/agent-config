@@ -228,7 +228,7 @@ while (true) {
 
 ## Module layout: flat first
 
-Do: a small module is a handful of files. Only `domain/` has a fixed name, so one lint glob finds the pure code everywhere.
+Do: a small module is a handful of files. `domain/` is the default home for pure code, so one lint glob finds it everywhere; a repo that lays pure code out differently lists its files in `pureCorePaths` and records that in its `CODING_STANDARDS.md`.
 ```
 modules/settings/
   index.ts                # public API
