@@ -22,7 +22,9 @@ Shared, referenced from `@k-b3r/agent-config` (git dependency) so repos don't dr
 | pure core (`pureCorePaths`, opt-in; `'src/modules/*/domain/**'`): no `new Date()` / `Date.now()`, `Math.random()`, `fetch`, `process`; the caller passes `now`, ids and config | same |
 | size/params/complexity smells (`hint`) | same, as warnings |
 | no cycles, heavy deps only via their owner, `index.ts` stays light, no deep imports, domains never import entry points, modules import only lower tiers (`moduleTiers`, opt-in; unlisted modules fail) | `@k-b3r/agent-config/dependency-cruiser` `baseRules` |
-| escape-hatch ratchet, untested-module ratchet, test placement, entry scripts, test DB env, commit subjects | `repo-checks` |
+| escape-hatch ratchet, untested-module ratchet, test placement, entry scripts, test DB env, commit subjects, PR size (`diff-size`), contract tests never edited (`contracts-unmodified`), PR template present (`audit`) | `repo-checks` |
+| mutation report on changed pure files (`mutationPaths`; report only) | Stryker, CI `mutation` job in `ci-typescript.yml` |
+| agents never read secret files, delete outside the workspace, run destructive SQL or apply migrations outside a test database | PreToolUse guard hook (`hooks/guard.mjs`, wired by `install.sh`) |
 | dead code | knip |
 | secrets | gitleaks in `ci-typescript.yml` |
 | canonical check before push | lefthook pre-push runs `pnpm check` |
