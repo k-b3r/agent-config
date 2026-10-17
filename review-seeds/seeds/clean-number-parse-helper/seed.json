@@ -1,0 +1,10 @@
+{
+  "name": "clean-number-parse-helper",
+  "rule": "clean control: third use extracted into platform with no domain types",
+  "covers": null,
+  "expect": {
+    "blocking": false,
+    "needsHuman": false
+  },
+  "body": "The route takes an optional minimum percent and hides discounts below it: a discount at or above the minimum is reported, below it the response reports no discount (null). The minimum compares against the whole percent the response already reports (computeDiscount's rounded value), and a blank minimum counts as not given, so requests without one keep today's result, negative percents included. The number parsing the route repeats for its three query values moves to one platform helper."
+}

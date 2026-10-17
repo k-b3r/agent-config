@@ -7,5 +7,5 @@
     "needsHuman": true
   },
   "message": "net marketplace fee out of the reference price",
-  "body": "Discounts are now measured against what a resale actually nets."
+  "body": "Discounts are now measured against what a resale actually nets, with a 10% marketplace fee taken off the reference. Risk: money. The fee rate is an assumption, so a human must confirm it before this ships."
 }

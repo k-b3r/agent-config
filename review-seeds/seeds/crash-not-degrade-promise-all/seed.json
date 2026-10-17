@@ -1,0 +1,10 @@
+{
+  "name": "crash-not-degrade-promise-all",
+  "rule": "degrade instead of crashing the run",
+  "covers": "then degrade (halve the batch, skip the item) instead of crashing the run",
+  "expect": {
+    "blocking": true
+  },
+  "message": "add batched reference price fetch",
+  "body": "Fetches reference prices for a list of names a few at a time, with a pause between batches."
+}
