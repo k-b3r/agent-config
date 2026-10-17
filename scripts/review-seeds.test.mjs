@@ -60,6 +60,22 @@ test('parseLabels reads which labels the closing LABELS line adds', () => {
   assert.deepEqual(parseLabels('LABELS: remove `agent-changes-requested`; no `needs-human`'), { blocking: false, needsHuman: false })
 })
 
+test('parseLabels reads shorthand and comma forms', () => {
+  assert.deepEqual(parseLabels('LABELS: +agent-changes-requested'), { blocking: true, needsHuman: false })
+  assert.deepEqual(parseLabels('LABELS: +agent-changes-requested +needs-human'), { blocking: true, needsHuman: true })
+  assert.deepEqual(parseLabels('LABELS: +agent-changes-requested, +needs-human'), { blocking: true, needsHuman: true })
+  assert.deepEqual(parseLabels('LABELS: add `agent-changes-requested`, add `needs-human`; remove nothing.'), { blocking: true, needsHuman: true })
+  assert.deepEqual(parseLabels('LABELS: add agent-changes-requested, needs-human'), { blocking: true, needsHuman: true })
+  assert.deepEqual(parseLabels('LABELS: -agent-changes-requested; +needs-human'), { blocking: false, needsHuman: true })
+})
+
+test('parseLabels ignores a parenthetical that negates the label', () => {
+  assert.deepEqual(
+    parseLabels('LABELS: add `agent-changes-requested` (remove: none; needs-human not added)'),
+    { blocking: true, needsHuman: false },
+  )
+})
+
 test('parseLabels returns null when the review printed no LABELS line', () => {
   assert.equal(parseLabels('No issues found.'), null)
 })

@@ -40,7 +40,7 @@ const DEFAULT_JOBS = 4
 const RUN_TIMEOUT_MS = 600_000
 const PROMPT_INDENT = 12
 const ALLOWED_TOOLS = 'Bash(git diff:*),Bash(git show:*),Bash(git log:*),Read,Glob,Grep'
-const JUDGE_MODEL = 'claude-haiku-5-5'
+const JUDGE_MODEL = process.env.REVIEW_JUDGE_MODEL ?? 'claude-haiku-5-5'
 const MAX_JUDGED_CHARS = 8000
 const BLOCK_LABEL = 'agent-changes-requested'
 const HUMAN_LABEL = 'needs-human'
@@ -90,12 +90,28 @@ export function parseLabels(output) {
   const lines = output.split('\n').filter((line) => /^\s*LABELS:/i.test(line))
   const last = lines.at(-1)
   if (!last) return null
-  const adds = last
+  // Models write the label list several ways: `add X; no Y`, `+X +Y`, `+X, +Y`,
+  // `add `X`, add `Y`; remove nothing`, or a parenthetical that negates a label.
+  const body = last
     .replace(/^\s*LABELS:/i, '')
-    .split(';')
-    .filter((part) => /^\s*add\b/i.test(part))
-    .join(' ')
-  return { blocking: adds.includes(BLOCK_LABEL), needsHuman: adds.includes(HUMAN_LABEL) }
+    .replace(/[`"']/g, '')
+    .replace(/\([^)]*\)/g, '')
+  let mode = null
+  const added = []
+  for (const raw of body.split(/[;,]/)) {
+    const part = raw.trim()
+    if (!part) continue
+    if (/^(no|without|skip)\b/i.test(part)) continue
+    const op = part.match(/^(\+|-|add\b|remove\b)/i)?.[1]?.toLowerCase()
+    if (op === '+' || op === 'add') mode = 'add'
+    else if (op === '-' || op === 'remove') mode = 'remove'
+    else if (mode === null) mode = 'add'
+    const labels = [...part.matchAll(new RegExp(`\\b(${BLOCK_LABEL}|${HUMAN_LABEL})\\b`, 'g'))].map((m) => m[1])
+    if (labels.length === 0) continue
+    if (/\bnot\b|\bnone\b|never/i.test(part)) continue
+    if (mode === 'add') added.push(...labels)
+  }
+  return { blocking: added.includes(BLOCK_LABEL), needsHuman: added.includes(HUMAN_LABEL) }
 }
 
 // needsHuman is only checked when a seed states it: most seeds don't pin it.
@@ -224,9 +240,18 @@ export function buildSeedRepo({ baseDir, seeds, root = mkdtempSync(join(tmpdir()
   return root
 }
 
+// REVIEW_AGENT=pi runs the same prompts through `pi -p` on a non-Anthropic model
+// (offline check only; CI still uses claude with the pinned model).
+const AGENT = process.env.REVIEW_AGENT === 'pi' ? 'pi' : 'claude'
+const PI_TOOLS = 'bash,read,grep,glob'
+
 function runClaude(promptText, { repo, model, tools = ALLOWED_TOOLS }) {
+  const args =
+    AGENT === 'pi'
+      ? ['-p', '--no-session', '--model', model, ...(tools ? ['--tools', PI_TOOLS] : ['--no-tools'])]
+      : ['-p', '--model', model, ...(tools ? ['--allowedTools', tools] : [])]
   return new Promise((resolveRun) => {
-    const child = spawn('claude', ['-p', '--model', model, ...(tools ? ['--allowedTools', tools] : [])], {
+    const child = spawn(AGENT, args, {
       cwd: repo,
       stdio: ['pipe', 'pipe', 'pipe'],
       timeout: RUN_TIMEOUT_MS,
@@ -339,12 +364,14 @@ async function runSeeds(opts, seeds) {
   opts.model ??= extractModel(workflow)
   const tasks = seeds.flatMap((seed) =>
     Array.from({ length: opts.repeat }, (_, run) => async () => {
+      const started = Date.now()
       const output = await runClaude(buildSimPrompt(prompt, seed), opts)
+      const ms = Date.now() - started
       if (opts.out) writeFileSync(join(opts.out, `${seed.name}-${run + 1}.txt`), output)
       const verdict = classifyRun(seed.expect, output)
-      if (!opts.attribute || verdict.status !== 'ok' || !seed.expect.blocking || !seed.covers) return { seed, ...verdict, others: [] }
+      if (!opts.attribute || verdict.status !== 'ok' || !seed.expect.blocking || !seed.covers) return { seed, ...verdict, others: [], ms }
       const attribution = parseJudge(await runClaude(buildJudgePrompt(seed, output), { repo: tmpdir(), model: JUDGE_MODEL, tools: null }))
-      return { seed, ...classifyRun(seed.expect, output, attribution), others: attribution?.others ?? [], unjudged: attribution === null }
+      return { seed, ...classifyRun(seed.expect, output, attribution), others: attribution?.others ?? [], unjudged: attribution === null, ms }
     }),
   )
   const results = await pool(tasks, opts.jobs)
@@ -359,7 +386,9 @@ async function runSeeds(opts, seeds) {
   const unjudged = results.filter((r) => r.unjudged).length
   const notice = results.find((r) => r.notice)?.notice
   if (notice) console.log(`\n${notice}`)
-  console.log(`\n${count('ok')}/${results.length} runs matched, ${count('miss')} missed, ${count('error')} without a verdict${unjudged ? `, ${unjudged} blocking runs the judge did not answer (verdict only)` : ''} (${opts.model}, ${opts.repeat}x)`)
+  const times = results.map((r) => r.ms).filter((ms) => typeof ms === 'number').sort((a, b) => a - b)
+  const median = times.length ? times[Math.floor(times.length / 2)] / 1000 : 0
+  console.log(`\n${count('ok')}/${results.length} runs matched, ${count('miss')} missed, ${count('error')} without a verdict${unjudged ? `, ${unjudged} blocking runs the judge did not answer (verdict only)` : ''} (${opts.model}, ${opts.repeat}x, median ${median.toFixed(1)}s/run)`)
   process.exitCode = count('miss') ? 1 : count('error') ? 2 : 0
 }
 
