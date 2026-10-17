@@ -1,0 +1,11 @@
+{
+  "name": "clean-guarded-fetch",
+  "rule": "control: price source JSON narrowed by a tested guard before use",
+  "covers": null,
+  "expect": {
+    "blocking": false,
+    "needsHuman": false
+  },
+  "message": "add price source response parsing for sync",
+  "body": "Narrows the JSON a price source answers with into listings for runSync. The fetch and wiring come in a follow-up."
+}
