@@ -7,7 +7,7 @@ description: Writes a new agent skill, or reworks one, and proves it changes age
 
 A skill is worth its tokens only if an agent behaves differently with it. So: baseline first, write second, verify last.
 
-Where it lives: your own skills in `~/Develop/agent-config/skills/<name>/` (symlinked into `~/.claude/skills` by `install.sh`); a repo-only skill in that repo's `.claude/skills/<name>/`. Changes go through a PR either way.
+Where it lives: your own skills in the agent-config checkout's `skills/<name>/` (`readlink -f ~/.claude/CLAUDE.md` shows where it is; symlinked into `~/.claude/skills` by `install.sh`); a repo-only skill in that repo's `.claude/skills/<name>/`. Changes go through a PR either way.
 
 ## 1. Is it warranted?
 
@@ -59,7 +59,7 @@ It copies the skill in as `<name>-verify` (so an installed copy can't stand in) 
 ## 5. Ship
 
 - In agent-config: worktree per the README, one commit (`add <name> skill`), PR. If a `CODING_STANDARDS.md` line covers the workflow, link the skill from it.
-- After merge: `git -C ~/Develop/agent-config pull`, then `AGENT_CONFIG_SKIP_TOOLS=1 ~/Develop/agent-config/install.sh`. A new skill loads in the next session.
+- After merge: `git -C <checkout> pull`, then `AGENT_CONFIG_SKIP_TOOLS=1 <checkout>/install.sh`. A new skill loads in the next session.
 
 ## Report
 

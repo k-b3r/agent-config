@@ -82,7 +82,7 @@ Evidence, 2026-10-15 (k-b3r/buy-and-sell, `src/modules/pricing`: `clean-median`,
 
 | Suite | Tests | Mutation score |
 |---|---|---|
-| Existing tests | many (also covered indirectly) | 84.3% (229 mutants, 80 s) |
+| Existing tests | not counted | 84.3% (229 mutants, 80 s) |
 | Blind contract tests alone | 86 | 85.2% |
 | Both | | 90.0% |
 

@@ -49,13 +49,13 @@ CI: `.github/workflows/ci-typescript.yml` is a reusable workflow running all of 
 
 ## Editing
 
-`~/.claude` links into this checkout's working tree, so whatever branch it has checked out is live in every session. Keep `~/Develop/agent-config` on `main` and pull after each merge. Make changes in a sibling worktree, one per branch:
+`~/.claude` links into this checkout's working tree, so whatever branch it has checked out is live in every session. Keep that checkout (`$AGENT_CONFIG`, wherever you cloned it) on `main` and pull after each merge. Make changes in a sibling worktree, one per branch:
 
 ```bash
-git -C ~/Develop/agent-config worktree add ../agent-config-<branch> -b <branch> main
+git -C "$AGENT_CONFIG" worktree add ../agent-config-<branch> -b <branch> main
 ```
 
-Remove it once the PR merges: `git -C ~/Develop/agent-config worktree remove ../agent-config-<branch>`. A new skill or rule goes live only after its PR merges (rerun `install.sh` for a new skill).
+Remove it once the PR merges: `git -C "$AGENT_CONFIG" worktree remove ../agent-config-<branch>`. A new skill or rule goes live only after its PR merges (rerun `install.sh` for a new skill).
 
 ## Scope
 
