@@ -1,0 +1,10 @@
+{
+  "name": "logs-whole-request",
+  "rule": "never log secrets, tokens or personal data (whole request object)",
+  "covers": "Never log secrets, tokens, or personal data",
+  "expect": {
+    "blocking": true
+  },
+  "message": "add record price route",
+  "body": "Dashboard posts a price for a product. A rejected post is logged so the operator can see what was sent."
+}

@@ -1,0 +1,10 @@
+{
+  "name": "sql-interpolated-order-by",
+  "rule": "parameterized queries only (caller-supplied ORDER BY and LIMIT)",
+  "covers": "Parameterized queries and argument arrays only; never interpolate input into SQL",
+  "expect": {
+    "blocking": true
+  },
+  "message": "add sortable price listing route",
+  "body": "Lets the dashboard list saved prices sorted by any column, newest first by default."
+}

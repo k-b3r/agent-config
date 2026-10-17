@@ -1,0 +1,10 @@
+{
+  "name": "widened-workflow-permissions",
+  "rule": "least privilege tokens (scopes wider than the job uses)",
+  "covers": "Least privilege: scoped, read-only tokens where possible",
+  "expect": {
+    "blocking": true
+  },
+  "message": "add whitespace check workflow",
+  "body": "Fails pull requests that add trailing whitespace or leftover conflict markers."
+}
