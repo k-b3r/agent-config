@@ -1,0 +1,10 @@
+{
+  "name": "clean-higher-tier-import",
+  "rule": "clean control: higher tier imports a lower tier through its index.ts",
+  "covers": null,
+  "expect": {
+    "blocking": false,
+    "needsHuman": false
+  },
+  "message": "add latest price lookup by product name to pricing"
+}

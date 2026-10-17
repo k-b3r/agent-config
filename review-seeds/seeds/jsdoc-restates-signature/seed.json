@@ -1,0 +1,10 @@
+{
+  "name": "jsdoc-restates-signature",
+  "rule": "comments carry why and contracts, not what the signature already says",
+  "covers": "Comments carry what code can't: interface contracts, intent, and *why*",
+  "expect": {
+    "blocking": true
+  },
+  "message": "add jsdoc to the store functions",
+  "body": "Editor hovers show parameter hints for the store functions."
+}

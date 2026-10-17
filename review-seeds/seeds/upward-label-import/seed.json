@@ -1,0 +1,10 @@
+{
+  "name": "upward-label-import",
+  "rule": "a lower-tier module never imports a higher tier",
+  "covers": "Modules import each other only through `index.ts`",
+  "expect": {
+    "blocking": true
+  },
+  "message": "add review-screen listing label to catalog",
+  "body": "The review screen shows one label per listing: the clean name plus how far below the reference it is."
+}

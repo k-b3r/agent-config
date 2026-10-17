@@ -1,0 +1,9 @@
+{
+  "name": "clean-refactor-then-behavior",
+  "rule": "clean control: a refactor commit, then a separate behavior commit",
+  "covers": null,
+  "expect": {
+    "blocking": false,
+    "needsHuman": false
+  }
+}

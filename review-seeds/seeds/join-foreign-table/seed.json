@@ -1,0 +1,10 @@
+{
+  "name": "join-foreign-table",
+  "rule": "a module's SQL names only its own tables; another module's data comes through its index.ts",
+  "covers": "A module owns as many tables as its feature needs",
+  "expect": {
+    "blocking": true
+  },
+  "message": "add latest price lookup by product name to pricing",
+  "body": "The review screen has a product name, not an id, so pricing can answer by name directly."
+}
