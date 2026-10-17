@@ -1,0 +1,9 @@
+{
+  "name": "refactor-hides-rounding",
+  "rule": "one logical change per commit; a refactor never carries a behavior change",
+  "covers": "One logical change per commit",
+  "expect": {
+    "blocking": true
+  },
+  "body": "The parameter is the reference price, so the shorter name reads fine inside the module."
+}
