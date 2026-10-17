@@ -69,6 +69,11 @@ test('parseLabels reads shorthand and comma forms', () => {
   assert.deepEqual(parseLabels('LABELS: -agent-changes-requested; +needs-human'), { blocking: false, needsHuman: true })
 })
 
+test('parseLabels tolerates markdown emphasis around the marker', () => {
+  assert.deepEqual(parseLabels('**LABELS: add `agent-changes-requested`**'), { blocking: true, needsHuman: false })
+  assert.deepEqual(parseLabels('LABELS: **remove `agent-changes-requested`; no `needs-human`**'), { blocking: false, needsHuman: false })
+})
+
 test('parseLabels ignores a parenthetical that negates the label', () => {
   assert.deepEqual(
     parseLabels('LABELS: add `agent-changes-requested` (remove: none; needs-human not added)'),

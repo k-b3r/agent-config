@@ -87,13 +87,15 @@ export function buildSimPrompt(prompt, { branch, body = '', base = BASE }) {
 
 // The review's closing LABELS line: which labels it would add. null when missing.
 export function parseLabels(output) {
-  const lines = output.split('\n').filter((line) => /^\s*LABELS:/i.test(line))
+  // Some models bold the line, or repeat the marker mid-line ("**LABELS: ...**").
+  const lines = output.split('\n').filter((line) => /^\s*\**\s*LABELS:/i.test(line))
   const last = lines.at(-1)
   if (!last) return null
   // Models write the label list several ways: `add X; no Y`, `+X +Y`, `+X, +Y`,
   // `add `X`, add `Y`; remove nothing`, or a parenthetical that negates a label.
   const body = last
-    .replace(/^\s*LABELS:/i, '')
+    .replace(/^\s*\**\s*LABELS:/i, '')
+    .replace(/\*\*/g, '')
     .replace(/[`"']/g, '')
     .replace(/\([^)]*\)/g, '')
   let mode = null
