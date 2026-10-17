@@ -2,7 +2,7 @@
 
 Language-agnostic rules for every project. Sections marked *Examples* link to do/don't snippets in `~/.claude/standards/`; read the file before working in that area. A repo's own `CODING_STANDARDS.md` wins on conflict. When in doubt, match surrounding code.
 
-Tags (what CI can check): `tool` = deterministic check, blocks the PR once the repo wires it (a local hook that `install.sh` or `/init-repo` wires counts); the parenthetical names the kind of check, the repo's own `CODING_STANDARDS.md` names the actual tool. Until wired, treat it as `review`. `hint` = tool proxy, warns only. `review` = judgment, agent or human review. `process` = how the agent works, not checkable from code. `tool`+`review` = part checkable, part judgment. Untagged principles (Philosophy) guide review. The CI agent review uses the tags to decide what to check, and a `review` violation in new code blocks the PR (`.github/workflows/pr-review.yml`).
+Tags (what CI can check): `tool` = deterministic check, blocks the PR once the repo wires it (a local hook that `install.sh` or `/init-repo` wires counts); the parenthetical names the kind of check, the repo's own `CODING_STANDARDS.md` names the actual tool. Until wired, treat it as `review`. `hint` = tool proxy, warns only. `review` = judgment, agent or human review. `process` = how the agent works, not checkable from code. `tool`+`review` = part checkable, part judgment. Untagged principles (Philosophy) guide review. The CI agent review uses the tags to decide what to check, and a `review` violation in new code blocks the PR (`.github/workflows/pr-review.yml`). `tool` rules are one line here; the language guide's Enforcement table says how each is wired.
 
 ## Philosophy
 
@@ -19,20 +19,16 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR once the r
   4. Large, parallel, or risky: full plan and multi-agent review.
   Every tier gets the same automatic gates (canonical check, CI, agent review); those are not ceremony you add.
 - `process` Ambiguous request: present the interpretations and ask; don't pick one silently.
-- `process` Tier 3 runs `/spike-and-rebuild`: plan as committed stubs, throwaway spike, fresh-context review from git evidence, contract tests, then TDD rebuild. Bug fixes and small changes skip it.
-- `tool` Every change reaches `main` through a pull request. Never push to `main` directly.
-- `tool` New repos start from `/init-repo`, which wires every `tool` check below; `repo-checks audit` fails CI when one goes missing. _(audit)_
+- `tool` Every change reaches `main` through a pull request; never push to `main`. _(guard hook, branch protection)_
+- `tool` New repos start from `/init-repo`; a missing shared check fails CI. _(`repo-checks audit`)_
 - `tool` The canonical check (e.g. `pnpm check`) runs before every push. _(pre-push hook)_
-- `process` Each check runs in one place: the pre-push hook runs the canonical check, CI runs everything else. Don't run either by hand before pushing, and don't re-run CI's checks locally. Locally: targeted tests while iterating (the TDD loop), and regenerate generated files, since CI can only verify them. After pushing, watch CI and fix what fails. Prompts for delegated agents follow the same rule.
-- `tool` Every repo ships `.github/pull_request_template.md`: intent, changed / not changed, risks, verified, unresolved questions. _(audit: the template exists)_
-- `process` Every PR body fills the template in, including the risk boxes for auth, money, user data, migrations and infra. A ticked box means stop and get the human decision.
-- `tool` A PR merges only when CI is green: format, lint, typecheck, unit, integration, e2e, agent review, and the review gate. _(required status checks)_
-- `process` When the agent review labels a PR `needs-human`, stop and get the human decision; never add `human-approved` yourself. `/resolve-needs-human` walks the user through the open ones and posts `/approve` (adds `human-approved`, clears `needs-human`) only on their explicit per-PR answer.
-- `process` A delegated agent shipping a ticket as a PR loads `/ship-ticket`; its prompt carries only the ticket, its file scope and cross-PR notes. The orchestrating session runs the round with `/dispatch-tickets`.
-- `process` Review findings are fixed on the PR's own branch (never a sub-PR), one commit per finding, via `/address-pr-review`: verify each first, fix what the PR introduced, ticket the rest, reply on and resolve every thread.
-- `process` Anything found outside the task's scope (bug, smell, debt) becomes a ticket in the project tracker the moment it's seen, linked from the PR; notes and memory are not a backlog. Delegated agents list findings in their report; whoever receives the report files them.
-- `process` Tracker writes go only to the project's own board. Before creating, updating or deleting a ticket, confirm the connector is on the right workspace (a "not found" often means the wrong one). Board unreachable: never write to another workspace or board; queue the call in the repo's local outbox file (default `TRACKER_OUTBOX.md`, in `.git/info/exclude`) and tell the user.
-- `process` Exception: small smells and tidy-ups (never a bug a user could hit) may wait in the repo's held-findings list so related ones become one ticket. Capped: at most 10 items, a group of 3 related items is ticketed together, nothing waits past 14 days. `/ticket-held-findings` applies the cap and files them.
+- `process` Each check runs in one place: pre-push runs the canonical check, CI runs everything else. Don't run either by hand or re-run CI's checks locally, except once when setting up or retrofitting a repo (`/init-repo` runs `pnpm check` and `repo-checks audit` to prove the wiring); run targeted tests while iterating and regenerate generated files (CI can only verify them). After pushing, watch CI and fix what fails. Delegated-agent prompts follow the same rule.
+- `tool` Every repo ships `.github/pull_request_template.md`. _(`repo-checks audit`)_
+- `process` Every PR body fills the template in, including the risk boxes (auth, money, user data, migrations, infra). A ticked box means stop and get the human decision.
+- `tool` A PR merges only when CI is green, including the agent review and its gate. _(required status checks)_
+- `process` When the review labels a PR `needs-human`, stop and get the human decision; never add `human-approved` yourself (`/resolve-needs-human`).
+- `process` Review findings are fixed on the PR's own branch, one commit per finding (`/address-pr-review`).
+- `process` Anything found outside the task's scope (bug, smell, debt) becomes a ticket in the project's own tracker board the moment it's seen, linked from the PR; notes and memory are not a backlog. Confirm the connector is on the right workspace before any tracker write (a "not found" often means the wrong one); if the board is unreachable, queue the call in `TRACKER_OUTBOX.md` (in `.git/info/exclude`), tell the user, and never write to another board. Small tidy-ups (never a bug a user could hit) may wait in the held-findings list (`/ticket-held-findings`).
 
 ## Architecture
 
@@ -47,9 +43,9 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR once the r
 - `review` Record the choice and the fit-check answer in the repo (ADR or `CONTEXT.md`) so it isn't relitigated.
 - `review` A module is one feature folder: it owns that feature's logic, tables and public API, and nothing else. Each module has a `README.md` naming its features, the tables it owns, its public API and the layers it has. Elsewhere in these standards a unit that "owns one concern" is a file or function, not a module.
 - `review` A module starts flat: `index.ts` (public API), pure decisions, shell and storage files beside it. Layer folders (`domain/`, `app/`, `store/`, `clients/`) are fine inside a module, since the module is already the feature, but each is added only when a trigger fires: about 6+ files, a second kind of leaf (DB and external API), or several use cases sharing rules. A layer that only forwards calls is deleted, not kept.
-- `tool`+`review` Pure code lives where the repo's `CODING_STANDARDS.md` says, as a glob or a file list; `domain/` is the default for new repos. _(`pureCorePaths`; placement is review)_
+- `tool`+`review` Pure code lives where the repo's `CODING_STANDARDS.md` says, as a glob or a file list; `domain/` is the default for new repos. _(`pureCorePaths`)_
 - `review` A module owns as many tables as its feature needs. Another module reaches them through the owner's `index.ts`, never with its own SQL against them.
-- `tool` Modules import each other only through `index.ts`, and only from lower tiers: the repo lists its modules lowest tier first, a module never imports its own tier or a higher one, and an unlisted module fails. Shared code moves down into a lower module or `src/platform/`. _(`moduleTiers`; no-circular)_
+- `tool`+`review` Modules import each other only through `index.ts`, and only from lower tiers: the repo lists its modules lowest tier first, a module never imports its own tier or a higher one, and an unlisted module fails. Shared code moves down into a lower module or `src/platform/`. _(`moduleTiers`)_
 - `review` A sequence that spans modules lives in its caller's `run.ts`. When a second caller needs it, it moves to `src/processes/`, which sequences module calls but holds no business rules and is imported by entry points only, never by a module.
 - `review` An adapter whose signature carries the module's domain types lives in that module. Generic plumbing (HTTP client, pool, logger, delay, clock) lives in `src/platform/` with no domain types or rules. Duplicate once, extract on the third use.
 
@@ -59,16 +55,16 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR once the r
 
 - `review` Deep modules: simple interface, substantial functionality behind it. Avoid shallow pass-through layers and wrappers that add an interface without hiding anything.
 - `review` Prefer deep modules over many small functions. Don't split a function just to make it shorter; split only when the piece is a coherent abstraction. Small private helpers inside a module are fine.
-- `tool`+`review` Deep is not big. One file owns one concern; when a file mixes unrelated features (e.g. every query for every page), split it by feature. _(max-lines as hint; "one concern" is review)_
+- `tool`+`review` Deep is not big. One file owns one concern; when a file mixes unrelated features (e.g. every query for every page), split it by feature. _(max-lines hint)_
 - `review` Group code by feature, not by technical layer or pipeline stage, so one change lives in one folder. Layer folders inside one feature module (see Architecture) are fine; layer folders at the top of the repo are not.
-- `tool`+`review` Importing a module must be cheap and side-effect free: no connections, network calls, or heavy work at import time. _(dependency-cruiser bans DB/network/heavy deps in shared modules)_
-- `tool` Enforce module boundaries with tooling in CI, not prose alone: ban wildcard re-exports, forbid heavy deps leaking into shared entry points, forbid import cycles and upward module imports. Tool specifics in the language guide. _(see language guide)_
+- `tool`+`review` Importing a module must be cheap and side-effect free: no connections, network calls, or heavy work at import time. _(dependency-cruiser)_
+- `tool` Module boundaries are enforced in CI, not prose: no wildcard re-exports, no heavy deps leaking into shared entry points, no cycles, no upward module imports. _(see language guide)_
 - `tool`+`review` Hide information. Each module owns its decisions; callers never depend on internals. _(no deep imports past index)_
 - `review` Pull complexity downward: the module absorbs hard cases so callers stay simple.
 - `review` Define errors out of existence where possible (APIs whose normal semantics cover the edge case) instead of adding exceptions callers must handle.
 - `review` Design it twice: consider one alternative before committing to an interface.
-- `tool`+`review` Minimize parameters: derive any value the function can work out from what it's given. Inject outside-world dependencies; never derive from ambient state (globals, singletons, env). Pass a whole object when the function works on that entity, a single value when it's a utility. _(env/global reads banned outside entry points; parameter count is review)_
-- `tool`+`review` Functional core, imperative shell: pure logic takes data and returns data; I/O stays at the edges. _(`pureCorePaths` bans clock, randomness, `fetch` and `process` in the core; what else counts as I/O is review)_
+- `tool`+`review` Minimize parameters: derive any value the function can work out from what it's given. Inject outside-world dependencies; never derive from ambient state (globals, singletons, env). Pass a whole object when the function works on that entity, a single value when it's a utility. _(env/global reads banned outside entry points)_
+- `tool`+`review` Functional core, imperative shell: pure logic takes data and returns data; I/O stays at the edges. _(`pureCorePaths` bans clock, randomness, `fetch`, `process`; the rest of "I/O" is review)_
 - `review` Smell test: a function that needs mocks to unit test mixes logic with effects. Split the decision into a pure function and test that with plain input and output; the shell keeps one integration test.
 - `review` Inject only I/O (db, network, clock, delay, model clients); pure logic takes plain data. Wire dependencies in one composition root per entry point. No DI containers, service locators, singletons, or in-process event buses.
 - `review` Interfaces only at I/O boundaries (adapters); no one-implementation interfaces elsewhere. Strategies are plain functions. Composition over inheritance.
@@ -83,12 +79,12 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR once the r
 - `review` Keep domain logic out of entry points: workers, handlers and pipeline stages wire dependencies and loop, domains decide.
 - `review` A worker or CLI entry point is a folder: `index.ts` only wires, and an optional sibling `run.ts` holds the loop, which may call several modules' public functions to sequence, batch, pace and retry. Decisions stay in the modules.
 - `review` HTTP routes are entry edges outside `modules/`: parse and validate input, call public module functions, shape the output. Routes, workers and processes never import a module's `store/`, `clients/` or `domain/` directly.
-- `tool` Every runnable script gets a named command in the project's task runner (e.g. `package.json` script, `Makefile` target). _(script: every entry file has a task-runner command)_
+- `tool` Every runnable script has a named command in the task runner. _(entry-scripts check)_
 
 ## Writing Code
 
 - `review` Tunables (thresholds, timeouts, batch sizes, caps) are named constants at top of file (`MAX_ATTEMPTS`, `RETRY_DELAY_MS`). Promote one to config/DB settings, with a code default as fallback, only when it must change without a deploy. The on/off gate from the Design section is not a tunable; that rule covers it.
-- `tool`+`review` Treat external data as untrusted: validate and narrow it at the boundary. _(strict types force narrowing; validation quality is review)_
+- `tool`+`review` Treat external data as untrusted: validate and narrow it at the boundary. _(strict types force narrowing)_
 
 ### Naming and Comments
 
@@ -120,20 +116,18 @@ Read the matching file before writing code in that language:
 
 ## Testing
 
-- `tool` Every source file in a module gets a test file. _(untested-modules ratchet)_
+- `tool` Every source file in a module has a test file. _(untested-modules ratchet)_
 - `process` TDD by default: red, green, refactor.
 - `process` A feature built through `/spike-and-rebuild` gets contract tests first, written by a fresh-context agent that sees only the committed stubs, their doc comments, and the plan's data structures and invariants, never the implementation. They sit beside the module as `foo.contract.test.ts` and start red because the stubs throw. The implementer's own red-green-refactor tests go in `foo.test.ts`. Bug fixes and small changes keep plain TDD by one agent.
-- `tool` Contract tests are only added in a PR, never changed or deleted; a wrong one goes back to its author with the reason and the contract comment gains the missing sentence. Label `contract-change-approved` waives it. _(`repo-checks contracts-unmodified`)_
+- `tool` Contract tests are only added in a PR, never changed or deleted; a wrong one goes back to its author with the reason and the contract comment gains the missing sentence. _(`repo-checks contracts-unmodified`)_
 - `review` A public function's contract lives in its doc comment: behavior, boundaries, and the input shape of loosely typed parameters (`unknown`, `Record<string, unknown>`). The contract author has nothing else to go on.
 - `hint` Mutation report on changed files under `agentConfig.mutationPaths` (the pure core): a surviving mutant is a change no test notices. Report only; equivalent mutants make 100% the wrong target. _(CI `mutation` job; becomes `tool` once a floor is calibrated)_
-- `tool` Test placement (default, unless the language's tooling dictates otherwise): _(script)_
-  - Unit tests sit next to the module they test (`foo.ts` + `foo.test.ts`, contract tests `foo.contract.test.ts`), so they move and die with it.
-  - Integration and e2e tests (real DB, several modules, full flows) live in top-level `tests/integration/` and `tests/e2e/`; they belong to no single file.
+- `tool` Unit tests sit next to their module (`foo.test.ts`, `foo.contract.test.ts`); integration and e2e tests (real DB, several modules, full flows) live in `tests/integration/` and `tests/e2e/`. _(test-placement script)_
 - `tool`+`review` Dependencies are params (Design: inject only I/O), with no hidden singletons, and each injected interface is minimal (a db client is one `query` method) so tests fake it in a few lines. _(ban top-level clients/pools in domain code)_
 - `tool` Real sleeps go through an injectable delay; tests pass a no-op. _(ban setTimeout outside the delay util)_
 - `review` Test names are full sentences describing behavior: `'loadSettings falls back to defaults for a key missing from the table'`.
 - `review` Assert on query shape and params where the query itself is the contract.
-- `tool` Integration and e2e tests run against a disposable database from a test-only env var, never the one apps use, so a test can't touch prod. _(ban app DB env var in tests/)_
+- `tool` Integration and e2e tests use a disposable database from a test-only env var, never the app's. _(`repo-checks test-db-env`)_
 
 *Examples:* `~/.claude/standards/testing.md`
 
@@ -144,12 +138,12 @@ Read the matching file before writing code in that language:
 
 ## Version Control
 
-- `tool` Imperative, lowercase, concise, no trailing period: `add search page`, `fix reviewed items resurfacing in review queue`. _(commit-msg hook + CI commit check)_
-- `tool`+`review` One logical change per commit. Feature branches merge with `merge <branch>`. _(merge message format is tool; one logical change is review)_
-- `tool` A PR changes at most `maxDiffLines` (default 800, added plus deleted) outside lockfiles, generated paths and moved blocks; larger work becomes stacked PRs. Label `large-diff-approved` waives it. _(`repo-checks diff-size`)_
-- `tool` Never commit a broken build or failing tests. Never `--no-verify`, never force-push `main`. _(CI + no-verify bypass caught by required checks)_
-- `tool` No AI attribution: no `Co-Authored-By` trailers in commits, no "Generated with" lines in PR descriptions. _(commit-message check)_
-- `tool` Never hand-edit generated files (lockfiles, CHANGELOG, generated clients, files marked `DO NOT EDIT` / `@generated`). Change the source, rerun the generator. _(rerun generators, git diff --exit-code; pnpm install --frozen-lockfile)_
+- `tool` Commit subjects are imperative, lowercase, concise, no trailing period (`add search page`). _(commit-msg hook, CI)_
+- `tool`+`review` One logical change per commit. Feature branches merge with `merge <branch>`. _(merge format is tool)_
+- `tool` A PR changes at most `maxDiffLines` (default 800) outside lockfiles, generated paths and moved blocks; larger work becomes stacked PRs. _(`repo-checks diff-size`; label `large-diff-approved` waives it)_
+- `tool` Never commit a broken build or failing tests; never `--no-verify`; never force-push `main`. _(CI, guard hook)_
+- `tool` No AI attribution in commits or PR descriptions. _(commit-message check)_
+- `tool` Never hand-edit generated files (lockfiles, generated clients, `DO NOT EDIT` / `@generated`); change the source and rerun the generator. _(guard hook, generator + `git diff --exit-code`)_
 
 ## Resilience
 
@@ -174,10 +168,10 @@ Read the matching file before writing code in that language:
 
 ## Security
 
-- `tool` No secrets in the repo: env vars or a secret store, `.env*` gitignored, an `.env.example` committed. _(secret scanning)_
-- `tool` Agents never read secret files (`.env*`, keys, cloud credentials), delete recursively outside the workspace, run `DROP`/`TRUNCATE`, or apply migrations against a database that isn't a test one; a human applies migrations elsewhere. _(PreToolUse guard hook)_
-- `tool`+`review` Never log secrets, tokens, or personal data; redact at the logger. _(no-console in domain code via `noConsoleFiles`; what a logged object contains is review)_
-- `tool`+`review` Parameterized queries and argument arrays only; never interpolate input into SQL or shell commands. _(no-interpolated-sql via `parameterizedSqlFiles`: only constant SQL fragments may be interpolated; whether a fragment is constant is review)_
-- `tool`+`review` Least privilege: scoped, read-only tokens where possible. _(`repo-checks workflow-permissions` bans `write-all`; whether each scope is needed is review)_
+- `tool` No secrets in the repo: env vars or a secret store, `.env*` gitignored, an `.env.example` committed. _(secret scan, audit)_
+- `tool` Agents never read secret files (`.env*`, keys, cloud credentials), delete recursively outside the workspace, run `DROP`/`TRUNCATE`, or apply migrations outside a test database; a human applies migrations elsewhere. _(guard hook)_
+- `tool`+`review` Never log secrets, tokens, or personal data; redact at the logger. _(`noConsoleFiles`)_
+- `tool`+`review` Parameterized queries and argument arrays only; never interpolate input into SQL or shell commands. _(`parameterizedSqlFiles`; whether a fragment is constant is review)_
+- `tool`+`review` Least privilege: scoped, read-only tokens where possible. _(`workflow-permissions` bans `write-all`)_
 
 *Examples:* `~/.claude/standards/security.md`
