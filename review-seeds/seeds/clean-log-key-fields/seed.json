@@ -1,0 +1,11 @@
+{
+  "name": "clean-log-key-fields",
+  "rule": "control: log fields with key-like names that are not secrets",
+  "covers": null,
+  "expect": {
+    "blocking": false,
+    "needsHuman": false
+  },
+  "message": "add the lookup key to the unknown product warning",
+  "body": "Makes it easier to see why a listing did not match: the normalized lookup key is logged next to the name. It is the product name, not a secret."
+}
