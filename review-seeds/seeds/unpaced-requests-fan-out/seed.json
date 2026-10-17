@@ -1,0 +1,10 @@
+{
+  "name": "unpaced-requests-fan-out",
+  "rule": "pace requests to external services",
+  "covers": "Be a polite, low-volume client. Pace requests against rate-sensitive targets",
+  "expect": {
+    "blocking": true
+  },
+  "message": "fetch reference prices for all names at once",
+  "body": "Fires the reference price lookups for every name together and collects the answers, so a refresh takes one round trip instead of one per name."
+}

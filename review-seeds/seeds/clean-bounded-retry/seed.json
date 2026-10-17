@@ -1,0 +1,11 @@
+{
+  "name": "clean-bounded-retry",
+  "rule": "clean control: bounded retry that stops on fatal errors and skips with a log",
+  "covers": null,
+  "expect": {
+    "blocking": false,
+    "needsHuman": false
+  },
+  "message": "add reference price lookup with bounded retry",
+  "body": "Looks up reference prices one name at a time. Transient failures retry up to MAX_ATTEMPTS with a pause. An auth or quota failure stops the run at once. A name that keeps failing is skipped and logged."
+}

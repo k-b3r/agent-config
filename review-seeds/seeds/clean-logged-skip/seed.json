@@ -1,0 +1,11 @@
+{
+  "name": "clean-logged-skip",
+  "rule": "clean control: a catch that skips an item and logs its id and reason",
+  "covers": null,
+  "expect": {
+    "blocking": false,
+    "needsHuman": false
+  },
+  "message": "add feed line parser for listings",
+  "body": "Parses the JSON lines of a listing feed into listings for the sync run. A line that is not valid JSON or not shaped like a listing is skipped and logged with its line number."
+}
