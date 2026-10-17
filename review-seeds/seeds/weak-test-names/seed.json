@@ -1,0 +1,10 @@
+{
+  "name": "weak-test-names",
+  "rule": "test names are full sentences, add coverage",
+  "covers": "Test names are full sentences describing behavior",
+  "expect": {
+    "blocking": true
+  },
+  "message": "add discount boundary tests",
+  "body": "Covers the price floor and the reference floor."
+}

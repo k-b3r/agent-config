@@ -1,0 +1,10 @@
+{
+  "name": "hide-information",
+  "rule": "module owns its data; callers do not reach into it",
+  "covers": "Another module reaches them through the owner's `index.ts`, never with its own SQL against them",
+  "expect": {
+    "blocking": true
+  },
+  "message": "add unpriced products listing",
+  "body": "Products with no saved price yet get their own list so the review screen can show them first."
+}

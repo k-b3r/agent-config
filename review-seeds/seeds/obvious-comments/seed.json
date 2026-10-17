@@ -1,0 +1,9 @@
+{
+  "name": "obvious-comments",
+  "rule": "no comments that restate the next line",
+  "covers": "No comments on obvious code",
+  "expect": {
+    "blocking": true
+  },
+  "message": "add slug helper to catalog domain"
+}

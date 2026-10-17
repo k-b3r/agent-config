@@ -1,0 +1,10 @@
+{
+  "name": "dropped-evidence",
+  "rule": "dated evidence for live observations",
+  "covers": "Include evidence and date when a choice came from a live observation",
+  "expect": {
+    "blocking": true
+  },
+  "message": "raise the slow call threshold to one second",
+  "body": "Slow-call warnings were noisy on busy laps, so the threshold is now one second."
+}

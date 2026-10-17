@@ -1,0 +1,10 @@
+{
+  "name": "magic-number",
+  "rule": "tunables as constants/settings",
+  "covers": "are named constants at top of file",
+  "expect": {
+    "blocking": true
+  },
+  "message": "ignore discounts above 92 percent",
+  "body": "A listing priced above 92% off is almost always a scam or a mislabeled item, so it should not count as a discount."
+}

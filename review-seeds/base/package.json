@@ -1,0 +1,1 @@
+{ "name": "seed-base", "private": true, "type": "module", "agentConfig": { "sourceDirs": ["src"], "entries": ["src/workers/*/index.ts"], "appDbEnv": "DATABASE_URL" } }

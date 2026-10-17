@@ -1,0 +1,10 @@
+{
+  "name": "clean-limit-helper",
+  "rule": "clean control: nothing to flag",
+  "covers": null,
+  "expect": {
+    "blocking": false,
+    "needsHuman": false
+  },
+  "message": "add an optional limit argument to the sync worker"
+}

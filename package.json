@@ -10,14 +10,15 @@
     "pr-automation": "./scripts/pr-automation.mjs",
     "ci-report": "./scripts/ci-report.mjs",
     "review-seeds": "./scripts/review-seeds.mjs",
-    "review-outcomes": "./scripts/review-outcomes.mjs"
+    "review-outcomes": "./scripts/review-outcomes.mjs",
+    "review-seed-gaps": "./scripts/review-seed-gaps.mjs"
   },
   "exports": {
     "./eslint": "./configs/eslint.mjs",
     "./dependency-cruiser": "./configs/dependency-cruiser.cjs"
   },
   "scripts": {
-    "test": "node --test"
+    "test": "node --test \"**/*.test.mjs\""
   },
   "peerDependencies": {
     "@eslint-community/eslint-plugin-eslint-comments": ">=4.4",

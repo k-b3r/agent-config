@@ -1,0 +1,10 @@
+{
+  "name": "clean-stop-collect",
+  "rule": "clean control: small tested feature that follows every rule",
+  "covers": null,
+  "expect": {
+    "blocking": false,
+    "needsHuman": false
+  },
+  "message": "log the skipped count when a sync finishes"
+}

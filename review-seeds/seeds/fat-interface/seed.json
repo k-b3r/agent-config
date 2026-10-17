@@ -1,0 +1,10 @@
+{
+  "name": "fat-interface",
+  "rule": "keep injected interfaces minimal",
+  "covers": "each injected interface is minimal (a db client is one `query` method)",
+  "expect": {
+    "blocking": true
+  },
+  "message": "pass sync context to savePrice",
+  "body": "Passes the sync context to savePrice so later changes need no signature change."
+}

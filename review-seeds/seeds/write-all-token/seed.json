@@ -1,0 +1,11 @@
+{
+  "name": "write-all-token",
+  "rule": "least privilege tokens",
+  "covers": "Least privilege: scoped, read-only tokens where possible",
+  "expect": {
+    "blocking": true,
+    "needsHuman": true
+  },
+  "message": "add ci workflow",
+  "body": "Some ci steps will need to push regenerated files back, so grant the workflow write access."
+}

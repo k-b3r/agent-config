@@ -1,0 +1,9 @@
+{
+  "name": "shallow-wrapper",
+  "rule": "deep modules, no pass-through wrappers",
+  "covers": "Avoid shallow pass-through layers and wrappers that add an interface without hiding anything",
+  "expect": {
+    "blocking": true
+  },
+  "message": "add percent rounding helpers for discounts"
+}

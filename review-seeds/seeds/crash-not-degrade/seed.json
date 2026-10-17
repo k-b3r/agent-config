@@ -1,0 +1,11 @@
+{
+  "name": "crash-not-degrade",
+  "rule": "degrade instead of crashing the run",
+  "covers": "then degrade (halve the batch, skip the item) instead of crashing the run",
+  "expect": {
+    "blocking": true,
+    "needsHuman": true
+  },
+  "message": "fail the sync run on an unknown product",
+  "body": "The run now throws on an unknown product so the worker reports the failure instead of logging and moving on. This is intended: a loud failure is better than silently skipping listings."
+}

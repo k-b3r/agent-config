@@ -1,0 +1,11 @@
+{
+  "name": "fee-in-profit",
+  "rule": "money logic needs a human",
+  "covers": "A ticked box means stop and get the human decision",
+  "expect": {
+    "blocking": true,
+    "needsHuman": true
+  },
+  "message": "net marketplace fee out of the reference price",
+  "body": "Discounts are now measured against what a resale actually nets."
+}

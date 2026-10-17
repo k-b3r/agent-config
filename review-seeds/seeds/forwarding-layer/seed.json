@@ -1,0 +1,9 @@
+{
+  "name": "forwarding-layer",
+  "rule": "a layer that only forwards calls is deleted",
+  "covers": "A module starts flat: `index.ts` (public API)",
+  "expect": {
+    "blocking": true
+  },
+  "message": "add app layer to pricing module"
+}

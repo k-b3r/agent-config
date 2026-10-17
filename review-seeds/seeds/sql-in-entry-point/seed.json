@@ -1,0 +1,9 @@
+{
+  "name": "sql-in-entry-point",
+  "rule": "domain logic out of entry points",
+  "covers": "Keep domain logic out of entry points: workers, handlers and pipeline stages wire dependencies and loop",
+  "expect": {
+    "blocking": true
+  },
+  "message": "skip prices already saved for the day in sync"
+}

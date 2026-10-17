@@ -1,0 +1,9 @@
+{
+  "name": "module-without-readme",
+  "rule": "every module has a README.md",
+  "covers": "A module is one feature folder",
+  "expect": {
+    "blocking": true
+  },
+  "message": "add inventory module with reorder quantity"
+}

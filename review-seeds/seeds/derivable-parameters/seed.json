@@ -1,0 +1,9 @@
+{
+  "name": "derivable-parameters",
+  "rule": "derive values the function can work out from its arguments",
+  "covers": "Minimize parameters: derive any value the function can work out",
+  "expect": {
+    "blocking": true
+  },
+  "message": "add product label to catalog"
+}

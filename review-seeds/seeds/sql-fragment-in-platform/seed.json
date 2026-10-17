@@ -1,0 +1,10 @@
+{
+  "name": "sql-fragment-in-platform",
+  "rule": "group by feature, not layer",
+  "covers": "Group code by feature, not by technical layer or pipeline stage",
+  "expect": {
+    "blocking": true
+  },
+  "message": "add latest price lookup for a product",
+  "body": "Adds a latest price lookup for a product; the query text sits in platform/ so other code can reuse it."
+}
