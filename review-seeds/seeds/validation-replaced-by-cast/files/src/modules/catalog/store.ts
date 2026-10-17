@@ -1,0 +1,6 @@
+import type { DbClient } from '../../platform/db'
+
+export async function findProductId(db: DbClient, normalizedName: string): Promise<number | null> {
+  const { rows } = await db.query('SELECT id FROM products WHERE normalized_name = $1', [normalizedName])
+  return (rows[0]?.id as number | undefined) ?? null
+}
