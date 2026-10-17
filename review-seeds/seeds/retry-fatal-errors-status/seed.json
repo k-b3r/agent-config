@@ -1,0 +1,10 @@
+{
+  "name": "retry-fatal-errors-status",
+  "rule": "fatal errors unwind, only transient ones retry",
+  "covers": "Distinguish fatal (e.g. quota exhausted) from transient errors",
+  "expect": {
+    "blocking": true
+  },
+  "message": "add reference price lookup that retries on error statuses",
+  "body": "Looks up one reference price. Error statuses from the reference API are retried a few times, then the name is skipped with a log."
+}
