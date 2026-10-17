@@ -1,0 +1,11 @@
+{
+  "name": "clean-dynamic-in-list",
+  "rule": "control: dynamic IN list built only from placeholders, values bound",
+  "covers": null,
+  "expect": {
+    "blocking": false,
+    "needsHuman": false
+  },
+  "message": "add batch product id lookup to catalog",
+  "body": "Looks up several products in one query instead of one query per name."
+}
