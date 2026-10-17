@@ -1,0 +1,10 @@
+{
+  "name": "duplicate-alert-insert",
+  "rule": "idempotent writes on rerun (plain insert in a rerun job)",
+  "covers": "Make operations idempotent wherever retries or reruns can happen",
+  "expect": {
+    "blocking": true
+  },
+  "message": "queue a price alert for deep discounts during sync",
+  "body": "Sync queues a price alert for each saved price at least 20 percent below its reference. Off until the operator turns the setting on."
+}
