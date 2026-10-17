@@ -1,0 +1,10 @@
+{
+  "name": "unvalidated-fetch-cast",
+  "rule": "validate external data at the boundary (fetched JSON used through a cast)",
+  "covers": "Treat external data as untrusted: validate and narrow it at the boundary",
+  "expect": {
+    "blocking": true
+  },
+  "message": "add price source fetch for sync",
+  "body": "Fetches the listings a price source publishes, for the sync worker to feed into runSync. Wiring into the worker comes in a follow-up."
+}
