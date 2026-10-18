@@ -19,6 +19,7 @@ import {
   movedLinesByFile,
   newlyUntested,
   parseNumstat,
+  skippedTestLines,
   sourcePaths,
   testDbEnvLeaks,
   writeAllWorkflows,
@@ -385,4 +386,69 @@ test('misplacedTests accepts a contract test beside its module and flags one wit
 test('untestedModules counts a contract test as the module test', () => {
   const paths = ['src/a.ts', 'src/a.contract.test.ts', 'src/b.ts']
   assert.deepEqual(untestedModules(paths, { sourceDirs: ['src'], untestedExempt: [] }), ['src/b.ts'])
+})
+
+const SKIP_PATTERNS = ['\\.skip\\(', '\\.only\\(', '\\bxit\\(', '\\bxdescribe\\(']
+
+const patchOf = (path, ...lines) => `+++ ${path}\n@@ -1,0 +1,${lines.length} @@\n${lines.map((line) => `+${line}`).join('\n')}\n`
+
+test('skippedTestLines flags added skip and only calls in test files, with path and line', () => {
+  const patch = [
+    patchOf('src/a.test.ts', "it.skip('x', () => {})", "describe.only('y', () => {})", "xit('z', () => {})", 'xdescribe("w", () => {})'),
+    patchOf('src/b.spec.tsx', "test.skip('x', () => {})"),
+    patchOf('src/c.contract.test.ts', "it.only('x', () => {})"),
+  ].join('')
+  assert.deepEqual(
+    skippedTestLines(patch, SKIP_PATTERNS).map((found) => found.slice(0, found.indexOf(' '))),
+    ['src/a.test.ts:1:', 'src/a.test.ts:2:', 'src/a.test.ts:3:', 'src/a.test.ts:4:', 'src/b.spec.tsx:1:', 'src/c.contract.test.ts:1:'],
+  )
+})
+
+test('skippedTestLines lets todo tests, non-test files and removed lines through', () => {
+  const patch = [
+    patchOf('src/a.test.ts', "it.todo('x')", "test.todo('y')"),
+    patchOf('src/helper.ts', "it.skip('x', () => {})"),
+    '+++ src/d.test.ts\n@@ -1,1 +0,0 @@\n-it.skip(\'x\', () => {})\n',
+  ].join('')
+  assert.deepEqual(skippedTestLines(patch, SKIP_PATTERNS), [])
+})
+
+test('skippedTestLines ignores a skip line the diff also removes, as when it moves or is re-indented', () => {
+  const patch = '+++ src/a.test.ts\n@@ -1,1 +0,0 @@\n-it.skip(\'x\', () => {})\n+++ src/b.test.ts\n@@ -0,0 +1,1 @@\n+  it.skip(\'x\', () => {})\n'
+  assert.deepEqual(skippedTestLines(patch, SKIP_PATTERNS), [])
+})
+
+// A feature branch where one commit adds the given test-file lines to a base that already skips one test.
+function repoWithTestLines(...added) {
+  const repo = mkdtempSync(join(tmpdir(), 'skip-only-'))
+  const git = (...args) => execFileSync('git', ['-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { stdio: 'ignore' })
+  writeFileSync(join(repo, 'package.json'), '{}')
+  writeFileSync(join(repo, 'a.test.ts'), "it.skip('old', () => {})\n")
+  git('init', '-q', '-b', 'main')
+  git('add', '-A')
+  git('commit', '-qm', 'base')
+  git('checkout', '-qb', 'feature')
+  writeFileSync(join(repo, 'a.test.ts'), `it.skip('old', () => {})\n${added.join('\n')}\n`)
+  git('add', '-A')
+  git('commit', '-qm', 'add tests')
+  return repo
+}
+
+test('repo-checks skip-only fails a PR that adds an it.skip and names the line', () => {
+  const { code, out } = repoChecksIn(repoWithTestLines("it.skip('new', () => {})"), 'skip-only', 'main')
+  assert.equal(code, 1, out)
+  assert.match(out, /a\.test\.ts:2:/)
+})
+
+test('repo-checks skip-only passes a PR that adds an it.todo and leaves an old skip alone', () => {
+  const { code, out } = repoChecksIn(repoWithTestLines("it.todo('new')"), 'skip-only', 'main')
+  assert.equal(code, 0, out)
+})
+
+test('repo-checks skip-only reads agentConfig.skipPatterns and runs inside all', () => {
+  const repo = repoWithTestLines("it.skip('new', () => {})")
+  writeFileSync(join(repo, 'package.json'), JSON.stringify({ agentConfig: { skipPatterns: ['\\.only\\('] } }))
+  assert.equal(repoChecksIn(repo, 'skip-only', 'main').code, 0)
+  writeFileSync(join(repo, 'package.json'), '{}')
+  assert.match(repoChecksIn(repo, 'all', 'main').out, /skip-only:/)
 })
