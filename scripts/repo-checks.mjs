@@ -14,6 +14,8 @@
 //                            large-diff-approved)
 //   contracts-unmodified <base>  contract tests (*.contract.test.*) are only added, never changed or deleted
 //                            (override: env ALLOW_CONTRACT_CHANGES=true, CI sets it from label contract-change-approved)
+//   skip-only <base>         no added line in a test file skips or isolates a test (.skip(, .only(, xit(, xdescribe(;
+//                            it.todo passes); patterns: agentConfig.skipPatterns
 //   mutation-targets <base>  prints the changed source files under agentConfig.mutationPaths (not in `all`;
 //                            input for the mutation report job)
 //   audit                    the repo wires every shared check (fails on what's missing)
@@ -40,6 +42,7 @@ const DEFAULTS = {
   maxDiffLines: MAX_DIFF_LINES,
   generatedPaths: [],
   mutationPaths: [],
+  skipPatterns: ['\\.skip\\(', '\\.only\\(', '\\bxit\\(', '\\bxdescribe\\('],
 }
 
 // Unanchored: Claude Code's footer starts with an emoji, and hooks see the
@@ -286,6 +289,32 @@ export function mutationTargets(nameStatusZ, globs) {
     .filter((path) => isSource(path) && !isTest(path) && matchesAny(path, globs))
 }
 
+const isSkipCheckedFile = (path) => /\.(test|spec)\.[cm]?[jt]sx?$/.test(path)
+
+// A skipped or `.only` test turns a failing run green or hides the rest of the suite.
+// patch: `git diff -U0 --no-prefix`. Only added lines in test files count. A line the
+// diff also removes (moved, re-indented) is not new, so it passes. Returns "path:line: text".
+export function skippedTestLines(patch, patterns) {
+  const regexes = patterns.map((pattern) => new RegExp(pattern))
+  const removed = new Set()
+  const added = []
+  let path = null
+  let line = 0
+  for (const row of patch.split('\n')) {
+    if (row.startsWith('+++ ')) path = row.slice(4).replace(/\t$/, '')
+    else if (row.startsWith('--- ')) continue
+    else if (row.startsWith('@@')) line = Number(row.match(/\+(\d+)/)[1])
+    else if (row.startsWith('-')) removed.add(row.slice(1).trim())
+    else if (row.startsWith('+')) {
+      added.push({ path, line, text: row.slice(1) })
+      line++
+    }
+  }
+  return added
+    .filter(({ path: file, text }) => file && isSkipCheckedFile(file) && !removed.has(text.trim()) && regexes.some((re) => re.test(text)))
+    .map(({ path: file, line: at, text }) => `${file}:${at}: ${text.trim()}`)
+}
+
 const REQUIRED_SCRIPTS = ['check', 'lint', 'typecheck', 'test', 'format:check', 'depcruise', 'knip']
 
 // repo: tracked path -> text ('' when the content isn't needed). Each finding names
@@ -442,6 +471,13 @@ const COMMANDS = {
     const problems = changed.map((entry) => `${entry}: contract tests are never edited; fix the contract comment and have its author update the test, or label contract-change-approved`)
     return report('contracts-unmodified', problems, `no contract test changed versus ${base}`)
   },
+  'skip-only'(base, config) {
+    const patch = git('-c', 'core.quotepath=off', 'diff', '-U0', '--no-prefix', `${base}...HEAD`)
+    const problems = skippedTestLines(patch, config.skipPatterns).map(
+      (found) => `${found}: fix or delete the test instead of skipping it`,
+    )
+    return report('skip-only', problems, `no test skipped or isolated versus ${base}`)
+  },
   'mutation-targets'(base, config) {
     const targets = mutationTargets(git('diff', '--name-status', '-z', '-M', `${base}...HEAD`), config.mutationPaths)
     for (const target of targets) console.log(target)
@@ -456,7 +492,7 @@ const COMMANDS = {
   },
 }
 
-const NEEDS_BASE = new Set(['commits', 'escape-hatches', 'untested-modules', 'diff-size', 'contracts-unmodified', 'mutation-targets', 'all'])
+const NEEDS_BASE = new Set(['commits', 'escape-hatches', 'untested-modules', 'diff-size', 'contracts-unmodified', 'skip-only', 'mutation-targets', 'all'])
 const NOT_IN_ALL = new Set(['commit-msg', 'mutation-targets'])
 
 function main([command, base]) {
