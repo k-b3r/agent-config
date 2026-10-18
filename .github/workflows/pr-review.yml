@@ -106,18 +106,20 @@ jobs:
           BASE: ${{ github.event.pull_request.base.ref }}
           BEFORE: ${{ github.event.before }}
           AFTER: ${{ github.event.after }}
+          PR: ${{ github.event.pull_request.number }}
           GENERATED_PATHS: ${{ inputs.generated-paths }}
         run: |
           # shellcheck disable=SC2086 # GENERATED_PATHS is a space-separated list
           if ! node .agent-config/scripts/pr-automation.mjs diff-unchanged "$REPO" "$BASE" "$BEFORE" "$AFTER" $GENERATED_PATHS; then
             exit 0
           fi
-          # Skipping is safe only if the previous commit's diff was reviewed.
-          if node .agent-config/scripts/pr-automation.mjs review-covered "$REPO" "$BEFORE"; then
+          # Skipping is safe only if the previous commit's diff was reviewed
+          # and did not block (a blocked verdict may be stale: re-review).
+          if node .agent-config/scripts/pr-automation.mjs review-reusable "$REPO" "$BEFORE" "$PR"; then
             echo "PR diff unchanged by this push: keeping approval, skipping re-review"
             echo "unchanged=true" >> "$GITHUB_OUTPUT"
           else
-            echo "PR diff unchanged, but no review covered it yet: reviewing"
+            echo "PR diff unchanged, but no passing review covers it: reviewing"
           fi
 
       - name: Drop approval of older commits

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { prDiffUnchanged, mergeDecision, mergeIfReady, reviewCovered, REVIEW_COVERED_STEP, sameChange } from './pr-automation.mjs'
+import { prDiffUnchanged, mergeDecision, mergeIfReady, reviewCovered, reviewReusable, REVIEW_COVERED_STEP, sameChange } from './pr-automation.mjs'
 
 const SHA = 'abc123'
 const greenPr = {
@@ -226,4 +226,25 @@ test('reviewCovered is false when the review on the commit failed, was skipped o
 test('reviewCovered is false when the runs cannot be fetched', () => {
   const { gh } = fakeGh({})
   assert.equal(reviewCovered({ repo: 'o/r', sha: 'old', gh }), false)
+})
+
+const prLabels = (...names) => ({
+  'api repos/o/r/issues/7/labels': JSON.stringify(names.map((name) => ({ name }))),
+})
+
+test('reviewReusable reuses a covered passing review when the tree is identical', () => {
+  const { gh } = fakeGh({ ...reviewRuns({ 2: [reviewJob('success')] }), ...prLabels('automerge') })
+  assert.equal(reviewReusable({ repo: 'o/r', sha: 'old', pr: 7, gh }), true)
+})
+
+test('reviewReusable re-reviews an identical-tree rewrite after a blocked review (blocker fixed in the message or history)', () => {
+  const { gh } = fakeGh({ ...reviewRuns({ 2: [reviewJob('success')] }), ...prLabels('agent-changes-requested') })
+  assert.equal(reviewReusable({ repo: 'o/r', sha: 'old', pr: 7, gh }), false)
+})
+
+test('reviewReusable re-reviews when the previous review is not covered or the labels cannot be fetched', () => {
+  const uncovered = fakeGh({ ...reviewRuns({ 3: [reviewJob('skipped')] }), ...prLabels() })
+  assert.equal(reviewReusable({ repo: 'o/r', sha: 'old', pr: 7, gh: uncovered.gh }), false)
+  const noLabels = fakeGh(reviewRuns({ 2: [reviewJob('success')] }))
+  assert.equal(reviewReusable({ repo: 'o/r', sha: 'old', pr: 7, gh: noLabels.gh }), false)
 })
