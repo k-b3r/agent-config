@@ -9,6 +9,7 @@ Orchestrator side: `/dispatch-tickets`. Input from the orchestrator: ticket id, 
 
 ## 1. Set up
 
+- Account: `gh api user --jq .login` must equal the repo owner (`gh repo view --json owner --jq .owner.login`, e.g. `k-b3r`). Mismatch: stop and report the hint `gh auth switch -u <owner>`. Check again before every push and PR call: the active account flips mid-session.
 - Branch `<ticket-lower>-<slug>` (e.g. `buy-42-delete-utils`). In an auto-named worktree, rename its branch to that.
 - Resuming earlier work: check out the pushed branch, don't `reset --hard` onto it.
 - Install deps for the root and every folder with its own lockfile, including ones outside the workspace (`find . -name pnpm-lock.yaml -not -path '*/node_modules/*'` or the ecosystem's equivalent; a fresh worktree has none). Generators and the pre-push check fail or silently write wrong output without them.

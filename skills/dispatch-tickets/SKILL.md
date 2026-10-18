@@ -22,7 +22,8 @@ Statuses: `scoped`, `running`, `reported`, `report verified`, `awaiting human`, 
 
 ## 1. Prepare
 
-- Check what's live before planning: tracker tools loaded and on the project's workspace (e.g. Linear `get_workspace`), `gh` on the right account. Missing or wrong workspace: say so; take ticket bodies from the plan or a file instead, and queue tracker writes in the outbox (CODING_STANDARDS.md tracker rule).
+- Check what's live before planning: tracker tools loaded and on the project's workspace (e.g. Linear `get_workspace`). Missing or wrong workspace: say so; take ticket bodies from the plan or a file instead, and queue tracker writes in the outbox (CODING_STANDARDS.md tracker rule).
+- Account: `gh api user --jq .login` must equal the repo owner (`gh repo view --json owner --jq .owner.login`, e.g. `k-b3r`). Mismatch: stop, tell the user the hint `gh auth switch -u <owner>`, and launch nothing. Check again before any push or PR call in later sections: the active account flips mid-session, and every agent shares it.
 - Look for leftovers: `git worktree list`, open PRs and pushed branches for these tickets. A ticket with a branch or PR already is a resume, not a new launch.
 - Read every ticket. Give each a **file scope** (paths it owns); scopes must not overlap. Two tickets that need the same file: run them one after another, or name the owner and write the contract for the other (import direction, function signature) as a cross-PR note.
 - Unclear scope or acceptance: ask the user now. Don't let an agent guess.
