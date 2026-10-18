@@ -19,6 +19,7 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR once the r
   4. Large, parallel, or risky: full plan and multi-agent review.
   Every tier gets the same automatic gates (canonical check, CI, agent review); those are not ceremony you add.
 - `process` Ambiguous request: present the interpretations and ask; don't pick one silently.
+- `process` Before starting work that touches auth or permissions, money or payments, user data, a migration or data deletion, or infra, CI or secrets: stop and ask the human; don't guess. These are the PR risk boxes below.
 - `tool` Every change reaches `main` through a pull request; never push to `main`. _(guard hook, branch protection)_
 - `tool` New repos start from `/init-repo`; a missing shared check fails CI. _(`repo-checks audit`)_
 - `tool` The canonical check (e.g. `pnpm check`) runs before every push. _(pre-push hook)_
@@ -117,7 +118,7 @@ Read the matching file before writing code in that language:
 ## Testing
 
 - `tool` Every source file in a module has a test file. _(untested-modules ratchet)_
-- `process` TDD by default: red, green, refactor.
+- `process` TDD by default: red, green, refactor. A bug fix starts with a test that reproduces the bug and fails before the fix, for the reason the bug gives (see Examples).
 - `process` A feature built through `/spike-and-rebuild` gets contract tests first, written by a fresh-context agent that sees only the committed stubs, their doc comments, and the plan's data structures and invariants, never the implementation. They sit beside the module as `foo.contract.test.ts` and start red because the stubs throw. The implementer's own red-green-refactor tests go in `foo.test.ts`. Bug fixes and small changes keep plain TDD by one agent.
 - `tool` Contract tests are only added in a PR, never changed or deleted; a wrong one goes back to its author with the reason and the contract comment gains the missing sentence. _(`repo-checks contracts-unmodified`)_
 - `review` A public function's contract lives in its doc comment: behavior, boundaries, and the input shape of loosely typed parameters (`unknown`, `Record<string, unknown>`). The contract author has nothing else to go on.

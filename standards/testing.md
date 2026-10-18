@@ -25,6 +25,16 @@ export interface DbClient {
 const db = { query: vi.fn().mockResolvedValue({ rows: [] }) }
 ```
 
+## Bug fix starts with a failing test
+
+Run it before the fix: it must fail on the bug itself, not on a typo or missing import.
+```ts
+it('loadSettings falls back to defaults for a key missing from the table', async () => {
+  const db = { query: vi.fn().mockResolvedValue({ rows: [] }) }
+  expect(await loadSettings(db, ['a'])).toEqual({ a: DEFAULTS.a }) // red: threw TypeError on rows[0]
+})
+```
+
 ## Injectable delay
 
 ```ts
