@@ -268,16 +268,17 @@ test('diffSize leaves moved lines out of a file and out of the largest-file list
   assert.deepEqual(size.largest, ['src/store.ts (50)', 'src/old.ts (20)'])
 })
 
-// End to end through git: a block moved between files must not count, new code must.
-function diffSizeIn(repo, base) {
+// Runs the CLI with the given args in a repo and returns its exit code and output.
+function repoChecksIn(repo, ...args) {
   const script = fileURLToPath(new URL('./repo-checks.mjs', import.meta.url))
   try {
-    return { code: 0, out: execFileSync('node', [script, 'diff-size', base], { cwd: repo, encoding: 'utf8' }) }
+    return { code: 0, out: execFileSync('node', [script, ...args], { cwd: repo, encoding: 'utf8' }) }
   } catch (error) {
     return { code: error.status, out: `${error.stdout}${error.stderr}` }
   }
 }
 
+// End to end through git: a block moved between files must not count, new code must.
 function repoWithMove(extraNewLines) {
   const repo = mkdtempSync(join(tmpdir(), 'diff-size-'))
   const git = (...args) => execFileSync('git', ['-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { stdio: 'ignore' })
@@ -298,15 +299,42 @@ function repoWithMove(extraNewLines) {
 }
 
 test('repo-checks diff-size passes a PR that only moves a block between files, however big the move', () => {
-  const { code, out } = diffSizeIn(repoWithMove(0), 'main')
+  const { code, out } = repoChecksIn(repoWithMove(0), 'diff-size', 'main')
   assert.equal(code, 0, out)
   assert.match(out, /moved/)
 })
 
 test('repo-checks diff-size still fails once new lines beyond the limit ride along with the move', () => {
-  const { code, out } = diffSizeIn(repoWithMove(60), 'main')
+  const { code, out } = repoChecksIn(repoWithMove(60), 'diff-size', 'main')
   assert.equal(code, 1, out)
   assert.match(out, /limit 50/)
+})
+
+// A feature branch with one commit carrying the given subject, as a PR would.
+function repoWithCommitSubject(subject) {
+  const repo = mkdtempSync(join(tmpdir(), 'commits-'))
+  const git = (...args) => execFileSync('git', ['-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { stdio: 'ignore' })
+  writeFileSync(join(repo, 'package.json'), '{}')
+  git('init', '-q', '-b', 'main')
+  git('add', '-A')
+  git('commit', '-qm', 'base')
+  git('checkout', '-qb', 'feature')
+  git('commit', '-q', '--allow-empty', '-m', subject)
+  return repo
+}
+
+test('repo-checks commits tells the author to reword or squash a web-editor commit with a capitalized subject', () => {
+  const { code, out } = repoChecksIn(repoWithCommitSubject('Update README.md'), 'commits', 'main')
+  assert.equal(code, 1, out)
+  assert.match(out, /Update README\.md: subject must start lowercase/)
+  assert.match(out, /reword the commit/)
+  assert.match(out, /squash the PR/)
+})
+
+test('repo-checks commits prints no hint when every commit subject passes', () => {
+  const { code, out } = repoChecksIn(repoWithCommitSubject('update README.md'), 'commits', 'main')
+  assert.equal(code, 0, out)
+  assert.doesNotMatch(out, /hint/)
 })
 
 const nameStatus = (...tokens) => tokens.join('\0') + '\0'
