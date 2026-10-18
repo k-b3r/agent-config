@@ -310,6 +310,33 @@ test('repo-checks diff-size still fails once new lines beyond the limit ride alo
   assert.match(out, /limit 50/)
 })
 
+// A feature branch with one commit carrying the given subject, as a PR would.
+function repoWithCommitSubject(subject) {
+  const repo = mkdtempSync(join(tmpdir(), 'commits-'))
+  const git = (...args) => execFileSync('git', ['-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { stdio: 'ignore' })
+  writeFileSync(join(repo, 'package.json'), '{}')
+  git('init', '-q', '-b', 'main')
+  git('add', '-A')
+  git('commit', '-qm', 'base')
+  git('checkout', '-qb', 'feature')
+  git('commit', '-q', '--allow-empty', '-m', subject)
+  return repo
+}
+
+test('repo-checks commits tells the author to reword or squash a web-editor commit with a capitalized subject', () => {
+  const { code, out } = repoChecksIn(repoWithCommitSubject('Update README.md'), 'commits', 'main')
+  assert.equal(code, 1, out)
+  assert.match(out, /Update README\.md: subject must start lowercase/)
+  assert.match(out, /reword the commit/)
+  assert.match(out, /squash the PR/)
+})
+
+test('repo-checks commits prints no hint when every commit subject passes', () => {
+  const { code, out } = repoChecksIn(repoWithCommitSubject('update README.md'), 'commits', 'main')
+  assert.equal(code, 0, out)
+  assert.doesNotMatch(out, /hint/)
+})
+
 const nameStatus = (...tokens) => tokens.join('\0') + '\0'
 
 test('changedContractTests flags modified, deleted and renamed contract tests but lets new ones through', () => {

@@ -58,6 +58,10 @@ export function checkCommitMessage(message) {
   return problems
 }
 
+// Only `commits` prints this: commit-msg runs before the commit exists, so there is nothing to reword yet.
+const REWORD_HINT =
+  'hint: reword the commit (git commit --amend or interactive rebase, then push --force-with-lease) or squash the PR; web-editor commits default to capitalized subjects'
+
 const HATCHES = {
   'eslint-disable': /eslint-disable/g,
   'as any': /\bas any\b/g,
@@ -362,8 +366,8 @@ function loadConfig() {
   return { ...DEFAULTS, ...pkg.agentConfig, scripts: pkg.scripts ?? {} }
 }
 
-function report(name, problems, okMessage) {
-  if (problems.length) console.error(`${name}:\n  ${problems.join('\n  ')}`)
+function report(name, problems, okMessage, hints = []) {
+  if (problems.length) console.error(`${name}:\n  ${[...problems, ...hints].join('\n  ')}`)
   else console.log(`${name}: ${okMessage}`)
   return problems.length ? 1 : 0
 }
@@ -375,7 +379,7 @@ const COMMANDS = {
       const found = checkCommitMessage(git('log', '-1', '--format=%B', sha))
       return found.length ? [`${sha.slice(0, 7)} ${git('log', '-1', '--format=%s', sha).trim()}: ${found.join('; ')}`] : []
     })
-    return report('commits', problems, `${shas.length} ok`)
+    return report('commits', problems, `${shas.length} ok`, [REWORD_HINT])
   },
   // Same rule as `commits`, before the commit exists. Merge commits are
   // skipped there (--no-merges), so here too: `git pull` and `git merge`
