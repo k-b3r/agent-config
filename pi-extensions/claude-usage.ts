@@ -42,6 +42,11 @@ const fmtTokens = (n: number) =>
 	n < 1000 ? `${n}` : n < 10000 ? `${(n / 1000).toFixed(1)}k` : n < 1e6 ? `${Math.round(n / 1000)}k` : `${(n / 1e6).toFixed(1)}M`;
 
 export default function (pi: ExtensionAPI) {
+	// Sub-agents are separate pi processes that each load this extension. Polling from all of them
+	// at once trips the usage endpoint's rate limit (429), which blanks the main session's footer.
+	// The harness sets PI_SUBAGENT_ID in every child, so only the main session polls.
+	if (process.env.PI_SUBAGENT_ID) return;
+
 	let usageText = "";
 	let rerender: (() => void) | undefined;
 	let previous: { provider: string; id: string } | undefined; // model we fell back from
