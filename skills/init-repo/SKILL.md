@@ -12,7 +12,7 @@ Every `tool` rule in CODING_STANDARDS.md counts as `review` until a repo wires i
 1. **Survey.** New or existing repo? Read `package.json`, configs, `.github/workflows/`, `CODING_STANDARDS.md`, `CONTEXT.md`. Existing repo: run `pnpm exec repo-checks audit` if the dep is already there; otherwise list which template files already exist.
 2. **Fit check.** Ask the 6 Architecture fit-check questions from CODING_STANDARDS.md (one AskUserQuestion batch; skip ones the code answers). The first yes picks the shape. Fill `CONTEXT.md` > Architecture with the date and each answer.
 3. **Branch.** Work on a branch (`init-repo`), never `main`.
-4. **Copy templates.** Copy every file from `templates/typescript/` that doesn't exist yet. Never overwrite: for an existing file, show the template beside it and merge only the missing pieces (scripts, devDependencies, `agentConfig`, `.gitignore` lines). Replace `REPO_NAME`.
+4. **Copy templates.** Copy every file from `templates/typescript/` that doesn't exist yet. Never overwrite: for an existing file, show the template beside it and merge only the missing pieces (scripts, devDependencies, `agentConfig`, `.gitignore` lines). Replace `REPO_NAME`. A repo that is already wired: read `CHANGELOG.md` beside this file and apply its entries, which name the file in the repo to edit.
 5. **Fit the configs to the shape** picked in step 2:
    - `eslint.config.js`: `entryPoints` = composition roots (workers, server index, scripts), `delayModules` = the delay util, `defaultExportAllowed` = framework files (Next.js pages, ...), `pureCorePaths` = `src/modules/*/domain/**` once modules exist (the default home for pure code; a repo with another layout lists its files and records it in its `CODING_STANDARDS.md`).
    - `.dependency-cruiser.cjs`: `publicApis` = one folder per feature module, `heavyDeps` = each heavy package and its single owner file, `inner` / `entryPoints` folders, `moduleTiers` once there are two or more modules (lowest tier first; a repo that already has upward imports ratchets them in `pnpm depcruise` known-violations or fixes them first).
@@ -41,3 +41,4 @@ Every `tool` rule in CODING_STANDARDS.md counts as `review` until a repo wires i
 - Shared configs stay referenced (`@k-b3r/agent-config`), never copied into the repo; repo-specific rules go in the repo's own blocks.
 - Keep devDependency ranges from the template: newer majors can break the toolchain (TypeScript 7 broke typescript-eslint 8; confirmed 2026-10-04).
 - Private repo on the free plan: GitHub can't require status checks. Say so; the pre-push hook and merging only on green are the guard.
+- A change to `templates/typescript/**` adds an entry to `CHANGELOG.md` (what changed, the repo file to edit, the commit or PR) in the same PR.
