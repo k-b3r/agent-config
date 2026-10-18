@@ -268,16 +268,17 @@ test('diffSize leaves moved lines out of a file and out of the largest-file list
   assert.deepEqual(size.largest, ['src/store.ts (50)', 'src/old.ts (20)'])
 })
 
-// End to end through git: a block moved between files must not count, new code must.
-function diffSizeIn(repo, base) {
+// Runs the CLI with the given args in a repo and returns its exit code and output.
+function repoChecksIn(repo, ...args) {
   const script = fileURLToPath(new URL('./repo-checks.mjs', import.meta.url))
   try {
-    return { code: 0, out: execFileSync('node', [script, 'diff-size', base], { cwd: repo, encoding: 'utf8' }) }
+    return { code: 0, out: execFileSync('node', [script, ...args], { cwd: repo, encoding: 'utf8' }) }
   } catch (error) {
     return { code: error.status, out: `${error.stdout}${error.stderr}` }
   }
 }
 
+// End to end through git: a block moved between files must not count, new code must.
 function repoWithMove(extraNewLines) {
   const repo = mkdtempSync(join(tmpdir(), 'diff-size-'))
   const git = (...args) => execFileSync('git', ['-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { stdio: 'ignore' })
@@ -298,13 +299,13 @@ function repoWithMove(extraNewLines) {
 }
 
 test('repo-checks diff-size passes a PR that only moves a block between files, however big the move', () => {
-  const { code, out } = diffSizeIn(repoWithMove(0), 'main')
+  const { code, out } = repoChecksIn(repoWithMove(0), 'diff-size', 'main')
   assert.equal(code, 0, out)
   assert.match(out, /moved/)
 })
 
 test('repo-checks diff-size still fails once new lines beyond the limit ride along with the move', () => {
-  const { code, out } = diffSizeIn(repoWithMove(60), 'main')
+  const { code, out } = repoChecksIn(repoWithMove(60), 'diff-size', 'main')
   assert.equal(code, 1, out)
   assert.match(out, /limit 50/)
 })
