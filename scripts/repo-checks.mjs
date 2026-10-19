@@ -4,7 +4,8 @@
 //   commits <base>           commit subjects in <base>..HEAD follow Version Control
 //   commit-msg <file>        the message being committed follows it (lefthook commit-msg; not in `all`)
 //   escape-hatches <base>    eslint-disable / `as any` / @ts-expect-error count never grows (ratchet)
-//   untested-modules <base>  no new source module without a sibling test (ratchet)
+//   untested-modules <base>  no new source module without a sibling test (ratchet; a file
+//                            named types.ts holds types only, so it is exempt by default)
 //   test-placement           unit tests sit next to their module; integration/e2e under tests/
 //   entry-scripts            every entry file has a package.json script
 //   test-db-env              integration/e2e code never reads the app's database env var
@@ -33,9 +34,13 @@ const MAX_SUBJECT = 72
 // became 6 (4 features, 2 layout refactors), all large enough to want slicing.
 const MAX_DIFF_LINES = 800
 const DIFF_LARGEST_SHOWN = 3
+// A module keeps its shared types in `types.ts`, a file with no runtime code, so no
+// sibling test is expected (CODING_STANDARDS.md, Testing). A repo cannot switch the
+// exemption off; `untestedExempt` only adds globs to it.
+const TYPES_ONLY_EXEMPT = ['**/types.ts']
 const DEFAULTS = {
   sourceDirs: ['src', 'server'],
-  untestedExempt: [],
+  untestedExempt: TYPES_ONLY_EXEMPT,
   escapeHatchExempt: ['tests/lint-fixtures/'],
   entries: [],
   appDbEnv: null,
@@ -121,6 +126,7 @@ const matchesAny = (path, globs) => globs.some((glob) => globToRegExp(glob).test
 const withoutExtension = (path) => path.replace(/\.[cm]?tsx?$/, '')
 
 export function untestedModules(paths, { sourceDirs, untestedExempt }) {
+  const exempt = [...TYPES_ONLY_EXEMPT, ...(untestedExempt ?? [])]
   const tested = new Set(paths.filter(isTest).map(testTarget))
   return paths.filter(
     (path) =>
@@ -128,7 +134,7 @@ export function untestedModules(paths, { sourceDirs, untestedExempt }) {
       isSource(path) &&
       !isTest(path) &&
       !/(^|\/)index\.[cm]?tsx?$/.test(path) &&
-      !matchesAny(path, untestedExempt) &&
+      !matchesAny(path, exempt) &&
       !tested.has(withoutExtension(path)),
   )
 }
