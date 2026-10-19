@@ -117,7 +117,7 @@ Read the matching file before writing code in that language:
 
 ## Testing
 
-- `tool` Every source file in a module has a test file. _(untested-modules ratchet)_
+- `tool` Every source file in a module has a test file; a `types.ts` holding only types is exempt. _(untested-modules ratchet)_
 - `process` TDD by default: red, green, refactor. A bug fix starts with a test that reproduces the bug and fails before the fix, for the reason the bug gives (see Examples).
 - `process` A feature built through `/spike-and-rebuild` gets contract tests first, written by a fresh-context agent that sees only the committed stubs, their doc comments, and the plan's data structures and invariants, never the implementation. They sit beside the module as `foo.contract.test.ts` and start red because the stubs throw. The implementer's own red-green-refactor tests go in `foo.test.ts`. Bug fixes and small changes keep plain TDD by one agent.
 - `tool` Contract tests are only added in a PR, never changed or deleted; a wrong one goes back to its author with the reason and the contract comment gains the missing sentence. _(`repo-checks contracts-unmodified`)_
