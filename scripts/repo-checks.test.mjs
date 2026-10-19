@@ -79,6 +79,23 @@ test('untestedModules lists source files without a sibling test, skipping barrel
   ])
 })
 
+test('untestedModules skips a types.ts with no sibling test, since a module keeps shared types there', () => {
+  const paths = ['src/modules/catalog/types.ts', 'src/types.ts']
+  assert.deepEqual(untestedModules(paths, { sourceDirs: ['src'], untestedExempt: [] }), [])
+})
+
+test('untestedModules still reports a normal module file with no sibling test', () => {
+  const paths = ['src/modules/catalog/price.ts', 'src/modules/catalog/price.test.ts', 'src/modules/catalog/store.ts']
+  assert.deepEqual(untestedModules(paths, { sourceDirs: ['src'], untestedExempt: [] }), ['src/modules/catalog/store.ts'])
+})
+
+test("untestedModules adds a repo's untestedExempt globs to the types.ts default instead of replacing them", () => {
+  const paths = ['src/modules/catalog/types.ts', 'src/gen/schema.ts', 'src/modules/catalog/store.ts']
+  assert.deepEqual(untestedModules(paths, { sourceDirs: ['src'], untestedExempt: ['src/gen/**'] }), [
+    'src/modules/catalog/store.ts',
+  ])
+})
+
 test('newlyUntested reports untested modules that were not untested at base', () => {
   assert.deepEqual(newlyUntested(['src/old.ts'], ['src/old.ts', 'src/new.ts']), ['src/new.ts'])
 })
