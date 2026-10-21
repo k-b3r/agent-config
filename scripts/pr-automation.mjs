@@ -3,6 +3,7 @@
 //   pr-automation merge-if-ready <owner/repo> <sha>
 //   pr-automation diff-unchanged <owner/repo> <base> <before-sha> <after-sha> [generated-path...]
 //   pr-automation review-covered <owner/repo> <sha>
+//   pr-automation review-reusable <owner/repo> <sha> <pr-number>
 // Merges the open PR whose head is <sha> once it is opted in, green and current
 // with its base; otherwise reports which condition holds it. Writes a markdown
 // table to stdout (the run log, readable with `gh run view --log`) and to
@@ -15,6 +16,8 @@
 // re-reviewing; any other outcome, errors included, exits 1.
 // review-covered exits 0 when an agent review covered <sha>'s diff, 1 otherwise;
 // pr-review skips a diff-unchanged push only when it does.
+// review-reusable exits 0 when that review's verdict may carry over to an
+// identical-diff push: covered, and not a blocking one (see reviewReusable).
 import { execFileSync } from 'node:child_process'
 import { appendFileSync, realpathSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -147,10 +150,27 @@ export function reviewCovered({ repo, sha, gh }) {
   }
 }
 
+// Decision rule for a diff-unchanged push (same diff vs base, new head SHA).
+// Passing review: reuse it, the reviewer saw this exact change. Blocking review
+// (`agent-changes-requested` still set): do not reuse. The blocker may have been
+// fixed by something the diff cannot show (commit message, rewritten history),
+// and reusing would keep failing the gate on a stale verdict. Re-run the review,
+// which sets or removes the label afresh. Unknown labels: re-review.
+export function reviewReusable({ repo, sha, pr, gh }) {
+  if (!reviewCovered({ repo, sha, gh })) return false
+  try {
+    const labels = JSON.parse(gh(['api', `repos/${repo}/issues/${pr}/labels`]))
+    return !labels.some((label) => label.name === 'agent-changes-requested')
+  } catch {
+    return false
+  }
+}
+
 const USAGE = [
   'usage: pr-automation merge-if-ready <owner/repo> <sha>',
   '       pr-automation diff-unchanged <owner/repo> <base> <before-sha> <after-sha> [generated-path...]',
   '       pr-automation review-covered <owner/repo> <sha>',
+  '       pr-automation review-reusable <owner/repo> <sha> <pr-number>',
 ].join('\n')
 
 function main([command, repo, ...rest]) {
@@ -161,6 +181,9 @@ function main([command, repo, ...rest]) {
   }
   if (command === 'review-covered' && repo && rest.length === 1) {
     return reviewCovered({ repo, sha: rest[0], gh }) ? 0 : 1
+  }
+  if (command === 'review-reusable' && repo && rest.length === 2) {
+    return reviewReusable({ repo, sha: rest[0], pr: rest[1], gh }) ? 0 : 1
   }
   const [sha] = rest
   if (command !== 'merge-if-ready' || !repo || !sha) {
