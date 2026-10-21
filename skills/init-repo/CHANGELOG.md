@@ -5,6 +5,10 @@ A repo wired by an earlier `/init-repo` never sees a later template change: the 
 Shared configs come in through the lockfile, so run `pnpm update @k-b3r/agent-config` to pick them up.
 The PR that changes a template adds its entry here.
 
+## 2026-10-21 (f66572d) local-only files stay out of the format check
+
+- `.prettierignore`: add `SESSION_RESUME.md`, `TODOS.md` and `TRACKER_OUTBOX.md`; they live in `.git/info/exclude`, which prettier does not read, so `prettier --check .` failed the pre-push hook in a repo that had one.
+
 ## 2026-10-15 (aa24aa7) report mutation coverage on changed pure code
 
 - `package.json`: add the `test:mutation` script (`stryker run`), the `@stryker-mutator/core` and `@stryker-mutator/vitest-runner` devDependencies, and `agentConfig.mutationPaths` (the same globs as ESLint `pureCorePaths`, e.g. `["src/modules/*/domain/**"]`).
