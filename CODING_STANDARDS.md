@@ -19,6 +19,8 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR once the r
   4. Large, parallel, or risky: full plan and multi-agent review.
   Every tier gets the same automatic gates (canonical check, CI, agent review); those are not ceremony you add.
 - `process` Ambiguous request: present the interpretations and ask; don't pick one silently.
+- `process` If a simpler approach exists, say so before implementing; never run along with one you can see is worse.
+- `process` Multi-step work starts with its success criteria and the check that verifies each step. Weak criteria ("make it work") mean stop and clarify first.
 - `process` Before starting work that touches auth or permissions, money or payments, user data, a migration or data deletion, or infra, CI or secrets: stop and ask the human; don't guess. These are the PR risk boxes below.
 - `tool` Every change reaches `main` through a pull request; never push to `main`. _(guard hook, branch protection)_
 - `tool` New repos start from `/init-repo`; a missing shared check fails CI. _(`repo-checks audit`)_
