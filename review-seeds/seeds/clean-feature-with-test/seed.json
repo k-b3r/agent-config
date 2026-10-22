@@ -1,0 +1,10 @@
+{
+  "name": "clean-feature-with-test",
+  "rule": "clean control: one logical change, headline joins it to its own test",
+  "covers": null,
+  "expect": {
+    "blocking": false,
+    "needsHuman": false
+  },
+  "message": "add price alert check with its test"
+}
