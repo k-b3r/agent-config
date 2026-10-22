@@ -1,11 +1,16 @@
 #!/usr/bin/env node
 // How the agent review's verdicts held up on real PRs. Run from the repo, or pass --repo:
 //   review-outcomes [--since <days>d] [--repo owner/name]
-// Reads label events of merged PRs via `gh api` and classifies each by what happened
-// to the review's labels. `fixed` means the author addressed a blocking finding (the
-// agent removed `agent-changes-requested` on a later push); `approved-past` means a
-// human signed off on a PR the review had flagged. Together they give a live precision
-// proxy: fixed / (fixed + approved-past). The seed suite only measures what we seeded.
+// Reads the timeline events of merged PRs via `gh api` (labels and commits, in order) and
+// classifies each from what the events show, never from final labels: `human-approved`
+// is removed on new commits, so a label snapshot misses PRs approved early.
+//   fixed          the agent removed `agent-changes-requested` on a later push
+//   early-approve  a human approved (`human-approved`), then a code-changing commit
+//                  (not a merge of main) landed after it
+//   approved-past  a human approved and nothing more is derivable (unclassified)
+// There is no single precision number: an approval is not proof the review was wrong
+// (designed gates, stale labels and knowing waivers look the same in the events). A
+// `designed` bucket is left out: events do not show why `needs-human` was added.
 import { execFileSync } from 'node:child_process'
 import { realpathSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -16,15 +21,21 @@ const BLOCK_LABEL = 'agent-changes-requested'
 const HUMAN_LABEL = 'needs-human'
 const APPROVED_LABEL = 'human-approved'
 
-const OUTCOMES = ['clean', 'fixed', 'approved-past', 'flagged-other']
+const OUTCOMES = ['clean', 'fixed', 'early-approve', 'approved-past', 'flagged-other']
+const LABELS = { 'approved-past': 'approved-past (unclassified)' }
 
-// events: the PR's issue events, oldest first. approved-past wins over fixed: the human
-// call is the stronger signal that a flag was not decisive.
+// events: the PR's timeline, oldest first. Approval wins over fixed: the human call is
+// the stronger signal that a flag was not decisive.
+const isCodeCommit = (e) => e.event === 'committed' && !(e.parents?.length > 1)
+
 export function classify(events) {
   const labelEvents = events.filter((e) => e.event === 'labeled' || e.event === 'unlabeled')
   const added = (name) => labelEvents.some((e) => e.event === 'labeled' && e.label?.name === name)
   const lastAction = (name) => labelEvents.filter((e) => e.label?.name === name).at(-1)?.event
-  if (added(APPROVED_LABEL)) return 'approved-past'
+  if (added(APPROVED_LABEL)) {
+    const firstApproval = events.findIndex((e) => e.event === 'labeled' && e.label?.name === APPROVED_LABEL)
+    return events.slice(firstApproval + 1).some(isCodeCommit) ? 'early-approve' : 'approved-past'
+  }
   if (added(BLOCK_LABEL) && lastAction(BLOCK_LABEL) === 'unlabeled') return 'fixed'
   if (added(BLOCK_LABEL) || added(HUMAN_LABEL)) return 'flagged-other'
   return 'clean'
@@ -38,21 +49,18 @@ export function summarize(eventsByPr) {
     counts[outcome] += 1
     prs[number] = outcome
   }
-  const decided = counts.fixed + counts['approved-past']
-  return { counts, prs, precision: decided === 0 ? null : counts.fixed / decided }
+  return { counts, prs }
 }
 
 export function formatReport(summary, since) {
   const total = Object.values(summary.counts).reduce((a, b) => a + b, 0)
   const lines = [`Agent review outcomes, PRs merged since ${since}: ${total}`, '']
-  for (const outcome of OUTCOMES) lines.push(`  ${outcome.padEnd(14)} ${String(summary.counts[outcome]).padStart(4)}`)
+  for (const outcome of OUTCOMES) {
+    lines.push(`  ${(LABELS[outcome] ?? outcome).padEnd(30)} ${String(summary.counts[outcome]).padStart(4)}`)
+  }
   lines.push('')
-  lines.push(
-    summary.precision === null
-      ? 'Precision proxy: n/a (no PR was fixed or approved past)'
-      : `Precision proxy: ${(summary.precision * 100).toFixed(0)}% (fixed / (fixed + approved-past))`,
-  )
-  for (const outcome of ['approved-past', 'flagged-other']) {
+  lines.push('Approvals are not proof the review was wrong: a human may approve a designed gate, a stale label or a known waiver.')
+  for (const outcome of ['early-approve', 'approved-past', 'flagged-other']) {
     const numbers = Object.entries(summary.prs)
       .filter(([, o]) => o === outcome)
       .map(([n]) => `#${n}`)
@@ -74,7 +82,7 @@ export function collect({ repo, since, gh }) {
   return Object.fromEntries(
     merged.map((pr) => [
       pr.number,
-      jsonLines(gh(['api', `repos/${repo}/issues/${pr.number}/events?per_page=100`, '--paginate', '--jq', '.[]'])),
+      jsonLines(gh(['api', `repos/${repo}/issues/${pr.number}/timeline?per_page=100`, '--paginate', '--jq', '.[]'])),
     ]),
   )
 }

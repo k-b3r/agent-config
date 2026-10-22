@@ -3,6 +3,7 @@ import { test } from 'node:test'
 import { classify, collect, formatReport, summarize } from './review-outcomes.mjs'
 
 const labeled = (name) => ({ event: 'labeled', label: { name } })
+const commit = (parents = 1) => ({ event: 'committed', parents: Array.from({ length: parents }, () => ({})) })
 const unlabeled = (name) => ({ event: 'unlabeled', label: { name } })
 
 test('classify calls a PR the review never touched clean', () => {
@@ -23,28 +24,43 @@ test('classify calls a flagged PR approved-past when a human approved it, even i
   )
 })
 
+test('classify calls a code push after approval early-approve, even when the new commit removed human-approved', () => {
+  const events = [labeled('needs-human'), labeled('human-approved'), commit(), unlabeled('human-approved')]
+  assert.equal(classify(events), 'early-approve')
+})
+
+test('classify ignores commits before approval and merges of main after it', () => {
+  assert.equal(classify([commit(), labeled('human-approved')]), 'approved-past')
+  assert.equal(classify([labeled('human-approved'), commit(2)]), 'approved-past')
+})
+
 test('classify keeps a PR merged with the block label still on, or only needs-human, as flagged-other', () => {
   assert.equal(classify([labeled('agent-changes-requested')]), 'flagged-other')
   assert.equal(classify([labeled('needs-human')]), 'flagged-other')
 })
 
-test('summarize counts outcomes and gives fixed over fixed plus approved-past as the precision proxy', () => {
+test('summarize counts outcomes per bucket and has no precision figure', () => {
   const summary = summarize({
     1: [],
     2: [labeled('agent-changes-requested'), unlabeled('agent-changes-requested')],
-    3: [labeled('agent-changes-requested'), unlabeled('agent-changes-requested')],
+    3: [labeled('needs-human'), labeled('human-approved'), commit()],
     4: [labeled('needs-human'), labeled('human-approved')],
   })
-  assert.deepEqual(summary.counts, { clean: 1, fixed: 2, 'approved-past': 1, 'flagged-other': 0 })
-  assert.equal(summary.precision, 2 / 3)
-  assert.equal(summarize({ 1: [] }).precision, null)
+  assert.deepEqual(summary.counts, { clean: 1, fixed: 1, 'early-approve': 1, 'approved-past': 1, 'flagged-other': 0 })
+  assert.equal('precision' in summary, false)
 })
 
-test('formatReport lists the approved-past PRs so they can be read', () => {
-  const text = formatReport(summarize({ 7: [labeled('human-approved')], 8: [] }), '2026-09-12')
-  assert.match(text, /merged since 2026-09-12: 2/)
+test('formatReport lists the approval buckets without a precision line', () => {
+  const text = formatReport(
+    summarize({ 7: [labeled('human-approved')], 8: [labeled('human-approved'), commit()], 9: [] }),
+    '2026-09-12',
+  )
+  assert.match(text, /merged since 2026-09-12: 3/)
   assert.match(text, /approved-past: #7/)
-  assert.match(text, /Precision proxy: 0%/)
+  assert.match(text, /early-approve: #8/)
+  assert.match(text, /approved-past \(unclassified\)/)
+  assert.match(text, /not proof the review was wrong/)
+  assert.doesNotMatch(text, /[Pp]recision/)
 })
 
 test('collect lists merged PRs inside the window and reads each one\'s events', () => {
@@ -62,5 +78,5 @@ test('collect lists merged PRs inside the window and reads each one\'s events', 
   const result = collect({ repo: 'o/r', since: '2026-09-12', gh })
   assert.deepEqual(Object.keys(result), ['5'])
   assert.equal(result[5][0].label.name, 'needs-human')
-  assert.ok(calls.some((c) => c.startsWith('repos/o/r/issues/5/events')))
+  assert.ok(calls.some((c) => c.startsWith('repos/o/r/issues/5/timeline')))
 })
