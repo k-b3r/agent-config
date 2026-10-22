@@ -5,7 +5,11 @@
 // recursive deletes outside the workspace, no destructive SQL or applied
 // migrations outside a test database). Exit 2 blocks the call and shows Claude
 // the reason. Wired into ~/.claude/settings.json by install.sh.
-// Not covered: the Grep and Glob tools, and shell indirection (`cat $(echo .env)`).
+// Grep and Glob are checked on their explicit path, glob and pattern arguments (never on Grep's
+// content regex). Not covered: a directory-wide Grep (ripgrep skips gitignored files by default),
+// and shell indirection (`cat $(echo .env)`): the hook sees command text only, so it cannot know
+// what a substitution or script will read. Test-database heuristic hole: `test` in a username,
+// hostname or other unquoted flag (`psql -d prod -U test`) counts as a test target.
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -45,7 +49,7 @@ const TEXT_COMMANDS = new Set(['git', 'gh', 'echo', 'printf', 'grep', 'rg', 'man
 const DB_CLIENT = /\b(psql|mysql|mariadb|sqlite3|mongosh|redis-cli|sqlcmd|duckdb)\b/
 const DESTRUCTIVE_SQL = /\b(drop\s+(table|database|schema|index|view)|truncate|flushall|flushdb)\b/i
 // A database named `test` or `*_test`, or a TEST_* variable, is disposable. Heuristic: the
-// word anywhere in the command counts, so name test databases that way.
+// word anywhere in the command counts, except inside quoted text (SQL) unless it is a URL.
 const TEST_TARGET = /(^|[^a-z0-9])test([^a-z0-9]|$)/i
 const MIGRATIONS = [
   /\bdrizzle-kit\s+(migrate|push|drop)\b/,
@@ -69,6 +73,17 @@ export function checkSecretPath(path) {
     ? `${path} is a secret file (credentials or keys): use .env.example for variable names, or ask the user.`
     : null
 }
+
+export function checkSearch(toolName, input) {
+  const targets = toolName === 'Grep' ? [input.path, input.glob] : [input.path, input.pattern]
+  for (const target of targets) {
+    const reason = typeof target === 'string' ? checkSecretPath(target) : null
+    if (reason) return reason
+  }
+  return null
+}
+
+const withoutSqlText = (segment) => segment.replace(/(["'])(?:(?!\1).)*\1/g, (quoted) => (quoted.includes('://') ? quoted : ' '))
 
 function commandWords(segment) {
   const words = segment.trim().split(/\s+/).filter(Boolean)
@@ -106,7 +121,7 @@ function checkRecursiveDelete(segment, cwd) {
 
 function checkDatabaseSegment(segment) {
   const [command] = commandWords(segment)
-  if (!command || TEXT_COMMANDS.has(basename(command)) || TEST_TARGET.test(segment)) return null
+  if (!command || TEXT_COMMANDS.has(basename(command)) || TEST_TARGET.test(withoutSqlText(segment))) return null
   if (DB_CLIENT.test(segment) && DESTRUCTIVE_SQL.test(segment)) {
     return 'Destructive SQL (DROP, TRUNCATE, FLUSH) blocked: run it only against a test database (named test or *_test, or via TEST_DATABASE_URL).'
   }
@@ -169,6 +184,7 @@ function main() {
   const path = tool.file_path ?? tool.notebook_path
   let reason = null
   if (input.tool_name === 'Bash') reason = checkBash(tool.command ?? '', currentBranch(cwd), cwd)
+  else if (input.tool_name === 'Grep' || input.tool_name === 'Glob') reason = checkSearch(input.tool_name, tool)
   else if (path) reason = checkSecretPath(path) ?? (input.tool_name === 'Read' ? null : checkEdit(path, readIfExists(path)))
   if (reason) {
     console.error(`Blocked by agent-config guard: ${reason}`)

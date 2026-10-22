@@ -5,13 +5,13 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
-const MATCHER = 'Bash|Read|Edit|Write|MultiEdit|NotebookEdit'
+const MATCHER = 'Bash|Read|Grep|Glob|Edit|Write|MultiEdit|NotebookEdit'
 
 export function withGuard(settings, command) {
   const preToolUse = settings.hooks?.PreToolUse ?? []
   const isGuard = (entry) => entry.hooks?.some((hook) => hook.command === command)
   if (preToolUse.some((entry) => isGuard(entry) && entry.matcher === MATCHER)) return settings
-  // An install from before the guard watched Read keeps its entry; only the matcher widens.
+  // An install from before the guard watched Read, Grep and Glob keeps its entry; only the matcher widens.
   if (preToolUse.some(isGuard)) {
     const entries = preToolUse.map((entry) => (isGuard(entry) ? { ...entry, matcher: MATCHER } : entry))
     return { ...settings, hooks: { ...settings.hooks, PreToolUse: entries } }

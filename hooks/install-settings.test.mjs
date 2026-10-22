@@ -25,3 +25,11 @@ test('withGuard widens the matcher of an installed guard so it also sees Read', 
   assert.match(result.hooks.PreToolUse[0].matcher, /\bRead\b/)
   assert.equal(result.hooks.PreToolUse[0].hooks[0].command, COMMAND)
 })
+
+test('withGuard widens the matcher of a Read-era install so it also sees Grep and Glob', () => {
+  const old = { hooks: { PreToolUse: [{ matcher: 'Bash|Read|Edit|Write|MultiEdit|NotebookEdit', hooks: [{ type: 'command', command: COMMAND, timeout: 10 }] }] } }
+  const result = withGuard(old, COMMAND)
+  assert.equal(result.hooks.PreToolUse.length, 1)
+  assert.match(result.hooks.PreToolUse[0].matcher, /\bGrep\b/)
+  assert.match(result.hooks.PreToolUse[0].matcher, /\bGlob\b/)
+})

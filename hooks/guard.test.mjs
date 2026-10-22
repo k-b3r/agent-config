@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { checkBash, checkEdit, checkSecretPath } from './guard.mjs'
+import { checkBash, checkEdit, checkSearch, checkSecretPath } from './guard.mjs'
 
 test('checkBash blocks --no-verify on commit and push', () => {
   assert.match(checkBash('git commit --no-verify -m "x"', 'feature'), /--no-verify/)
@@ -114,12 +114,15 @@ test('checkBash blocks DROP, TRUNCATE and FLUSH through a database client unless
     'docker compose exec db psql -U app -c "DROP DATABASE app"',
     'mysql -e "DROP SCHEMA shop"',
     'redis-cli FLUSHALL',
+    'psql prod -c "drop table test_results"',
   ]) {
     assert.match(checkBash(command, 'feature'), /destructive|drop|truncate|flush/i, command)
   }
   for (const command of [
     'psql $TEST_DATABASE_URL -c "TRUNCATE users"',
     'psql -d app_test -c "DROP TABLE users"',
+    'psql "postgres://u@h/app_test" -c "DROP TABLE users"',
+    'psql $TEST_DATABASE_URL -c "DROP TABLE test_results"',
     'git commit -m "drop table users from the seed"',
     'echo "DROP TABLE x"',
   ]) {
@@ -151,4 +154,15 @@ test('checkBash blocks applying migrations but allows generating them and applyi
   ]) {
     assert.equal(checkBash(command, 'feature'), null, command)
   }
+})
+
+test('checkSearch blocks Grep and Glob aimed at secret paths but not content patterns or templates', () => {
+  assert.match(checkSearch('Grep', { pattern: 'KEY', path: '/app/.env' }), /secret/)
+  assert.match(checkSearch('Grep', { pattern: 'KEY', glob: '**/.env' }), /secret/)
+  assert.equal(checkSearch('Grep', { pattern: 'KEY', path: '/app/.env.example' }), null)
+  assert.equal(checkSearch('Grep', { pattern: '\\.env', path: 'src' }), null)
+  assert.equal(checkSearch('Grep', { pattern: 'process.env' }), null)
+  assert.match(checkSearch('Glob', { pattern: '**/.env' }), /secret/)
+  assert.match(checkSearch('Glob', { pattern: '*', path: '/home/u/.ssh/id_rsa' }), /secret/)
+  assert.equal(checkSearch('Glob', { pattern: '**/*.ts' }), null)
 })
