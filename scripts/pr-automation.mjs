@@ -4,6 +4,7 @@
 //   pr-automation diff-unchanged <owner/repo> <base> <before-sha> <after-sha> [generated-path...]
 //   pr-automation review-covered <owner/repo> <sha>
 //   pr-automation review-reusable <owner/repo> <sha> <pr-number>
+//   pr-automation workflow-gate <flag|unflag> <owner/repo> <pr-number> <workflow-path>
 // Merges the open PR whose head is <sha> once it is opted in, green and current
 // with its base; otherwise reports which condition holds it. Writes a markdown
 // table to stdout (the run log, readable with `gh run view --log`) and to
@@ -18,6 +19,9 @@
 // pr-review skips a diff-unchanged push only when it does.
 // review-reusable exits 0 when that review's verdict may carry over to an
 // identical-diff push: covered, and not a blocking one (see reviewReusable).
+// workflow-gate flag labels a PR that changes the workflow running the review
+// (the review action skips itself then); unflag drops that label once the file
+// is out of the diff, but only a label the gate itself added (see workflowGate).
 import { execFileSync } from 'node:child_process'
 import { appendFileSync, realpathSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -166,15 +170,56 @@ export function reviewReusable({ repo, sha, pr, gh }) {
   }
 }
 
+// The review action skips itself on a PR that changes the workflow running it,
+// so the gate adds `needs-human` and leaves a comment carrying a hidden marker.
+// The newest marker comment says whether the gate's label is standing
+// (`flagged`) or was dropped. `unflag` removes `needs-human` only when the
+// newest marker is `flagged`, the label is set and the file left the diff; a
+// label with no such marker (the review's, or a human's) is never touched.
+// Run `unflag` before the review step: the review may then add its own label.
+export const WORKFLOW_MARKER = 'gate:needs-human-workflow-changed'
+
+export function workflowGate({ mode, repo, pr, path, gh }) {
+  const inDiff = gh(['pr', 'diff', String(pr), '--repo', repo, '--name-only']).split('\n').includes(path)
+  const states = gh([
+    'api', '--paginate', `repos/${repo}/issues/${pr}/comments`,
+    '--jq', `.[] | .body | capture("<!-- ${WORKFLOW_MARKER}:(?<s>[a-z]+) -->")? | .s`,
+  ]).split('\n').filter(Boolean)
+  const flagged = states.at(-1) === 'flagged'
+  const comment = (state, text) =>
+    gh(['pr', 'comment', String(pr), '--repo', repo, '--body', `<!-- ${WORKFLOW_MARKER}:${state} -->\n${text}`])
+  if (mode === 'flag' && inDiff) {
+    gh(['pr', 'edit', String(pr), '--repo', repo, '--add-label', 'needs-human'])
+    if (!flagged) {
+      comment('flagged', `Agent review skipped: this PR changes \`${path}\`, and the review action only runs a workflow identical to the default branch's. A human reviews this one.`)
+    }
+    return 'flagged'
+  }
+  if (mode === 'unflag' && !inDiff && flagged) {
+    const labels = JSON.parse(gh(['api', `repos/${repo}/issues/${pr}/labels`]))
+    if (!labels.some((label) => label.name === 'needs-human')) return 'none'
+    gh(['pr', 'edit', String(pr), '--repo', repo, '--remove-label', 'needs-human'])
+    comment('dropped', `This PR no longer changes \`${path}\`: removed the \`needs-human\` the gate added for it. The review runs again.`)
+    return 'dropped'
+  }
+  return 'none'
+}
+
 const USAGE = [
   'usage: pr-automation merge-if-ready <owner/repo> <sha>',
   '       pr-automation diff-unchanged <owner/repo> <base> <before-sha> <after-sha> [generated-path...]',
   '       pr-automation review-covered <owner/repo> <sha>',
   '       pr-automation review-reusable <owner/repo> <sha> <pr-number>',
+  '       pr-automation workflow-gate <flag|unflag> <owner/repo> <pr-number> <workflow-path>',
 ].join('\n')
 
 function main([command, repo, ...rest]) {
   const gh = (args) => execFileSync('gh', args, { encoding: 'utf8' })
+  if (command === 'workflow-gate' && rest.length === 3 && ['flag', 'unflag'].includes(repo)) {
+    const [target, pr, path] = rest
+    console.log(workflowGate({ mode: repo, repo: target, pr, path, gh }))
+    return 0
+  }
   if (command === 'diff-unchanged' && repo && rest.length >= 3) {
     const [base, before, after, ...generatedPaths] = rest
     return prDiffUnchanged({ repo, base, before, after, generatedPaths, gh }) ? 0 : 1

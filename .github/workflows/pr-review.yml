@@ -3,7 +3,11 @@
 #
 # Labels drive the gate:
 #   agent-changes-requested  agent found blocking issues (it removes it once fixed)
-#   needs-human              agent wants a human decision (business logic, money, data loss, ...)
+#   needs-human              agent wants a human decision (business logic, money, data loss, ...).
+#                            The gate also adds it when the PR changes this workflow (the review
+#                            skips itself then) and is the only one that removes it again, on a
+#                            push that takes the workflow out of the diff; a marker comment tells
+#                            its label from the review's, which only a human removes
 #   human-approved           a human reviewed a needs-human PR and signs off; dropped on
 #                            any push that changes the PR's diff, so an approval only covers
 #                            the code the human saw (a clean merge of the base, or a push
@@ -134,6 +138,22 @@ jobs:
             gh pr comment "$PR" --repo "$REPO" --body "New commits changed this PR's diff: removed \`human-approved\`. Re-approve if the review still needs a human."
           fi
 
+      # The one label the gate removes: the `needs-human` it added itself for a
+      # PR that changes this workflow (see "Flag a skipped review"), once a push
+      # takes that change out of the diff. Runs before the review so a label the
+      # review wants is added by the review, afterwards. A `needs-human` without
+      # the gate's marker comment is the review's or a human's and stays.
+      - name: Drop the gate's own needs-human
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          WORKFLOW_REF: ${{ github.workflow_ref }}
+        run: |
+          path=${WORKFLOW_REF#*/*/}
+          path=${path%@*}
+          node .agent-config/scripts/pr-automation.mjs workflow-gate unflag "$REPO" "$PR" "$path"
+
       - uses: anthropics/claude-code-action@v1
         id: claude
         if: steps.diff.outputs.unchanged != 'true'
@@ -229,7 +249,8 @@ jobs:
               or migrations, security trade-offs, product intent, or a doc that conflicts
               with the diff (see Stale docs). Say in the summary exactly what the human
               must decide. Never remove `needs-human` or
-              `human-approved`; only a human does. Don't re-add `needs-human` for a
+              `human-approved`; only a human does (the one exception, a `needs-human` the
+              gate added for a workflow change, is the gate's to drop, not yours). Don't re-add `needs-human` for a
               decision a human already made on this PR (an "Approved via `/approve`"
               or "Human decision:" comment covers it) unless new commits change it.
           claude_args: |
@@ -274,10 +295,7 @@ jobs:
         run: |
           path=${WORKFLOW_REF#*/*/}
           path=${path%@*}
-          if gh pr diff "$PR" --repo "$REPO" --name-only | grep -qxF "$path"; then
-            gh pr edit "$PR" --repo "$REPO" --add-label needs-human
-            gh pr comment "$PR" --repo "$REPO" --body "Agent review skipped: this PR changes \`$path\`, and the review action only runs a workflow identical to the default branch's. A human reviews this one."
-          fi
+          node .agent-config/scripts/pr-automation.mjs workflow-gate flag "$REPO" "$PR" "$path"
 
   gate:
     needs: agent-review
