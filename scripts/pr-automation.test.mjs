@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { prDiffUnchanged, mergeDecision, mergeIfReady, reviewCovered, reviewReusable, REVIEW_COVERED_STEP, sameChange } from './pr-automation.mjs'
+import { prDiffUnchanged, mergeDecision, mergeIfReady, reviewCovered, reviewReusable, REVIEW_COVERED_STEP, sameChange, workflowGate } from './pr-automation.mjs'
 
 const SHA = 'abc123'
 const greenPr = {
@@ -247,4 +247,56 @@ test('reviewReusable re-reviews when the previous review is not covered or the l
   assert.equal(reviewReusable({ repo: 'o/r', sha: 'old', pr: 7, gh: uncovered.gh }), false)
   const noLabels = fakeGh(reviewRuns({ 2: [reviewJob('success')] }))
   assert.equal(reviewReusable({ repo: 'o/r', sha: 'old', pr: 7, gh: noLabels.gh }), false)
+})
+
+const WF = '.github/workflows/review.yml'
+const gateGh = ({ files, states = [], labels = [] }) =>
+  fakeGh({
+    'pr diff 7': files.join('\n') + '\n',
+    'api --paginate': states.map((s) => `${s}\n`).join(''),
+    'api repos/o/r/issues/7/labels': JSON.stringify(labels.map((name) => ({ name }))),
+    'pr edit': '',
+    'pr comment': '',
+  })
+const gateRun = (mode, opts) => {
+  const { gh, calls } = gateGh(opts)
+  const result = workflowGate({ mode, repo: 'o/r', pr: 7, path: WF, gh })
+  return { result, edits: calls.filter((a) => a[1] === 'edit'), comments: calls.filter((a) => a[1] === 'comment') }
+}
+
+test('workflowGate flag labels a PR that changes the workflow and comments once with the marker', () => {
+  const first = gateRun('flag', { files: [WF, 'a.ts'] })
+  assert.equal(first.result, 'flagged')
+  assert.deepEqual(first.edits[0].slice(-2), ['--add-label', 'needs-human'])
+  assert.match(first.comments[0].at(-1), /^<!-- gate:needs-human-workflow-changed:flagged -->/)
+  const again = gateRun('flag', { files: [WF], states: ['flagged'] })
+  assert.equal(again.comments.length, 0)
+})
+
+test('workflowGate flag does nothing when the workflow is not in the diff', () => {
+  const run = gateRun('flag', { files: ['a.ts'] })
+  assert.deepEqual([run.result, run.edits.length, run.comments.length], ['none', 0, 0])
+})
+
+test('workflowGate unflag drops the gate-added label once the workflow left the diff', () => {
+  const run = gateRun('unflag', { files: ['a.ts'], states: ['flagged'], labels: ['needs-human'] })
+  assert.equal(run.result, 'dropped')
+  assert.deepEqual(run.edits[0].slice(-2), ['--remove-label', 'needs-human'])
+  assert.match(run.comments[0].at(-1), /^<!-- gate:needs-human-workflow-changed:dropped -->/)
+})
+
+test('workflowGate unflag keeps a needs-human the gate did not add (no marker) and one while the workflow is still changed', () => {
+  assert.equal(gateRun('unflag', { files: ['a.ts'], labels: ['needs-human'] }).result, 'none')
+  assert.equal(gateRun('unflag', { files: [WF], states: ['flagged'], labels: ['needs-human'] }).result, 'none')
+})
+
+test('workflowGate unflag acts once: a dropped marker, or an already removed label, changes nothing', () => {
+  assert.equal(gateRun('unflag', { files: ['a.ts'], states: ['flagged', 'dropped'], labels: ['needs-human'] }).result, 'none')
+  const run = gateRun('unflag', { files: ['a.ts'], states: ['flagged'], labels: [] })
+  assert.deepEqual([run.result, run.edits.length], ['none', 0])
+})
+
+test('workflowGate flag after a drop flags again with a fresh marker', () => {
+  const run = gateRun('flag', { files: [WF], states: ['flagged', 'dropped'] })
+  assert.match(run.comments[0].at(-1), /:flagged -->/)
 })
