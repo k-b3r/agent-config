@@ -1,0 +1,10 @@
+{
+  "name": "layer-folders-at-top",
+  "rule": "group by feature, not layer: no layer folders at the top of the repo",
+  "covers": "Group code by feature, not by technical layer or pipeline stage",
+  "expect": {
+    "blocking": true
+  },
+  "message": "add price alert storage and check",
+  "body": "Adds price alerts: a repository stores an alert per product and a service checks a new price against it. Nothing calls the service yet; the sync worker uses it in a follow-up."
+}
