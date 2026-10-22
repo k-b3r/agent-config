@@ -47,6 +47,8 @@ Each config's options are documented in its file. `moduleTiers` (dependency-crui
 
 CI: `.github/workflows/ci-typescript.yml` is a reusable workflow running all of it (format, lint, depcruise, typecheck, knip, `repo-checks all`, gitleaks, unit/integration/e2e); caller examples in its header. `pr-review.yml` adds the agent review and gate (transcript kept as an artifact). `auto-merge.yml` merges PRs labelled `automerge` once green and current; `pr-upkeep.yml` regenerates generated files on PRs and merges main into PRs that fall behind (both push with a GitHub App token, setup in `/init-repo`). `ci-report` (bin) shows where a repo's Actions minutes go. `review-outcomes` (bin) shows how the agent review held up on merged PRs (fixed vs approved past). `/init-repo` (skill) copies `skills/init-repo/templates/typescript/` into a new or existing repo and wires all of the above; `skills/init-repo/CHANGELOG.md` lists the template changes an already-wired repo applies by hand. `pnpm test` runs a violating fixture per rule plus a clean control.
 
+agent-config's own PRs get no agent review, by design: its `pr-review.yml` is `workflow_call`-only and nothing in this repo calls it, so a human reviews them. Consumer repos get the agent review and gate; the review prompt is regression-tested by `review-seeds` instead.
+
 ## Editing
 
 `~/.claude` links into this checkout's working tree, so whatever branch it has checked out is live in every session. Keep that checkout (`$AGENT_CONFIG`, wherever you cloned it) on `main` and pull after each merge. Make changes in a sibling worktree, one per branch:
