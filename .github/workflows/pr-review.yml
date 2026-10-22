@@ -276,6 +276,31 @@ jobs:
             | "agent review: \(.num_turns) turns, \(.duration_ms / 1000 | floor)s, $\(.total_cost_usd // "n/a"), model \($ENV.REVIEW_MODEL)"' \
             "$EXECUTION_FILE" >> "$GITHUB_STEP_SUMMARY" || echo "agent review: transcript unreadable" >> "$GITHUB_STEP_SUMMARY"
 
+      # The CI Claude token's session limit fails the review in seconds with an
+      # error the action's log doesn't explain. Read the transcript and fail the job
+      # naming the limit and reset time; comment once per reset window, not per run.
+      - name: Explain a Claude session-limit failure
+        if: always() && steps.claude.outcome == 'failure' && steps.claude.outputs.execution_file != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
+        run: |
+          if ! message=$(node .agent-config/scripts/review-rate-limit.mjs "$EXECUTION_FILE"); then
+            echo "::warning::could not read the review transcript for a rate-limit check"
+            exit 0
+          fi
+          if [ -z "$message" ]; then
+            exit 0 # not a limit: the job still fails on the action's own error
+          fi
+          echo "::error::$message"
+          comments=$(gh pr view "$PR" --repo "$REPO" --json comments -q '.comments[].body')
+          if ! grep -qF -- "$message" <<< "$comments"; then
+            gh pr comment "$PR" --repo "$REPO" --body "$message"
+          fi
+          exit 1
+
       # The marker review-covered looks for on the next push (scripts/pr-automation.mjs
       # REVIEW_COVERED_STEP; keep the names in sync). Runs only when Claude
       # reviewed this diff or a covered review carried over.
