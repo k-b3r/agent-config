@@ -1,0 +1,10 @@
+{
+  "name": "validation-replaced-by-cast",
+  "rule": "validate external data at the boundary (type check replaced by a cast)",
+  "covers": "Treat external data as untrusted: validate and narrow it at the boundary",
+  "expect": {
+    "blocking": true
+  },
+  "message": "read the product id straight from the lookup row",
+  "body": "Reads the id off the first row directly."
+}

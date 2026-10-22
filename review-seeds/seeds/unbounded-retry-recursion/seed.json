@@ -1,0 +1,10 @@
+{
+  "name": "unbounded-retry-recursion",
+  "rule": "retries are bounded (max attempts, delay)",
+  "covers": "External calls retry with bounded attempts and delay",
+  "expect": {
+    "blocking": true
+  },
+  "message": "add reference price lookup with retry",
+  "body": "Looks up the reference price for one product name. A dropped connection is gone on the next try, so the lookup goes again after a pause."
+}

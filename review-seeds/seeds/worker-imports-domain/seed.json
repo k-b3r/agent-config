@@ -1,0 +1,10 @@
+{
+  "name": "worker-imports-domain",
+  "rule": "entry points call public module functions, never a module's domain/",
+  "covers": "HTTP routes are entry edges outside `modules/`",
+  "expect": {
+    "blocking": true
+  },
+  "message": "log placeholder prices seen by the sync worker",
+  "body": "Operators asked to see which listings carry a placeholder ask. Only a log line, saving is unchanged."
+}

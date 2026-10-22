@@ -1,7 +1,7 @@
 {
   "name": "sql-fragment-in-platform",
-  "rule": "group by feature, not layer",
-  "covers": "Group code by feature, not by technical layer or pipeline stage",
+  "rule": "platform/ holds plumbing, no domain types or rules (a table's SQL lives in its module)",
+  "covers": "Generic plumbing (HTTP client, pool, logger, delay, clock) lives in `src/platform/` with no domain types or rules.",
   "expect": {
     "blocking": true
   },

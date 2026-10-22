@@ -50,7 +50,7 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR once the r
 - `review` A module owns as many tables as its feature needs. Another module reaches them through the owner's `index.ts`, never with its own SQL against them.
 - `tool`+`review` Modules import each other only through `index.ts`, and only from lower tiers: the repo lists its modules lowest tier first, a module never imports its own tier or a higher one, and an unlisted module fails. Shared code moves down into a lower module or `src/platform/`. _(`moduleTiers`)_
 - `review` A sequence that spans modules lives in its caller's `run.ts`. When a second caller needs it, it moves to `src/processes/`, which sequences module calls but holds no business rules and is imported by entry points only, never by a module.
-- `review` An adapter whose signature carries the module's domain types lives in that module. Generic plumbing (HTTP client, pool, logger, delay, clock) lives in `src/platform/` with no domain types or rules. Duplicate once, extract on the third use.
+- `review` An adapter whose signature carries the module's domain types lives in that module. Generic plumbing (HTTP client, pool, logger, delay, clock) lives in `src/platform/` with no domain types or rules: no SQL, table or column names, and no business constants. A query lives in the module that owns the table. Duplicate once, extract on the third use.
 
 *Examples:* `~/.claude/standards/design.md` (Module layout)
 

@@ -1,0 +1,10 @@
+{
+  "name": "silent-skip-empty-catch",
+  "rule": "log every skip",
+  "covers": "Log every skip or degradation with id and reason",
+  "expect": {
+    "blocking": true
+  },
+  "message": "add feed line parser for listings",
+  "body": "Parses the JSON lines of a listing feed into listings for the sync run. A line that is not valid JSON or not shaped like a listing is not turned into one."
+}

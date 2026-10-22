@@ -1,0 +1,10 @@
+{
+  "name": "deep-import-domain",
+  "rule": "a module reaches another module only through its index.ts, never a domain/ file",
+  "covers": "Hide information. Each module owns its decisions",
+  "expect": {
+    "blocking": true
+  },
+  "message": "add price key for a product name and day",
+  "body": "Gives callers one stable key per product and day, whatever the listing's spelling."
+}

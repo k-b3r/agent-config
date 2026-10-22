@@ -1,0 +1,11 @@
+{
+  "name": "clean-settled-batch",
+  "rule": "clean control: paced batches with allSettled, failures logged and counted",
+  "covers": null,
+  "expect": {
+    "blocking": false,
+    "needsHuman": false
+  },
+  "message": "add batched reference price fetch",
+  "body": "Fetches reference prices for a list of names a batch at a time, paced to the API's 60 calls a minute. The result keeps prices, unknown names (the API has no price) and failed names (lookup kept failing; retry next run) apart, so the caller can tell a missing price from a price the API does not know. An auth answer or an exhausted quota rejects the fetch instead of being retried. It lives in the pricing module, which owns reference prices. Not called yet: the sync worker uses it in a follow-up ticket."
+}

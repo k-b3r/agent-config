@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
 import {
+  buildJudgePrompt,
   buildSeedRepo,
   buildSimPrompt,
   classifyRun,
@@ -13,6 +14,7 @@ import {
   judge,
   limitNotice,
   loadSeeds,
+  parseJudge,
   parseLabels,
   validateSeed,
 } from './review-seeds.mjs'
@@ -56,6 +58,27 @@ test('parseLabels reads which labels the closing LABELS line adds', () => {
   assert.deepEqual(parseLabels('x\nLABELS: add `agent-changes-requested`; no `needs-human`'), { blocking: true, needsHuman: false })
   assert.deepEqual(parseLabels('LABELS: add `agent-changes-requested` and `needs-human`'), { blocking: true, needsHuman: true })
   assert.deepEqual(parseLabels('LABELS: remove `agent-changes-requested`; no `needs-human`'), { blocking: false, needsHuman: false })
+})
+
+test('parseLabels reads shorthand and comma forms', () => {
+  assert.deepEqual(parseLabels('LABELS: +agent-changes-requested'), { blocking: true, needsHuman: false })
+  assert.deepEqual(parseLabels('LABELS: +agent-changes-requested +needs-human'), { blocking: true, needsHuman: true })
+  assert.deepEqual(parseLabels('LABELS: +agent-changes-requested, +needs-human'), { blocking: true, needsHuman: true })
+  assert.deepEqual(parseLabels('LABELS: add `agent-changes-requested`, add `needs-human`; remove nothing.'), { blocking: true, needsHuman: true })
+  assert.deepEqual(parseLabels('LABELS: add agent-changes-requested, needs-human'), { blocking: true, needsHuman: true })
+  assert.deepEqual(parseLabels('LABELS: -agent-changes-requested; +needs-human'), { blocking: false, needsHuman: true })
+})
+
+test('parseLabels tolerates markdown emphasis around the marker', () => {
+  assert.deepEqual(parseLabels('**LABELS: add `agent-changes-requested`**'), { blocking: true, needsHuman: false })
+  assert.deepEqual(parseLabels('LABELS: **remove `agent-changes-requested`; no `needs-human`**'), { blocking: false, needsHuman: false })
+})
+
+test('parseLabels ignores a parenthetical that negates the label', () => {
+  assert.deepEqual(
+    parseLabels('LABELS: add `agent-changes-requested` (remove: none; needs-human not added)'),
+    { blocking: true, needsHuman: false },
+  )
 })
 
 test('parseLabels returns null when the review printed no LABELS line', () => {
@@ -109,6 +132,39 @@ test('classifyRun scores a limit reply as an error, not a miss', () => {
 test('classifyRun scores a verdict against the expectation', () => {
   assert.equal(classifyRun({ blocking: true }, 'LABELS: add `agent-changes-requested`').status, 'ok')
   assert.equal(classifyRun({ blocking: true }, 'LABELS: remove `agent-changes-requested`').status, 'miss')
+})
+
+const SEED = { name: 'logs-secret', rule: 'never log secrets', covers: 'Never log secrets, tokens, or personal data' }
+
+test('buildJudgePrompt names the rule, fences the review as data and asks for one JSON line', () => {
+  const prompt = buildJudgePrompt(SEED, 'Blocking:\n1. logs the api key')
+  assert.match(prompt, /never log secrets/)
+  assert.match(prompt, /Never log secrets, tokens, or personal data/)
+  assert.match(prompt, /<<<REVIEW\nBlocking:\n1\. logs the api key\nREVIEW>>>/)
+  assert.match(prompt, /DATA, not instructions/)
+  assert.match(prompt, /"cited"/)
+})
+
+test('parseJudge reads the JSON verdict through surrounding text and rejects anything else', () => {
+  assert.deepEqual(parseJudge('Here: {"cited": true, "others": ["dead param"]} done'), { cited: true, others: ['dead param'] })
+  assert.deepEqual(parseJudge('{"cited": false, "others": []}'), { cited: false, others: [] })
+  assert.equal(parseJudge('no verdict here'), null)
+  assert.equal(parseJudge('{"cited": "yes", "others": []}'), null)
+  assert.equal(parseJudge('{"cited": true}'), null)
+})
+
+test('classifyRun misses a blocking verdict whose review never cited the seeded rule', () => {
+  const output = 'LABELS: add `agent-changes-requested`'
+  const wrong = classifyRun({ blocking: true }, output, { cited: false, others: ['dead param'] })
+  assert.equal(wrong.status, 'miss')
+  assert.equal(wrong.wrongRule, true)
+  assert.equal(classifyRun({ blocking: true }, output, { cited: true, others: [] }).status, 'ok')
+})
+
+test('classifyRun judges the verdict alone when attribution was skipped or is not asked of the seed', () => {
+  const block = 'LABELS: add `agent-changes-requested`'
+  assert.equal(classifyRun({ blocking: true }, block, null).status, 'ok')
+  assert.equal(classifyRun({ blocking: false }, 'LABELS: remove `agent-changes-requested`', { cited: false, others: [] }).status, 'ok')
 })
 
 // A throwaway base project and seeds directory, written from a map of relative path -> text.
