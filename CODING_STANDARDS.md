@@ -173,7 +173,7 @@ Read the matching file before writing code in that language:
 ## Security
 
 - `tool` No secrets in the repo: env vars or a secret store, `.env*` gitignored, an `.env.example` committed. _(secret scan, audit)_
-- `tool` Agents never read secret files (`.env*`, keys, cloud credentials), delete recursively outside the workspace, run `DROP`/`TRUNCATE`, or apply migrations outside a test database; a human applies migrations elsewhere. _(guard hook)_
+- `tool` Agents never read secret files (`.env*`, keys, cloud credentials), delete recursively outside the workspace, run `DROP`/`TRUNCATE`, or apply migrations outside a test database; a human applies migrations elsewhere. _(guard hook; also checks Grep/Glob on explicit secret paths, not directory-wide Grep. Open holes: shell indirection like `cat $(echo .env)`, since the hook sees command text only and cannot know what a substitution or script reads; `test` in a username or host, e.g. `psql -d prod -U test`)_
 - `tool`+`review` Never log secrets, tokens, or personal data; redact at the logger. _(`noConsoleFiles`)_
 - `tool`+`review` Parameterized queries and argument arrays only; never interpolate input into SQL or shell commands. _(`parameterizedSqlFiles`; whether a fragment is constant is review)_
 - `tool`+`review` Least privilege: scoped, read-only tokens where possible. _(`workflow-permissions` bans `write-all`)_
