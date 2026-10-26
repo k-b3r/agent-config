@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
+import { mkdtempSync, rmSync, symlinkSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
 import { test } from 'node:test'
+import { fileURLToPath } from 'node:url'
 import { checkBash, checkEdit, checkSearch, checkSecretPath } from './guard.mjs'
 
 test('checkBash blocks --no-verify on commit and push', () => {
@@ -165,4 +170,36 @@ test('checkSearch blocks Grep and Glob aimed at secret paths but not content pat
   assert.match(checkSearch('Glob', { pattern: '**/.env' }), /secret/)
   assert.match(checkSearch('Glob', { pattern: '*', path: '/home/u/.ssh/id_rsa' }), /secret/)
   assert.equal(checkSearch('Glob', { pattern: '**/*.ts' }), null)
+})
+
+// install.sh links the hook into ~/.claude and Claude Code runs it through that
+// link. Node keeps argv[1] as the link path but resolves import.meta.url, so a
+// bare comparison between them never matched and the hook blocked nothing.
+function runThroughSymlink(payload) {
+  const dir = mkdtempSync(join(tmpdir(), 'guard-link-'))
+  try {
+    const link = join(dir, 'agent-config-guard.mjs')
+    symlinkSync(join(dirname(fileURLToPath(import.meta.url)), 'guard.mjs'), link)
+    return spawnSync(process.execPath, [link], { input: JSON.stringify(payload), encoding: 'utf8' })
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+}
+
+test('the hook blocks a push to main when run through a symlink', () => {
+  const result = runThroughSymlink({ tool_name: 'Bash', tool_input: { command: 'git push origin main' } })
+  assert.equal(result.status, 2)
+  assert.match(result.stderr, /Never push to main/)
+})
+
+test('the hook blocks reading a secret file when run through a symlink', () => {
+  const result = runThroughSymlink({ tool_name: 'Read', tool_input: { file_path: '/app/.env' } })
+  assert.equal(result.status, 2)
+  assert.match(result.stderr, /secret/)
+})
+
+test('the hook lets a harmless command through when run through a symlink', () => {
+  const result = runThroughSymlink({ tool_name: 'Bash', tool_input: { command: 'git status' } })
+  assert.equal(result.status, 0)
+  assert.equal(result.stderr, '')
 })

@@ -2,7 +2,7 @@
 // Adds the guard to ~/.claude/settings.json as a PreToolUse hook. Idempotent:
 // an existing entry pointing at the guard is left as is; every other key and
 // hook is preserved. Called by install.sh.
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 const MATCHER = 'Bash|Read|Grep|Glob|Edit|Write|MultiEdit|NotebookEdit'
@@ -25,7 +25,7 @@ export function withGuard(settings, command) {
   }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const [settingsPath, command] = process.argv.slice(2)
   const before = existsSync(settingsPath) ? JSON.parse(readFileSync(settingsPath, 'utf8')) : {}
   const after = withGuard(before, command)

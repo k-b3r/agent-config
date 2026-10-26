@@ -8,6 +8,7 @@
 //   spike: tip of the throwaway spike branch
 // Prints a markdown checklist; every item must be answered in the write-up.
 import { execFileSync } from 'node:child_process'
+import { realpathSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 const SPIKE_DOCS = 'docs/spikes/'
@@ -127,4 +128,4 @@ function main(argv) {
   process.stdout.write(renderReport({ feature, stubDiff, classification, markers }))
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) main(process.argv.slice(2))
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) main(process.argv.slice(2))
