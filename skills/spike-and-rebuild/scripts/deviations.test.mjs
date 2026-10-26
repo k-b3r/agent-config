@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
+import { mkdtempSync, rmSync, symlinkSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
 import { test } from 'node:test'
+import { fileURLToPath } from 'node:url'
 import { classifyTouchedFiles, findAddedMarkers, parseTodoPaths, renderReport } from './deviations.mjs'
 
 test('parseTodoPaths reads backticked and bare paths from bullet and checkbox lines', () => {
@@ -70,4 +75,21 @@ test('renderReport marks every evidence item for the reviewer and says none expl
   assert.match(report, /## Stub changes \(data structures, interfaces\)\n\nnone/)
   assert.match(report, /- \[ \] `src\/surprise.ts`/)
   assert.match(report, /- \[ \] `src\/a.ts:3` SPIKE-HACK: `\/\/ SPIKE-HACK: fake data`/)
+})
+
+// REVIEW_PROMPT.md runs `node ~/.claude/skills/spike-and-rebuild/scripts/deviations.mjs`,
+// a path through a symlinked skill directory. Called without arguments it must fail
+// loudly; the bare argv[1] comparison made it exit 0 and print nothing, so the
+// redirect to evidence.md wrote an empty file.
+test('the script runs when called through a symlinked directory', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'deviations-link-'))
+  try {
+    const link = join(dir, 'scripts')
+    symlinkSync(dirname(fileURLToPath(import.meta.url)), link)
+    const result = spawnSync(process.execPath, [join(link, 'deviations.mjs')], { encoding: 'utf8' })
+    assert.notEqual(result.status, 0)
+    assert.match(result.stderr, /missing --feature/)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })

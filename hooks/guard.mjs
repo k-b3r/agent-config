@@ -11,7 +11,7 @@
 // what a substitution or script will read. Test-database heuristic hole: `test` in a username,
 // hostname or other unquoted flag (`psql -d prod -U test`) counts as a test target.
 import { execFileSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { readFileSync, realpathSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -192,4 +192,4 @@ function main() {
   }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) main()
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) main()
