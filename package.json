@@ -16,7 +16,11 @@
   },
   "exports": {
     "./eslint": "./configs/eslint.mjs",
-    "./dependency-cruiser": "./configs/dependency-cruiser.cjs"
+    "./dependency-cruiser": "./configs/dependency-cruiser.cjs",
+    "./test-db": {
+      "types": "./configs/test-db.d.mts",
+      "default": "./configs/test-db.mjs"
+    }
   },
   "scripts": {
     "test": "node --test \"**/*.test.mjs\""

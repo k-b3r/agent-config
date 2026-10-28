@@ -19,4 +19,4 @@ src/workers/    entry points: wire deps + loop
 
 ## Testing
 
-- `tool` Integration tests read only `TEST_DATABASE_URL` (`repo-checks test-db-env`).
+- `tool` Integration tests read only `TEST_DATABASE_URL` (`repo-checks test-db-env`); one that resets the database takes it from `testDatabaseUrl()` (`@k-b3r/agent-config/test-db`), which refuses a database name without `test`.
