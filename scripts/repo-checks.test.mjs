@@ -13,6 +13,8 @@ import {
   diffSize,
   entriesWithoutScript,
   escapeHatchGrowth,
+  gitEnvProblems,
+  setupFilesOf,
   globToRegExp,
   misplacedTests,
   mutationTargets,
@@ -468,4 +470,83 @@ test('repo-checks skip-only reads agentConfig.skipPatterns and runs inside all',
   assert.equal(repoChecksIn(repo, 'skip-only', 'main').code, 0)
   writeFileSync(join(repo, 'package.json'), '{}')
   assert.match(repoChecksIn(repo, 'all', 'main').out, /skip-only:/)
+})
+
+const GIT_VARS = ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_COMMON_DIR', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_PREFIX', 'GIT_NAMESPACE']
+const CLEARING_SETUP = `${GIT_VARS.map((name) => `delete process.env.${name}`).join('\n')}\n`
+const GIT_TEST = "import { execFileSync } from 'node:child_process'\nexecFileSync('git', ['-C', dir, 'init'])\n"
+
+test('setupFilesOf reads setupFiles given as a list or a single string', () => {
+  assert.deepEqual(setupFilesOf("test: { setupFiles: ['./tests/setup/a.ts', \"b.ts\"] }"), ['./tests/setup/a.ts', 'b.ts'])
+  assert.deepEqual(setupFilesOf("test: { setupFiles: './a.ts' }"), ['./a.ts'])
+  assert.deepEqual(setupFilesOf('test: { globals: true }'), [])
+})
+
+test('gitEnvProblems flags a test that runs git when no vitest config wires a git-variable clearing setup file', () => {
+  const tests = [{ path: 'src/repo.test.ts', text: GIT_TEST }]
+  assert.match(gitEnvProblems(tests, [])[0], /src\/repo\.test\.ts/)
+  const unwired = [{ path: 'vitest.config.ts', text: 'export default {}', setups: [] }]
+  const problems = gitEnvProblems(tests, unwired)
+  assert.equal(problems.length, 1)
+  assert.match(problems[0], /vitest\.config\.ts/)
+})
+
+test('gitEnvProblems names the config that lacks the setup file when another one has it', () => {
+  const tests = [{ path: 'src/repo.test.ts', text: GIT_TEST }]
+  const configs = [
+    { path: 'vitest.config.ts', text: '', setups: [{ path: 'tests/setup/clear-git-env.ts', text: CLEARING_SETUP }] },
+    { path: 'vitest.integration.config.ts', text: '', setups: [] },
+  ]
+  const problems = gitEnvProblems(tests, configs)
+  assert.equal(problems.length, 1)
+  assert.match(problems[0], /vitest\.integration\.config\.ts/)
+})
+
+test('gitEnvProblems passes a repo whose every vitest config wires a setup file that clears all the variables', () => {
+  const tests = [
+    { path: 'src/repo.test.ts', text: GIT_TEST },
+    { path: 'tests/integration/helpers.ts', text: "spawnSync('git', ['status'])" },
+  ]
+  const setups = [{ path: 'tests/setup/clear-git-env.ts', text: CLEARING_SETUP }]
+  const configs = [{ path: 'vitest.config.ts', text: '', setups }, { path: 'vitest.integration.config.ts', text: '', setups }]
+  assert.deepEqual(gitEnvProblems(tests, configs), [])
+})
+
+test('gitEnvProblems rejects a setup file that clears only some variables, and ignores git named in comments', () => {
+  const tests = [{ path: 'src/repo.test.ts', text: GIT_TEST }]
+  const partial = [{ path: 'vitest.config.ts', text: '', setups: [{ path: 's.ts', text: 'delete process.env.GIT_DIR\n// GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_PREFIX GIT_NAMESPACE' }] }]
+  assert.match(gitEnvProblems(tests, partial)[0], /GIT_WORK_TREE/)
+  assert.deepEqual(gitEnvProblems([{ path: 'src/a.test.ts', text: "// execFileSync('git', [])\nit('x', () => {})" }], []), [])
+})
+
+test('gitEnvProblems does not look at tests that never call git', () => {
+  assert.deepEqual(gitEnvProblems([{ path: 'src/a.test.ts', text: "execFileSync('node', ['x'])" }], []), [])
+})
+
+// A repo whose tests call git, with the given vitest config and setup file contents.
+function repoWithGitTest({ setup } = {}) {
+  const repo = mkdtempSync(join(tmpdir(), 'git-test-env-'))
+  const git = (...args) => execFileSync('git', ['-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { stdio: 'ignore' })
+  mkdirSync(join(repo, 'src'))
+  mkdirSync(join(repo, 'tests/setup'), { recursive: true })
+  writeFileSync(join(repo, 'package.json'), '{}')
+  writeFileSync(join(repo, 'src/repo.test.ts'), GIT_TEST)
+  writeFileSync(join(repo, 'vitest.config.ts'), `export default { test: { ${setup ? "setupFiles: ['./tests/setup/clear-git-env.ts']" : ''} } }\n`)
+  if (setup) writeFileSync(join(repo, 'tests/setup/clear-git-env.ts'), setup)
+  git('init', '-q', '-b', 'main')
+  git('add', '-A')
+  git('commit', '-qm', 'base')
+  return repo
+}
+
+test('repo-checks git-test-env fails a repo whose tests call git without the setup file', () => {
+  const { code, out } = repoChecksIn(repoWithGitTest(), 'git-test-env')
+  assert.equal(code, 1, out)
+  assert.match(out, /src\/repo\.test\.ts/)
+})
+
+test('repo-checks git-test-env passes a repo with the setup file wired, and runs inside all', () => {
+  const repo = repoWithGitTest({ setup: CLEARING_SETUP })
+  assert.equal(repoChecksIn(repo, 'git-test-env').code, 0)
+  assert.match(repoChecksIn(repo, 'all', 'main').out, /git-test-env:/)
 })
