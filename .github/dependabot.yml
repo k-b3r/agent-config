@@ -1,5 +1,4 @@
 # Bumps the commit SHAs that the workflows pin their actions to (`uses: owner/repo@<sha> # v1.2.3`).
-# Dependabot reads the version in the trailing comment and updates both.
 version: 2
 updates:
   - package-ecosystem: github-actions
