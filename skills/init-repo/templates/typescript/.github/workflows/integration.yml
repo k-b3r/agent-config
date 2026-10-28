@@ -25,3 +25,5 @@ jobs:
     uses: k-b3r/agent-config/.github/workflows/ci-typescript.yml@main
     with:
       jobs: integration
+      # Tests that need Redis (queues): starts it and exports TEST_REDIS_URL=redis://localhost:6379.
+      # redis-image: 'redis:7'
