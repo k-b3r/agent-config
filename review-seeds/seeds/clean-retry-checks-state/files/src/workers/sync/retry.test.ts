@@ -21,6 +21,13 @@ describe('retryFailedJob', () => {
     expect(queue.add).not.toHaveBeenCalled()
     expect(logger.info).toHaveBeenCalledWith('sync job not retried: it is no longer running', { jobId: 'job-7', attempt: 1, reason: 'aborted' })
   })
+  it('retryFailedJob marks the job failed and logs when the queue refuses the retry', async () => {
+    const { deps, queue, store, logger } = setup()
+    queue.add.mockRejectedValue(new Error('redis down'))
+    await retryFailedJob(deps, job, 'timeout')
+    expect(store.moveFrom).toHaveBeenLastCalledWith('job-7', 'queued', 'failed')
+    expect(logger.warn).toHaveBeenCalledWith('sync job could not be added to the queue', { jobId: 'job-7', attempt: 2, reason: 'Error: redis down' })
+  })
   it('retryFailedJob marks the job failed and logs once the attempts run out', async () => {
     const { deps, queue, store, logger } = setup()
     await retryFailedJob(deps, { ...job, attempt: 3 }, 'timeout')

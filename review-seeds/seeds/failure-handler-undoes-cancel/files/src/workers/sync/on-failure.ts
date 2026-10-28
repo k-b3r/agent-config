@@ -8,7 +8,7 @@ export interface FailureDeps {
   logger: Logger
 }
 
-// Called by the worker when a sync attempt throws, whatever the reason.
+// Called by the worker when a sync attempt throws.
 export async function handleFailure(deps: FailureDeps, job: { id: string; attempt: number }, reason: string): Promise<void> {
   if (job.attempt < MAX_ATTEMPTS) {
     deps.logger.info('sync job back to queued', { jobId: job.id, attempt: job.attempt, reason })

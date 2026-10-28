@@ -7,5 +7,5 @@
     "needsHuman": false
   },
   "message": "retry failed sync jobs through the queue",
-  "body": "A sync job that throws is queued again only if it is still running; a cancelled job stays cancelled. Each retry is added under its own id (job id plus attempt) so the queue never drops it as a duplicate. The move from running to queued is one conditional write."
+  "body": "A sync job that throws is queued again only if it is still running; a cancelled job stays cancelled. Each retry is added under its own id (job id plus attempt) so the queue never drops it as a duplicate. The move from running to queued is one conditional write, and a queue that refuses the add marks the job failed."
 }

@@ -15,7 +15,7 @@ export interface JobQueue {
 
 export interface JobStore {
   // Moves the job only if it is in `from` now; false when another actor (a cancel) changed it first.
-  moveFrom(id: string, from: 'running', to: 'queued' | 'failed'): Promise<boolean>
+  moveFrom(id: string, from: 'running' | 'queued', to: 'queued' | 'failed'): Promise<boolean>
 }
 
 export interface RetryDeps {
@@ -37,5 +37,11 @@ export async function retryFailedJob(deps: RetryDeps, job: SyncJob, reason: stri
   }
   deps.logger.info('sync job queued for retry', { jobId: job.id, attempt: job.attempt + 1, reason })
   // A new id per attempt: the queue ignores an add whose id it already holds, and this runs inside the handler of the job it retries.
-  await deps.queue.add('sync', { ...job, attempt: job.attempt + 1 }, { jobId: `${job.id}:${job.attempt + 1}`, delayMs: RETRY_DELAY_MS })
+  try {
+    await deps.queue.add('sync', { ...job, attempt: job.attempt + 1 }, { jobId: `${job.id}:${job.attempt + 1}`, delayMs: RETRY_DELAY_MS })
+  } catch (error) {
+    // The job is already queued in the store; mark it failed so it is not left waiting for a queue entry that does not exist.
+    deps.logger.warn('sync job could not be added to the queue', { jobId: job.id, attempt: job.attempt + 1, reason: String(error) })
+    await deps.store.moveFrom(job.id, 'queued', 'failed')
+  }
 }
