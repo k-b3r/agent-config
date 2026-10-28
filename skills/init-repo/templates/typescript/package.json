@@ -25,6 +25,7 @@
       "src/workers/*/index.ts"
     ],
     "appDbEnv": "DATABASE_URL",
+    "generatedPaths": [],
     "mutationPaths": [
       "src/modules/*/domain/**"
     ]
