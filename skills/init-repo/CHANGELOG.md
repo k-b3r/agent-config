@@ -5,6 +5,11 @@ A repo wired by an earlier `/init-repo` never sees a later template change: the 
 Shared configs come in through the lockfile, so run `pnpm update @k-b3r/agent-config` to pick them up.
 The PR that changes a template adds its entry here.
 
+## 2026-10-28 (f8e46dd) integration tests refuse a database not named test
+
+- `CODING_STANDARDS.md` > Testing: the `TEST_DATABASE_URL` line also says a test that resets the database takes the URL from `testDatabaseUrl()`.
+- In integration tests that drop schemas, truncate or migrate: `import { testDatabaseUrl } from '@k-b3r/agent-config/test-db'` and build the pool from `testDatabaseUrl()` (reads `TEST_DATABASE_URL`, throws unless the database name contains `test`). A repo's own equivalent guard keeps working; `assertTestDatabase(url)` checks a URL from another variable. Run `pnpm update @k-b3r/agent-config` first.
+
 ## 2026-10-28 (fa63541) tests that run git ignore the git variables of a hook
 
 - Add `tests/setup/clear-git-env.ts` from the template: it deletes `GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE`, `GIT_COMMON_DIR`, `GIT_OBJECT_DIRECTORY`, `GIT_ALTERNATE_OBJECT_DIRECTORIES`, `GIT_PREFIX` and `GIT_NAMESPACE` from `process.env`.
