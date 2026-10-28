@@ -1,0 +1,10 @@
+{
+  "name": "failure-handler-undoes-cancel",
+  "rule": "a failure handler reads the job's current state before it moves it, so it cannot undo a cancel",
+  "covers": "A failure handler reads the job's current state before it moves the job",
+  "expect": {
+    "blocking": true
+  },
+  "message": "requeue sync jobs from the failure handler",
+  "body": "When a sync attempt throws, the failure handler puts the job back to queued while attempts remain and marks it failed after the last one. Moves go through moveJob, which refuses edges the state machine does not allow."
+}
