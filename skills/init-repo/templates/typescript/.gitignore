@@ -6,6 +6,9 @@ coverage/
 .env
 .env.*
 !.env*.example
+# Editor swap files of an ignored secret file (.env.swp) hold its contents.
+*.swp
+*.swo
 .claude/worktrees/
 .stryker-tmp/
 /reports/
