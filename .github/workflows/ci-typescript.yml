@@ -12,7 +12,9 @@
 #       uses: k-b3r/agent-config/.github/workflows/ci-typescript.yml@main
 #       with: { jobs: static unit }
 #   # .github/workflows/integration.yml: same, with `on: pull_request: paths: [...]`
-#   # and `jobs: integration` (likewise e2e.yml with `jobs: e2e`).
+#   # and `jobs: integration` (likewise e2e.yml with `jobs: e2e`). Tests that need Redis
+#   # (queues): `with: { jobs: integration, redis-image: 'redis:7' }`; the job then starts
+#   # it and exports TEST_REDIS_URL=redis://localhost:6379 (unset when redis-image is empty).
 #
 # `repo-checks diff-size` fails a PR over agentConfig.maxDiffLines. Label
 # `large-diff-approved` waives it; the label is read from the event payload, so
@@ -47,6 +49,10 @@ on:
         description: 'Service for integration/e2e; empty string starts none'
         type: string
         default: postgres:17
+      redis-image:
+        description: 'Extra Redis service for the integration job (e.g. redis:7). Empty (default) starts none and leaves TEST_REDIS_URL unset'
+        type: string
+        default: ''
       e2e-setup:
         type: string
         default: pnpm exec playwright install --with-deps chromium
@@ -181,6 +187,11 @@ jobs:
           POSTGRES_DB: test
         ports: ['5432:5432']
         options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+      # Empty image: the service is not started (same as postgres-image).
+      redis:
+        image: ${{ inputs.redis-image }}
+        ports: ['6379:6379']
+        options: --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -192,6 +203,9 @@ jobs:
       - env:
           DIRS: ${{ inputs.install-dirs }}
         run: for dir in $DIRS; do (cd "$dir" && pnpm install --frozen-lockfile); done
+      # Exported only when the service runs, so a test can skip itself on an unset variable.
+      - if: inputs.redis-image != ''
+        run: echo "TEST_REDIS_URL=redis://localhost:6379" >> "$GITHUB_ENV"
       - run: pnpm test:integration
 
   e2e:
