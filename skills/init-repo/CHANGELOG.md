@@ -5,6 +5,10 @@ A repo wired by an earlier `/init-repo` never sees a later template change: the 
 Shared configs come in through the lockfile, so run `pnpm update @k-b3r/agent-config` to pick them up.
 The PR that changes a template adds its entry here.
 
+## 2026-10-28 (db91311) dependabot for pinned actions
+
+- Add `.github/dependabot.yml` from the template (`github-actions`, weekly). It matters once the repo's own workflows use third-party actions: pin each to a full commit SHA with the release in a comment (`uses: owner/repo@<40-hex> # v1.2.3`) and Dependabot bumps both. Leave the `k-b3r/agent-config/...@main` calls unpinned. Not verified: how a Dependabot PR fares against the agent review (the review refuses bot-triggered runs unless the bot is in `allowed-bots`, and Dependabot runs get no Actions secrets).
+
 ## 2026-10-28 (4f8c564) flat-shape examples, generatedPaths, swap files
 
 - `.gitignore`: add `*.swp` and `*.swo` (an editor swap file of an ignored secret file holds its contents; `.env.swp` was ignored only by `.env.*`, which a repo with its own ignore file often lacks). `node ~/.claude/skills/init-repo/scripts/merge-missing-lines.mjs <template .gitignore> .gitignore` appends just the missing lines.
