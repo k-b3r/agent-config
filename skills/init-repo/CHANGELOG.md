@@ -5,6 +5,10 @@ A repo wired by an earlier `/init-repo` never sees a later template change: the 
 Shared configs come in through the lockfile, so run `pnpm update @k-b3r/agent-config` to pick them up.
 The PR that changes a template adds its entry here.
 
+## 2026-10-28 (72e2553, f6cb7da) optional Redis service for the integration job
+
+- `.github/workflows/integration.yml`: optional. For tests that need Redis add `redis-image: 'redis:7'` under `with:` (template has it commented). The job then starts Redis and exports `TEST_REDIS_URL=redis://localhost:6379`; the default (no input) is unchanged and leaves `TEST_REDIS_URL` unset. `pnpm update @k-b3r/agent-config` is not needed: the input lives in the reusable workflow, which callers use at `@main`.
+
 ## 2026-10-28 (f8e46dd) integration tests refuse a database not named test
 
 - `CODING_STANDARDS.md` > Testing: the `TEST_DATABASE_URL` line also says a test that resets the database takes the URL from `testDatabaseUrl()`.
