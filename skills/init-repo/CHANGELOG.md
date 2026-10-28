@@ -5,6 +5,12 @@ A repo wired by an earlier `/init-repo` never sees a later template change: the 
 Shared configs come in through the lockfile, so run `pnpm update @k-b3r/agent-config` to pick them up.
 The PR that changes a template adds its entry here.
 
+## 2026-10-28 (fa63541) tests that run git ignore the git variables of a hook
+
+- Add `tests/setup/clear-git-env.ts` from the template: it deletes `GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE`, `GIT_COMMON_DIR`, `GIT_OBJECT_DIRECTORY`, `GIT_ALTERNATE_OBJECT_DIRECTORIES`, `GIT_PREFIX` and `GIT_NAMESPACE` from `process.env`.
+- `vitest.config.ts` and `vitest.integration.config.ts`: add `setupFiles: ['./tests/setup/clear-git-env.ts']` to `test`.
+- Why: from a linked worktree git runs the pre-push hook with `GIT_DIR` set, so a test running `git -C <temp repo> ...` changed the real repository. `repo-checks git-test-env` (part of `all`, so CI) fails a repo whose tests call git without this setup file, after `pnpm update @k-b3r/agent-config`.
+
 ## 2026-10-28 (35628d4) a fresh repo passes `pnpm check` and the integration job
 
 - `vitest.config.ts` and `vitest.integration.config.ts`: add `passWithNoTests: true` to `test`. Without it the first `pnpm test` exits 1 ("No test files found"), and so does the integration job of a PR in a repo with no integration test yet.
