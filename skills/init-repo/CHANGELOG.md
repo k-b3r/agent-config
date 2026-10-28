@@ -5,6 +5,12 @@ A repo wired by an earlier `/init-repo` never sees a later template change: the 
 Shared configs come in through the lockfile, so run `pnpm update @k-b3r/agent-config` to pick them up.
 The PR that changes a template adds its entry here.
 
+## 2026-10-28 (4f8c564) flat-shape examples, generatedPaths, swap files
+
+- `.gitignore`: add `*.swp` and `*.swo` (an editor swap file of an ignored secret file holds its contents; `.env.swp` was ignored only by `.env.*`, which a repo with its own ignore file often lacks). `node ~/.claude/skills/init-repo/scripts/merge-missing-lines.mjs <template .gitignore> .gitignore` appends just the missing lines.
+- `package.json`: add `"generatedPaths": []` to `agentConfig`; fill it with the globs of generated output (ORM migrations, API clients) so they do not count toward the 800-line diff limit. Same globs go in `pr-upkeep.yml` `regenerate-paths` and `pr-review.yml` `generated-paths`.
+- `eslint.config.js`, `.dependency-cruiser.cjs`: comment-only; a flat-shape example (`pureCorePaths` as a file list; `inner` / `entryPoints` folders). A flat repo also sets `stryker.config.json` `mutate` to the same files.
+
 ## 2026-10-28 (72e2553, f6cb7da) optional Redis service for the integration job
 
 - `.github/workflows/integration.yml`: optional. For tests that need Redis add `redis-image: 'redis:7'` under `with:` (template has it commented). The job then starts Redis and exports `TEST_REDIS_URL=redis://localhost:6379`; the default (no input) is unchanged and leaves `TEST_REDIS_URL` unset. `pnpm update @k-b3r/agent-config` is not needed: the input lives in the reusable workflow, which callers use at `@main`.
