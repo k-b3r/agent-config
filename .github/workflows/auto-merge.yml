@@ -57,13 +57,13 @@ jobs:
       cancel-in-progress: false
     steps:
       - id: app
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
         with:
           app-id: ${{ inputs.app-id }}
           private-key: ${{ secrets.CI_APP_PRIVATE_KEY }}
 
       # agent-config is public, so the default token can read it.
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: k-b3r/agent-config
           path: .agent-config
