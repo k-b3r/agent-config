@@ -155,8 +155,15 @@ Read the matching file before writing code in that language:
 - `review` External calls retry with bounded attempts and delay, then degrade (halve the batch, skip the item) instead of crashing the run.
 - `review` Distinguish fatal (e.g. quota exhausted) from transient errors. Fatal unwinds, transient retries.
 - `review` Log every skip or degradation with id and reason. Never lose data silently: unprocessed items stay candidates for the next run.
+- `review` For any queue, retry, restart or cancel logic, ask: what happens if this runs a second time, or while the first run is still active? A retry is enqueued under a new id per attempt (job id plus attempt number): a queue that ignores an add whose id already exists (BullMQ does, even for a finished or still-running job) silently drops a retry sent under the old id, and a retry is enqueued from inside the handler of the job it retries.
+- `review` A failure handler reads the job's current state before it moves the job, and never takes an edge out of a state another actor already finalized: a handler that takes the legal `cancelled` to `queued` retry edge undoes a cancel. A failed attempt removes what it created (git branch, temp file, lock) so the retry starts clean, and an append-only log writer starts each entry on a new line, since a crash can cut the last one.
 
 *Examples:* `~/.claude/standards/resilience.md`
+
+## Delegated work
+
+- `process` A worker's report of green checks is not proof. Cheap workers wrote code that passed tests, lint and typecheck, and review still found a log writer corrupting the next entry after a crash, a queue that dropped every retry, a retry that failed on the branch the failed attempt left behind, a cancel undone by the failure handler, and a database reset that could run on a non-test database. Each is a bug over time (retry, restart, crash, concurrency, cleanup) that a test running the path once does not find. The orchestrator reads the retry, restart, cancel and cleanup paths itself, applies the Resilience question to them, and re-runs the targeted tests for them (the canonical check still runs once, in pre-push).
+- `process` Workers on one checkout each get a prompt that lists the files they own and forbids git and dependency changes. The orchestrator owns `package.json` and the lockfile, adds shared dependencies before launch, and commits one piece at a time. Every worker prompt ends with an instruction to call its exit tool, so its pane closes (`/dispatch-tickets`).
 
 ## External Services
 
