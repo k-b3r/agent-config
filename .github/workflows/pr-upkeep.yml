@@ -72,6 +72,7 @@ jobs:
       !github.event.pull_request.draft &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - id: app
         uses: actions/create-github-app-token@v2
@@ -120,7 +121,8 @@ jobs:
 
   update-branches:
     if: github.event_name == 'push'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim # git and gh only, unless a conflict needs regenerating
+    timeout-minutes: 10
     steps:
       - id: app
         uses: actions/create-github-app-token@v2
