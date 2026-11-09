@@ -1,0 +1,10 @@
+{
+  "name": "ticket-key-in-fixtures",
+  "rule": "test fixtures carry no real tracker key or host",
+  "covers": "No other team's tracker data in the repo",
+  "expect": {
+    "blocking": true
+  },
+  "message": "parse tracker keys pasted next to a listing",
+  "body": "parseTicketKey normalizes a tracker key before it reaches the row, and drops a pasted link instead of storing it."
+}

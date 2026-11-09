@@ -173,6 +173,7 @@ Read the matching file before writing code in that language:
 ## Security
 
 - `tool` No secrets in the repo: env vars or a secret store, `.env*` gitignored, an `.env.example` committed. _(secret scan, audit)_
+- `review` No other team's tracker data in the repo: a test fixture or test name carries no real tracker key or workspace host, only a neutral prefix (`TST-`) and `example.com`. A key copied from the ticket you are shipping (`BUY-421`) or its workspace URL is another team's data; a skill's example key is a shape, not a value to copy. A PR that adds one is blocked until it is neutral.
 - `tool` Agents never read secret files (`.env*`, keys, cloud credentials), delete recursively outside the workspace, run `DROP`/`TRUNCATE`, or apply migrations outside a test database; a human applies migrations elsewhere. _(guard hook; also checks Grep/Glob on explicit secret paths, not directory-wide Grep. Open holes: shell indirection like `cat $(echo .env)`, since the hook sees command text only and cannot know what a substitution or script reads; `test` in a username or host, e.g. `psql -d prod -U test`)_
 - `tool`+`review` Never log secrets, tokens, or personal data; redact at the logger. _(`noConsoleFiles`)_
 - `tool`+`review` Parameterized queries and argument arrays only; never interpolate input into SQL or shell commands. _(`parameterizedSqlFiles`; whether a fragment is constant is review)_

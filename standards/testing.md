@@ -25,6 +25,24 @@ export interface DbClient {
 const db = { query: vi.fn().mockResolvedValue({ rows: [] }) }
 ```
 
+## Fixtures carry no real tracker key or host
+
+A fixture built from a copied example key, or from the ticket you are shipping, puts a real team's key and workspace into a repo that must not hold it. A sub-agent did exactly this with the `BUY-` prefix from a skill example (2026-10-27).
+
+Don't:
+```ts
+it('parseTicketKey drops a link copied from https://linear.app/labx/issue/BUY-421/stock-count', () => {
+  expect(parseTicketKey('BUY-421')).toBe('BUY-421')
+})
+```
+
+Do: a neutral prefix and `example.com`, which read as fake to a person and to a secret scanner.
+```ts
+it('parseTicketKey drops a link copied from https://tracker.example.com/TST-421/stock-count', () => {
+  expect(parseTicketKey('TST-421')).toBe('TST-421')
+})
+```
+
 ## Bug fix starts with a failing test
 
 Run it before the fix: it must fail on the bug itself, not on a typo or missing import.
