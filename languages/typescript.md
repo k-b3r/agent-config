@@ -26,7 +26,7 @@ Shared, referenced from `@k-b3r/agent-config` (git dependency) so repos don't dr
 | mutation report on changed pure files (`mutationPaths`; report only) | Stryker, CI `mutation` job in `ci-typescript.yml` |
 | agents never read secret files, delete outside the workspace, run destructive SQL or apply migrations outside a test database | PreToolUse guard hook (`hooks/guard.mjs`, wired by `install.sh`) |
 | dead code | knip |
-| secrets | gitleaks in `ci-typescript.yml` |
+| secrets | gitleaks: lefthook pre-commit on staged changes (before history), `ci-typescript.yml` on the PR's commits (backstop) |
 | canonical check before push | lefthook pre-push runs `pnpm check` |
 
 - Each shared rule has a violating fixture plus a clean control in agent-config's tests; a repo's own extra rules keep their own fixtures (`tests/lint-fixtures/`), so a mis-scoped glob can't silently check nothing.

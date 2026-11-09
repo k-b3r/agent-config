@@ -18,7 +18,7 @@ Every `tool` rule in CODING_STANDARDS.md counts as `review` until a repo wires i
    - `.dependency-cruiser.cjs`: `publicApis` = one folder per feature module, `heavyDeps` = each heavy package and its single owner file, `inner` / `entryPoints` folders, `moduleTiers` once there are two or more modules (lowest tier first; a repo that already has upward imports ratchets them in `pnpm depcruise` known-violations or fixes them first).
    - `package.json` `agentConfig`: `sourceDirs`, `entries` (same as ESLint `entryPoints`), `appDbEnv`, `generatedPaths` (globs excluded from the diff-size limit; same files as `regenerate-paths`), `mutationPaths` (same globs as ESLint `pureCorePaths`; the mutation report runs on changed files under them), `maxDiffLines` only to move off the default 800.
    - `knip.json` entries; `integration.yml` paths. Repo has a UI or HTTP flow: add an `e2e.yml` caller (`jobs: e2e`) and a Playwright config.
-6. **Install.** `pnpm install`. Check `.git/hooks/pre-push` exists and `pnpm exec lefthook version` works: if `node_modules` is missing the hook prints "Can't find lefthook in PATH" and lets the push through unchecked.
+6. **Install.** `pnpm install`. Check `.git/hooks/pre-commit` and `.git/hooks/pre-push` exist, `gitleaks version` works (else `brew install gitleaks`: the pre-commit secret scan fails without it) and `pnpm exec lefthook version` works: if `node_modules` is missing the hook prints "Can't find lefthook in PATH" and lets the push through unchecked.
 7. **GitHub.** Create the review labels (idempotent):
    ```bash
    gh label create agent-changes-requested --color D93F0B --description "Agent review found blocking issues" --force

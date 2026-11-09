@@ -1,5 +1,14 @@
 # Local guardrail: GitHub can't require status checks on private free-plan repos.
 # Bypass only deliberately (LEFTHOOK=0); CI runs the same checks.
+# Stops a secret before it enters history; CI's gitleaks scan is the backstop.
+# Needs the gitleaks binary (brew install gitleaks); a missing one fails the commit
+# rather than skipping the scan silently.
+pre-commit:
+  jobs:
+    - name: secret scan
+      run: |
+        command -v gitleaks >/dev/null || { echo "gitleaks not installed: brew install gitleaks"; exit 1; }
+        gitleaks git --pre-commit --staged --redact --no-banner
 pre-push:
   jobs:
     - name: check
