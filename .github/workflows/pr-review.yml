@@ -74,7 +74,7 @@ jobs:
     # Label changes only re-run the gate; reviewing again would just repeat itself.
     if: github.event_name == 'pull_request' && github.event.action != 'labeled' && github.event.action != 'unlabeled' && !github.event.pull_request.draft
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 15
     permissions:
       contents: read
       pull-requests: write
