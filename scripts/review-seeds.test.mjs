@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
@@ -11,6 +11,8 @@ import {
   classifyRun,
   extractModel,
   extractPrompt,
+  stageStandards,
+  standardsDirFor,
   judge,
   limitNotice,
   loadSeeds,
@@ -234,4 +236,25 @@ test('validateSeed names each problem: bad name, short covers, missing expectati
   assert.ok(problems.some((p) => /blocking/.test(p)))
   assert.ok(problems.some((p) => /commit message/.test(p)))
   assert.ok(validateSeed({ name: 'x', rule: 'r', covers: null, expect: { blocking: false }, steps: [] }).some((p) => /step/.test(p)))
+})
+
+test('standardsDirFor keeps the prompt inside the reviewed repo when the standards are staged, and points at this checkout otherwise', () => {
+  assert.equal(standardsDirFor(true), '.agent-config')
+  assert.notEqual(standardsDirFor(false), '.agent-config')
+})
+
+test('stageStandards copies the standards into the seed repo and keeps them out of git and the diff', () => {
+  const source = mkdtempSync(join(tmpdir(), 'standards-src-'))
+  writeFileSync(join(source, 'CODING_STANDARDS.md'), 'one rule\n')
+  mkdirSync(join(source, 'standards'))
+  writeFileSync(join(source, 'standards/testing.md'), 'examples\n')
+  mkdirSync(join(source, 'languages'))
+  const repo = mkdtempSync(join(tmpdir(), 'seed-repo-'))
+  mkdirSync(join(repo, '.git/info'), { recursive: true })
+  writeFileSync(join(repo, 'package.json'), '{}\n')
+  execFileSync('git', ['-C', repo, 'init', '-q', '-b', 'main'])
+  assert.equal(stageStandards(repo, source), '.agent-config')
+  assert.equal(readFileSync(join(repo, '.agent-config/CODING_STANDARDS.md'), 'utf8'), 'one rule\n')
+  assert.ok(existsSync(join(repo, '.agent-config/standards/testing.md')))
+  assert.equal(execFileSync('git', ['-C', repo, 'status', '--porcelain'], { encoding: 'utf8' }).trim(), '?? package.json')
 })
