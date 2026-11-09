@@ -22,7 +22,11 @@ link() {
 }
 
 mkdir -p "$TARGET/skills"
-link "$REPO/CLAUDE.md" "$TARGET/CLAUDE.md"
+link "$REPO/AGENTS.md" "$TARGET/CLAUDE.md"
+# pi reads the same file as its global instructions.
+if [ -d "$HOME/.pi/agent" ]; then
+  link "$REPO/AGENTS.md" "$HOME/.pi/agent/AGENTS.md"
+fi
 link "$REPO/CODING_STANDARDS.md" "$TARGET/CODING_STANDARDS.md"
 link "$REPO/TOOLS.md" "$TARGET/TOOLS.md"
 link "$REPO/languages" "$TARGET/languages"

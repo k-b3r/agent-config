@@ -3,9 +3,10 @@
 Personal Claude Code setup: global instructions, general coding standards, own skills.
 
 ```
-CLAUDE.md            -> ~/.claude/CLAUDE.md (imports CODING_STANDARDS.md)
+AGENTS.md            -> ~/.claude/CLAUDE.md and ~/.pi/agent/AGENTS.md (global instructions; imports CODING_STANDARDS.md, TOOLS.md)
+CLAUDE.md            -> this repo only: imports AGENTS.md
 CODING_STANDARDS.md  -> ~/.claude/CODING_STANDARDS.md (language-agnostic)
-TOOLS.md             -> ~/.claude/TOOLS.md (imported by CLAUDE.md: when to use each tool)
+TOOLS.md             -> ~/.claude/TOOLS.md (imported by AGENTS.md: when to use each tool)
 tools/<name>.sh      -> sourced by install.sh: installs + wires one tool (pinned, idempotent)
 languages/           -> ~/.claude/languages (read on demand per language)
 standards/           -> ~/.claude/standards (do/don't examples per section, read on demand)
