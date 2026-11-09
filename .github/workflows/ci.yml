@@ -5,6 +5,7 @@ name: ci
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -19,6 +20,7 @@ env:
 jobs:
   test:
     name: tests
+    if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -36,6 +38,7 @@ jobs:
 
   actionlint:
     name: workflow lint
+    if: github.event.pull_request.draft != true
     runs-on: ubuntu-slim
     timeout-minutes: 5
     steps:

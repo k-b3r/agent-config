@@ -4,8 +4,11 @@
 # @k-b3r/agent-config as a dev dependency (repo-checks).
 #
 # Caller (path filters stay in the caller: reusable workflows can't declare them):
-#   # .github/workflows/ci.yml
-#   on: pull_request
+#   # .github/workflows/ci.yml (drafts are skipped, so list ready_for_review to run on
+#   # the draft-to-ready switch)
+#   on:
+#     pull_request:
+#       types: [opened, synchronize, reopened, ready_for_review]
 #   concurrency: { group: ci-${{ github.ref }}, cancel-in-progress: true }
 #   jobs:
 #     ci:
@@ -61,7 +64,7 @@ env:
 
 jobs:
   static:
-    if: contains(format(' {0} ', inputs.jobs), ' static ')
+    if: contains(format(' {0} ', inputs.jobs), ' static ') && github.event.pull_request.draft != true
     name: static checks
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -118,7 +121,7 @@ jobs:
           exit $status
 
   unit:
-    if: contains(format(' {0} ', inputs.jobs), ' unit ')
+    if: contains(format(' {0} ', inputs.jobs), ' unit ') && github.event.pull_request.draft != true
     name: unit tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -136,7 +139,7 @@ jobs:
       - run: pnpm test
 
   mutation:
-    if: contains(format(' {0} ', inputs.jobs), ' mutation ') && github.event_name == 'pull_request'
+    if: contains(format(' {0} ', inputs.jobs), ' mutation ') && github.event_name == 'pull_request' && github.event.pull_request.draft != true
     name: mutation report
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -173,7 +176,7 @@ jobs:
           pnpm test:mutation --mutate "$targets"
 
   integration:
-    if: contains(format(' {0} ', inputs.jobs), ' integration ')
+    if: contains(format(' {0} ', inputs.jobs), ' integration ') && github.event.pull_request.draft != true
     name: integration tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -199,7 +202,7 @@ jobs:
       - run: pnpm test:integration
 
   e2e:
-    if: contains(format(' {0} ', inputs.jobs), ' e2e ')
+    if: contains(format(' {0} ', inputs.jobs), ' e2e ') && github.event.pull_request.draft != true
     name: e2e tests
     runs-on: ubuntu-latest
     timeout-minutes: 20

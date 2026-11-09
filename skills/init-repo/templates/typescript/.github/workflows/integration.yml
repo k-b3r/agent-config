@@ -4,6 +4,7 @@ name: integration
 # negations drop docs and unit tests, and *.int.test.ts is re-added).
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - 'src/**'
       - 'db/**'
