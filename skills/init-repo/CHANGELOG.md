@@ -5,6 +5,9 @@ A repo wired by an earlier `/init-repo` never sees a later template change: the 
 Shared configs come in through the lockfile, so run `pnpm update @k-b3r/agent-config` to pick them up.
 The PR that changes a template adds its entry here.
 
+## 2026-10-28 (c30a6da) which reviewer a PR gets
+
+- `package.json` `agentConfig`: set `claudeReviewPaths` to the files the dear reviewer gets (decisions and writes), e.g. `["src/modules/*/domain/**", "src/modules/*/store.ts"]`, and `migrationPaths` if migrations live somewhere other than `**/migrations/**` or `**/*.sql`. Optional: those are the defaults. `pnpm exec repo-checks review-tier origin/main` prints `claude` or `deepseek` for the current branch and says why; a glob list that matches no tracked file warns. Run `pnpm update @k-b3r/agent-config` for the command. Nothing calls it yet: `pr-review.yml` wires it in the follow-up.
 ## 2026-10-21 (f66572d) local-only files stay out of the format check
 
 - `.prettierignore`: add `SESSION_RESUME.md`, `TODOS.md` and `TRACKER_OUTBOX.md`; they live in `.git/info/exclude`, which prettier does not read, so `prettier --check .` failed the pre-push hook in a repo that had one.

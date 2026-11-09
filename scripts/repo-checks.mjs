@@ -9,6 +9,9 @@
 //   test-placement           unit tests sit next to their module; integration/e2e under tests/
 //   entry-scripts            every entry file has a package.json script
 //   test-db-env              integration/e2e code never reads the app's database env var
+//   review-tier <base>       prints `claude` when the PR touches an irreversible write, a migration,
+//                            a deleted file or the business-logic paths (`agentConfig.claudeReviewPaths`),
+//                            `deepseek` otherwise (which reviewer to run; not in `all`)
 //   workflow-permissions     no workflow grants `permissions: write-all` (least-privilege tokens)
 //   diff-size <base>         the PR changes at most maxDiffLines lines outside lockfiles, generatedPaths and
 //                            moved blocks (override: env ALLOW_LARGE_DIFF=true, CI sets it from label
@@ -38,6 +41,19 @@ const DIFF_LARGEST_SHOWN = 3
 // sibling test is expected (CODING_STANDARDS.md, Testing). A repo cannot switch the
 // exemption off; `untestedExempt` only adds globs to it.
 const TYPES_ONLY_EXEMPT = ['**/types.ts']
+// The reviewers' split (README, "Review tier"): a cheap model reviews most PRs, Claude reviews what a
+// mistake would make hard to undo. These are the paths it gets; a repo overrides them in `agentConfig`.
+const CLAUDE_TIER = 'claude'
+const DEEPSEEK_TIER = 'deepseek'
+const DEFAULT_CLAUDE_REVIEW_PATHS = ['src/modules/*/domain/**', 'src/modules/*/store.ts']
+const DEFAULT_MIGRATION_PATHS = ['**/migrations/**', '**/migration/**', 'drizzle/**', 'prisma/**', '**/*.sql']
+// SQL that destroys or rewrites stored data, in the forms a line of code uses. Qualified on purpose:
+// a bare /update/ would match "update the docs" and send every PR to the dear reviewer. A test or doc
+// that quotes these words is not an irreversible write, so those paths are skipped in `reviewTier`.
+const DESTRUCTIVE_SQL =
+  /\bdelete\s+from\b|\bupdate\s+[\w.]+\s+set\b|\balter\s+table\b|\bdrop\s+(?:table|schema|index|view|column|database|type|constraint)\b|\btruncate\s+(?:table\s+)?[\w.]+/i
+const RISK_BOX = /\b(?:money|payment|pricing|billing|auth|permission|credentials?|secrets?|user data|personal data|migration|deletes? data|infra|deployment)\b/i
+
 const DEFAULTS = {
   sourceDirs: ['src', 'server'],
   untestedExempt: TYPES_ONLY_EXEMPT,
@@ -47,6 +63,8 @@ const DEFAULTS = {
   maxDiffLines: MAX_DIFF_LINES,
   generatedPaths: [],
   mutationPaths: [],
+  claudeReviewPaths: DEFAULT_CLAUDE_REVIEW_PATHS,
+  migrationPaths: DEFAULT_MIGRATION_PATHS,
   skipPatterns: ['\\.skip\\(', '\\.only\\(', '\\bxit\\(', '\\bxdescribe\\('],
 }
 
@@ -181,6 +199,54 @@ export function testDbEnvLeaks(files, appDbEnv) {
     .filter(({ path }) => path.startsWith('tests/integration/') || path.startsWith('tests/e2e/'))
     .filter(({ text }) => reads.test(withoutComments(text)))
     .map(({ path }) => path)
+}
+
+// The added lines of a `git diff -U0 --no-prefix` patch, as { path, text }.
+export function addedLines(patch) {
+  const lines = []
+  let path = null
+  for (const row of patch.split('\n')) {
+    if (row.startsWith('+++ ')) path = row.slice(4).replace(/\t$/, '')
+    else if (row.startsWith('--- ')) continue
+    else if (row.startsWith('+') && path && path !== '/dev/null') lines.push({ path, text: row.slice(1) })
+  }
+  return lines
+}
+
+// The risk boxes a PR body ticked (`- [x] Touches money`), which can only escalate a PR to the dear reviewer.
+export function tickedRiskBoxes(body) {
+  return body
+    .split('\n')
+    .map((line) => line.match(/^\s*[-*]\s+\[x\]\s+(.*)$/i)?.[1]?.trim())
+    .filter((text) => text && RISK_BOX.test(text))
+}
+
+// Which reviewer a PR needs. Deterministic on purpose: a cheap model never decides whether a PR is risky
+// enough for the dear one, and a PR body can escalate but never downgrade (it is the author's text).
+// files: parseNameStatus output; addedLines: addedLines(patch); labels: PR labels; body: PR body.
+export function reviewTier({ files, addedLines: added = [], labels = [], body = '', config = {} }) {
+  const claudePaths = config.claudeReviewPaths ?? DEFAULT_CLAUDE_REVIEW_PATHS
+  const migrationPaths = config.migrationPaths ?? DEFAULT_MIGRATION_PATHS
+  const reasons = new Set()
+  for (const { status, paths } of files) {
+    const [oldPath, newPath] = paths
+    if (status === 'D') {
+      reasons.add(`deletes ${oldPath}`)
+      continue
+    }
+    for (const path of paths) {
+      if (matchesAny(path, migrationPaths)) reasons.add(`migration ${path}`)
+      if (matchesAny(path, claudePaths)) reasons.add(`business logic ${path}`)
+    }
+    if (status === 'R' && matchesAny(newPath, claudePaths)) reasons.add(`business logic ${newPath}`)
+  }
+  for (const { path, text } of added) {
+    if (isTest(path) || /\.(?:md|json|snap)$/.test(path)) continue
+    if (DESTRUCTIVE_SQL.test(text)) reasons.add(`irreversible write in ${path}`)
+  }
+  for (const box of tickedRiskBoxes(body)) reasons.add(`PR body box: ${box}`)
+  if (labels.includes('review-opus')) reasons.add('label review-opus')
+  return { tier: reasons.size ? CLAUDE_TIER : DEEPSEEK_TIER, reasons: [...reasons] }
 }
 
 // files: { path, text } of tracked workflow files. `write-all` hands every token
@@ -451,6 +517,23 @@ const COMMANDS = {
     const leaks = testDbEnvLeaks(files, config.appDbEnv)
     return report('test-db-env', leaks.map((p) => `${p}: use the test-only database env var`), 'ok')
   },
+  // Prints the tier on stdout (for `$GITHUB_OUTPUT`) and why on stderr. Labels and body come from the
+  // workflow: REVIEW_PR_LABELS (comma-separated) and REVIEW_PR_BODY (the PR body, which can only escalate).
+  'review-tier'(base, config) {
+    const files = parseNameStatus(git('diff', '--name-status', '-z', '-M', `${base}...HEAD`))
+    const patch = git('-c', 'core.quotepath=off', 'diff', '-U0', '--no-prefix', `${base}...HEAD`)
+    const labels = (process.env.REVIEW_PR_LABELS ?? '').split(',').map((label) => label.trim()).filter(Boolean)
+    const { tier, reasons } = reviewTier({ files, addedLines: addedLines(patch), labels, body: process.env.REVIEW_PR_BODY ?? '', config })
+    console.log(tier)
+    for (const reason of reasons) console.error(`  ${reason}`)
+    // A glob list that matches nothing (a flat repo left on the module default) would quietly send every
+    // PR, business logic included, to the cheap reviewer.
+    const claudePaths = config.claudeReviewPaths ?? DEFAULTS.claudeReviewPaths
+    if (!trackedAt('HEAD').some((path) => matchesAny(path, claudePaths))) {
+      console.error(`warning: agentConfig.claudeReviewPaths (${claudePaths.join(', ')}) matches no tracked file, so no PR reaches the ${CLAUDE_TIER} reviewer on business-logic paths`)
+    }
+    return 0
+  },
   'workflow-permissions'() {
     const files = trackedAt('HEAD')
       .filter((path) => /^\.github\/workflows\/.+\.ya?ml$/.test(path))
@@ -498,8 +581,8 @@ const COMMANDS = {
   },
 }
 
-const NEEDS_BASE = new Set(['commits', 'escape-hatches', 'untested-modules', 'diff-size', 'contracts-unmodified', 'skip-only', 'mutation-targets', 'all'])
-const NOT_IN_ALL = new Set(['commit-msg', 'mutation-targets'])
+const NEEDS_BASE = new Set(['commits', 'escape-hatches', 'untested-modules', 'diff-size', 'contracts-unmodified', 'skip-only', 'mutation-targets', 'review-tier', 'all'])
+const NOT_IN_ALL = new Set(['commit-msg', 'mutation-targets', 'review-tier'])
 
 function main([command, base]) {
   if (!(command in COMMANDS) && command !== 'all') {
