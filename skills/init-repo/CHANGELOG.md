@@ -9,6 +9,10 @@ The PR that changes a template adds its entry here.
 
 - `.github/workflows/ci.yml` and `integration.yml`: change the trigger to `pull_request: types: [opened, synchronize, reopened, ready_for_review]` (keep `paths` in `integration.yml`). The reusable jobs skip drafts, so without `ready_for_review` CI waits for the next push after a PR leaves draft.
 
+## 2026-11-13 (e91ff75) local secret scan on pre-commit
+
+- `lefthook.yml`: add the `pre-commit` job running `gitleaks git --pre-commit --staged --redact --no-banner` (the template guards a missing binary); `repo-checks audit` fails without it. Install gitleaks on the machine (`brew install gitleaks`).
+
 ## 2026-10-21 (f66572d) local-only files stay out of the format check
 
 - `.prettierignore`: add `SESSION_RESUME.md`, `TODOS.md` and `TRACKER_OUTBOX.md`; they live in `.git/info/exclude`, which prettier does not read, so `prettier --check .` failed the pre-push hook in a repo that had one.
