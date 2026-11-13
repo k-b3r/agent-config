@@ -1,19 +1,22 @@
 # agent-config
 
-Personal Claude Code setup: global instructions, general coding standards, own skills.
+Personal Claude Code setup: global instructions, general coding standards, own skills. CLI tools and Pi/Claude extensions live in the companion `terminal-config` repo.
 
 ```
 AGENTS.md            -> ~/.claude/CLAUDE.md and ~/.pi/agent/AGENTS.md (global instructions; imports CODING_STANDARDS.md, TOOLS.md)
 CLAUDE.md            -> this repo only: imports AGENTS.md
 CODING_STANDARDS.md  -> ~/.claude/CODING_STANDARDS.md (language-agnostic)
 TOOLS.md             -> ~/.claude/TOOLS.md (imported by AGENTS.md: when to use each tool)
-tools/<name>.sh      -> sourced by install.sh: installs + wires one tool (pinned, idempotent)
 languages/           -> ~/.claude/languages (read on demand per language)
 standards/           -> ~/.claude/standards (do/don't examples per section, read on demand)
-skills/<name>/       -> ~/.claude/skills/<name>
+skills/<name>/       -> ~/.claude/skills/<name> and ~/.pi/agent/skills/<name>
 hooks/guard.mjs      -> ~/.claude/hooks/agent-config-guard.mjs (PreToolUse; install.sh adds it to settings.json)
 configs/             -> shared lint/boundary configs, installed into each repo as a git dependency
 ```
+
+## Companion repo
+
+CLI tools (CodeGraph, diagram-design) and Pi/Claude extensions live in the private `k-b3r/terminal-config` repo; run its `install.sh` on every device. This repo keeps the usage guidance in `TOOLS.md` and the skills that call those tools, so agent behavior does not change.
 
 ## Install
 
@@ -22,7 +25,7 @@ git clone git@github.com:k-b3r/agent-config.git ~/Develop/agent-config
 ~/Develop/agent-config/install.sh
 ```
 
-Symlinks config, adds the guard hook to `~/.claude/settings.json` (blocks pushes to main, `--no-verify`, AI attribution in commits/PRs, edits to lockfiles and `@generated` files, before CI would catch them; also reads of secret files (`.env*`, keys, cloud credentials), recursive deletes outside the workspace, and destructive SQL or applied migrations unless the target is a test database; limits in the header of `hooks/guard.mjs`), then installs each tool in `tools/` (pinned version, user-scope MCP, telemetry off). Existing non-linked files are moved to `~/.claude/backup-<timestamp>/`. Rerun after adding a skill or tool; `AGENT_CONFIG_SKIP_TOOLS=1` links only.
+Symlinks config, adds the guard hook to `~/.claude/settings.json` (blocks pushes to main, `--no-verify`, AI attribution in commits/PRs, edits to lockfiles and `@generated` files, before CI would catch them; also reads of secret files (`.env*`, keys, cloud credentials), recursive deletes outside the workspace, and destructive SQL or applied migrations unless the target is a test database; limits in the header of `hooks/guard.mjs`). Existing non-linked files are moved to `~/.claude/backup-<timestamp>/`. Rerun after adding a skill. CLI tools and Pi/Claude extensions are installed by `terminal-config`.
 
 ## Shared configs
 
@@ -63,7 +66,7 @@ Remove it once the PR merges: `git -C "$AGENT_CONFIG" worktree remove ../agent-c
 ## Scope
 
 - Here: rules that apply to every project, skills written by me.
-- Not here: third-party skills (install via their own tooling so they keep updating; a `tools/<name>.sh` step may run that tooling), project-specific rules (live in each repo's `CODING_STANDARDS.md` / `CLAUDE.md`).
+- Not here: CLI tool installation and Pi/Claude extensions (`terminal-config`), third-party skills (install via their own tooling), project-specific rules (live in each repo's `CODING_STANDARDS.md` / `CLAUDE.md`).
 - Add a skill once a workflow has repeated 3+ times or the agent needed the same correction twice.
 - Skill descriptions may say what the skill does as well as when to use it. Tested 2026-10-06 against superpowers' "triggers only, never summarize the workflow" rule: 12 headless runs (Opus 5.5, direct and indirect prompts) of a skill whose description contradicted its body; every run loaded the body and followed it, with either description style.
-- Add a tool to `tools/` only if it should be on in every project; per-project tools go in that repo's `.mcp.json`.
+- Add tool usage guidance to `TOOLS.md`; installation belongs in `terminal-config`. Per-project tools go in that repo's `.mcp.json`.

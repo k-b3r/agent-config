@@ -35,6 +35,14 @@ for skill in "$REPO"/skills/*/; do
   name="$(basename "$skill")"
   link "${skill%/}" "$TARGET/skills/$name"
 done
+# pi reads skills from ~/.pi/agent/skills.
+if [ -d "$HOME/.pi/agent" ]; then
+  mkdir -p "$HOME/.pi/agent/skills"
+  for skill in "$REPO"/skills/*/; do
+    name="$(basename "$skill")"
+    link "${skill%/}" "$HOME/.pi/agent/skills/$name"
+  done
+fi
 
 # Guard hook: blocks pushes to main, --no-verify, AI attribution, generated-file edits.
 mkdir -p "$TARGET/hooks"
@@ -45,11 +53,6 @@ if [ -e "$TARGET/settings.json" ] && ! grep -q agent-config-guard.mjs "$TARGET/s
 fi
 node "$REPO/hooks/install-settings.mjs" "$TARGET/settings.json" 'node "$HOME/.claude/hooks/agent-config-guard.mjs"'
 
-# Tools: each tools/<name>.sh defines install_<name>; skip with AGENT_CONFIG_SKIP_TOOLS=1.
-if [ "${AGENT_CONFIG_SKIP_TOOLS:-0}" != "1" ]; then
-  for tool in "$REPO"/tools/*.sh; do
-    # shellcheck source=/dev/null
-    . "$tool"
-    "install_$(basename "$tool" .sh)"
-  done
-fi
+# CLI tools and Pi/Claude extensions are installed by terminal-config.
+
+echo "CLI tools and Pi/Claude extensions are installed by terminal-config"

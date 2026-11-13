@@ -1,6 +1,6 @@
 # Tools
 
-Installed and wired by `install.sh` (one script per tool in `tools/`).
+Installed and wired by `terminal-config/install.sh`, not this repo. This file is the usage guide.
 
 ## CodeGraph
 
@@ -16,4 +16,4 @@ No `.codegraph/` directory: skip CodeGraph. Indexing a repo (`codegraph init`, p
 
 ## Diagram Design
 
-Third-party plugin (`cathrynlavery/diagram-design`), installed **disabled** so its skill description stays out of every session. When a diagram is needed (architecture, flowchart, sequence, ER, timeline, ...), ask the user to run `claude plugin enable diagram-design@diagram-design` and start a new session; disable again after.
+Third-party plugin (`cathrynlavery/diagram-design`), installed by `terminal-config` **disabled** so its skill description stays out of every session. When a diagram is needed (architecture, flowchart, sequence, ER, timeline, ...), ask the user to run `claude plugin enable diagram-design@diagram-design` and start a new session; disable again after.

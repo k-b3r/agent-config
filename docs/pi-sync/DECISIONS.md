@@ -1,0 +1,20 @@
+# pi-sync decision log
+
+Append only. Format: ID, decision, why. Dates are 2026-11.
+
+- **D1. Home for the script: `agent-config/scripts/`.** Personal Pi tooling, already cloned on devices, no deps. Revisit and split into its own repo (`pi-sync`) if it grows past push + pull. The empty `k-b3r/personal-dashboard` repo was created by mistake and is unused.
+- **D2. Plain Node `.mjs` + `node:test`, not TS + vitest.** agent-config has no TS or vitest setup. `.mjs` runs on any Node, including Termux, without flags. Cron line: `node .../pi-push.mjs`.
+- **D3. Sync only the sessions dir, `.jsonl` allowlist.** `~/.pi/agent` also holds `auth.json`, `mcp-auth.json`, settings backups, caches. An allowlist makes the `auth.json`/`*.key` exclusion rule unnecessary.
+- **D4. Resolve sessions dir via Pi's env overrides.** `PI_CODING_AGENT_SESSION_DIR`, `PI_CODING_AGENT_DIR` (docs/environment-variables.md).
+- **D5. Each device pushes only to its own Drive folder; `rclone copy`, never `sync`.** Nothing can overwrite or delete another device's data.
+- **D6. PC mirrors are archive-only.** Pi keys sessions by cwd and paths differ per device, so merged sessions would not resume faithfully. Pull daily (pushes are at most every 12 h). No rclone `crypt`: private folder, own OAuth client, secrets masked; crypt would block browsing in Drive.
+- **D7. Keep only the conversation.** User, assistant (text, thinking, toolCall), bashExecution, toolResult. Drop system, custom, compaction, model_change, etc. 249 MB to 75.6 MiB. Quality over size: thinking and tool calls kept.
+- **D8. Truncate per message, not per session.** `MAX_CHARS` 20000 for user/assistant, `RESULT_CHARS` 500 for tool results and bash output. Images omitted. `thinkingSignature` and `details` dropped: opaque, no reading value (for DeepSeek it is mostly the string `reasoning_content`).
+- **D9. Keep Pi's raw folder names on Drive.** Considered regrouping by real cwd (worktrees nested under repo). Dropped: files carry exact cwd in their header, so later processing can regroup without touching Drive.
+- **D10. Keep `MAX_CHARS` at 20000, head-only.** 32 of 14,437 thinking blocks exceed it; their tails are mostly deliberation. Head+tail truncation considered, not needed.
+- **D11. Mask secrets in v1, publish the file.** Masking instead of skipping keeps whole sessions. Masking runs before truncation so a secret cannot be split by the cut.
+- **D12. Skip the run while any session changed in the last `QUIET_MIN` (60) min.** Simpler than a settle window plus stamp offset, and avoids uploading half-written files. Stamp = run start after a successful upload. Staged files keep source mtime so rclone skips unchanged ones.
+- **D13. Chunking: quality over cost.** Jev paid is about $0.07 for all sessions, so no trimmed windows, no embeddings pre-filter, no DeepSeek-first cascade. Keep the 3-way question and all probabilities. DeepSeek as second opinion only. (Cascade, band 0.1-0.6, was analysed and shelved.)
+- **D14. Jev from OpenCode.** Only `jev-1.13` (paid, $0.042/M input) and `jev-1.13-free` (about 300 calls/day, then 429 for about 20 h). Free for tests only.
+- **D15. Cron uses the real node path.** `/usr/bin/node` from the first draft does not exist on the laptop (nvm).
+- **D16. Docs live in `agent-config/docs/pi-sync/`, uncommitted for now.**
