@@ -35,6 +35,10 @@ Source of truth for Claude Code and pi. `install.sh` links this file to `~/.clau
 ## Git identity for personal projects
 - Personal projects use ONLY GitHub account `k-b3r`, git author name `k-b3r`, email `dev.kimbermudez@gmail.com`. Never `kimbermudez` as a name, and no other account or email. Applies to steward instances (`GIT_USER_NAME`), clones, commits and PRs.
 
+## Git identity for LabX work (`labx*` / `lx-*` repos under `~/Develop/odi/`)
+- Use ONLY GitHub account `kimbermudez` for every `gh` and git action in these repos. It is the only account for labx* directories. Commit identity: `kimbermudez <kbermudez@labxchange360.com>`. The repo-local git identity is often the placeholder `t <t@t>`: pass `-c user.name=kimbermudez -c user.email=kbermudez@labxchange360.com` on commits.
+- The `gh` active account can flip to `k-b3r` between sessions, and then org repo calls fail with "Could not resolve to a Repository". Before any `gh` call, check `gh auth status`; if `k-b3r` is active, run `gh auth switch --user kimbermudez` (or use `GH_TOKEN=$(gh auth token --user kimbermudez)` per command). Tell sub-agents the same.
+
 ## Repo visibility (personal projects)
 - Create new personal repos as PUBLIC (GitHub Actions on standard runners is free there; private repos draw from a $12/month allowance and CI is blocked when it runs out). Never put secrets, tokens, or private data in them; check before the first push. Scratch and probe repos too, unless they hold something sensitive.
 
