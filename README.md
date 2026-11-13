@@ -9,7 +9,7 @@ CODING_STANDARDS.md  -> ~/.claude/CODING_STANDARDS.md (language-agnostic)
 TOOLS.md             -> ~/.claude/TOOLS.md (imported by AGENTS.md: when to use each tool)
 languages/           -> ~/.claude/languages (read on demand per language)
 standards/           -> ~/.claude/standards (do/don't examples per section, read on demand)
-skills/<name>/       -> ~/.claude/skills/<name>
+skills/<name>/       -> ~/.claude/skills/<name> and ~/.pi/agent/skills/<name>
 hooks/guard.mjs      -> ~/.claude/hooks/agent-config-guard.mjs (PreToolUse; install.sh adds it to settings.json)
 configs/             -> shared lint/boundary configs, installed into each repo as a git dependency
 ```
