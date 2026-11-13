@@ -45,11 +45,6 @@ if [ -e "$TARGET/settings.json" ] && ! grep -q agent-config-guard.mjs "$TARGET/s
 fi
 node "$REPO/hooks/install-settings.mjs" "$TARGET/settings.json" 'node "$HOME/.claude/hooks/agent-config-guard.mjs"'
 
-# Tools: each tools/<name>.sh defines install_<name>; skip with AGENT_CONFIG_SKIP_TOOLS=1.
-if [ "${AGENT_CONFIG_SKIP_TOOLS:-0}" != "1" ]; then
-  for tool in "$REPO"/tools/*.sh; do
-    # shellcheck source=/dev/null
-    . "$tool"
-    "install_$(basename "$tool" .sh)"
-  done
-fi
+# CLI tools and Pi/Claude extensions are installed by terminal-config.
+
+echo "CLI tools and Pi/Claude extensions are installed by terminal-config"
