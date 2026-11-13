@@ -35,6 +35,14 @@ for skill in "$REPO"/skills/*/; do
   name="$(basename "$skill")"
   link "${skill%/}" "$TARGET/skills/$name"
 done
+# pi reads skills from ~/.pi/agent/skills.
+if [ -d "$HOME/.pi/agent" ]; then
+  mkdir -p "$HOME/.pi/agent/skills"
+  for skill in "$REPO"/skills/*/; do
+    name="$(basename "$skill")"
+    link "${skill%/}" "$HOME/.pi/agent/skills/$name"
+  done
+fi
 
 # Guard hook: blocks pushes to main, --no-verify, AI attribution, generated-file edits.
 mkdir -p "$TARGET/hooks"
