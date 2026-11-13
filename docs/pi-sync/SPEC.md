@@ -1,6 +1,6 @@
 # pi-sync spec (running)
 
-Status: push script done and verified on laptop (393 files, 75.6 MiB). Running on Termux (tablet) from Android JobScheduler, every 6 h. Everything else below "Planned" is not built.
+Status: push script done and verified on laptop (393 files, 75.6 MiB). Scheduled on Termux from Android JobScheduler every 6 h; the first run is immediate, later runs follow Android's batching (Xiaomi/HyperOS can stop the job; D20). Everything else below "Planned" is not built.
 
 ## Goal
 Every device uploads a cleaned, truncated copy of its Pi sessions to Drive. The PC reads them from Drive. Raw originals are never modified.

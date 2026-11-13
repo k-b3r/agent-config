@@ -33,8 +33,8 @@ Absolute node path (`which node`; nvm users: `~/.local/share/nvm/<ver>/bin/node`
 0 * * * * DEVICE=<name> /abs/path/to/node $HOME/agent-config/scripts/pi-push.mjs >> $HOME/pi-push.log 2>&1
 ```
 
-### Termux (tablet, phone): Android JobScheduler, every 6 h
-Do not use `crond` + `termux-wake-lock`: the lock is held 24/7, so the device never suspends, all to wake a script that no-ops 11 runs out of 12. `scripts/pi-push-termux.sh` hands the job to Android instead: no resident process, no wake lock, survives reboot, and Android batches the wakeups with whatever else it runs.
+### Termux: Android JobScheduler, every 6 h
+Do not use `crond` + `termux-wake-lock`: the lock is held 24/7, so the device never suspends, all to wake a script that no-ops 11 runs out of 12. `scripts/pi-push-termux.sh` hands the job to Android instead: no resident process, no wake lock, and the job is persisted across reboots. Android decides when it actually runs.
 
 ```sh
 pkg install nodejs git rclone termux-api     # Termux:API app from F-Droid also required
@@ -42,13 +42,14 @@ mkdir -p ~/.config/pi-push && echo <name> > ~/.config/pi-push/device
 ~/agent-config/scripts/pi-push-termux.sh     # manual test: appends to ~/pi-push.log
 termux-job-scheduler -s "$HOME/agent-config/scripts/pi-push-termux.sh" \
   --job-id 1 --period-ms 21600000 --network any --battery-not-low true --persisted true
-termux-job-scheduler -p                      # list pending jobs
+termux-job-scheduler -p                      # check; can be stale or empty (termux-api#368)
 termux-job-scheduler --cancel-all            # stop it
 ```
 - The wrapper reads the device name from `~/.config/pi-push/device`, so the same script serves every device.
 - `--charging true` instead of `battery-not-low` if the device mostly sits on a charger.
-- Doze may push a run past the 6 h mark; the 12 h guard makes that harmless.
-- No wake lock, no `Termux:Boot`, no battery-optimization exemption needed.
+- The first run after registering is usually immediate. Later runs follow Android's batching and Doze, so a 6 h period can take longer; on some devices it is erratic (termux-api#742). The 12 h stamp guard makes late runs harmless.
+- Xiaomi/HyperOS: set battery usage for both Termux and Termux:API to Unrestricted, and enable Autostart. Otherwise the OS can stop the job after its first run. Re-register if `~/pi-push.log` stops changing.
+- No wake lock and no `Termux:Boot`.
 - Log: `~/pi-push.log`, rotated to `.1` at 1 MiB. Lock: `$TMPDIR/pi-push-termux.lock`, so two runs never overlap.
 
 ## Env vars
@@ -68,4 +69,4 @@ termux-job-scheduler --cancel-all            # stop it
 ## Troubleshooting
 - "nothing to do": a session changed in the last hour, the stamp is under 12 h old, or nothing is newer than the stamp. Stamp: `~/.local/state/pi-push.stamp`. Delete it to force a push.
 - Cron does nothing: PATH or node path. Test the exact cron line by hand.
-- Termux job does nothing: `termux-job-scheduler -p` (registered?), `cat ~/pi-push.log`, and `termux-battery-status` (does the Termux:API app answer at all?).
+- Termux job does nothing: `termux-job-scheduler -p` (can be stale; re-register), `cat ~/pi-push.log`, `termux-battery-status` (does the Termux:API app answer at all?), and battery usage Unrestricted for Termux and Termux:API on Xiaomi.
