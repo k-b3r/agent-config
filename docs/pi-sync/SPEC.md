@@ -1,6 +1,6 @@
 # pi-sync spec (running)
 
-Status: push script done and verified on laptop (393 files, 75.6 MiB). Everything else below "Planned" is not built.
+Status: push script done and verified on laptop (393 files, 75.6 MiB). Running on Termux (tablet) from Android JobScheduler, every 6 h. Everything else below "Planned" is not built.
 
 ## Goal
 Every device uploads a cleaned, truncated copy of its Pi sessions to Drive. The PC reads them from Drive. Raw originals are never modified.
@@ -15,6 +15,7 @@ Every device uploads a cleaned, truncated copy of its Pi sessions to Drive. The 
 4. Stage a cleaned copy in a temp dir, keeping source mtimes. Remove it in `finally`.
 5. `rclone copy` to `<RCLONE_REMOTE>/<DEVICE>`. Never `sync`.
 6. Stamp (`~/.local/state/pi-push.stamp`) mtime = run start, only after rclone exits 0.
+7. Scheduled per device: cron hourly on Linux; on Termux `scripts/pi-push-termux.sh` from Android JobScheduler every 6 h (no crond, no wake lock). The wrapper takes the device name from `~/.config/pi-push/device`, holds a `flock` so runs never overlap, and appends to `~/pi-push.log` (rotated at 1 MiB).
 
 ### Cleaning, per line
 | Line | Treatment |
@@ -33,7 +34,7 @@ Secret masking to `[REDACTED]`: private-key blocks, JWTs, `Bearer ...`, `sk-...`
 Measured on 393 sessions: 245 MB in, 75.6 MiB out. 32 of 14,437 thinking blocks exceed 20k chars (2.4% of thinking text); kept head-only (D10).
 
 ## Planned (not built)
-- Cron install per device, flock, failure alert.
+- Cron install for laptop/pc, failure alert.
 - `pi-pull-all` on the PC: `rclone copy` other devices' folders into `~/pi-sync/<device>/`, daily. Archive only; not loaded into Pi (D6).
 - Topic chunking of sessions into themes (prototype in `personal-dashboard/proto`, not in this repo). See below.
 
@@ -50,5 +51,5 @@ Measured on 393 sessions: 245 MB in, 75.6 MiB out. 32 of 14,437 thinking blocks 
 - Do `related` turns create sub-chunks (two-level) or stay in the parent chunk?
 - Where does the chunker run (PC only)? Which repo?
 - Termux: Pi session path, rclone token paste, whether `QUIET_MIN=60` suits phones.
-- Add failure alert and flock?
-- Commit this to agent-config (currently uncommitted).
+- Add failure alert?
+- Commit this to agent-config (done in #104).
