@@ -3,10 +3,14 @@
 Needs: Node 22+, rclone, and a scheduler (cron on Linux, `termux-job-scheduler` on Termux). Device names: `laptop`, `pc`, `tablet`, `phone` (one folder each on Drive; a device only writes its own).
 
 ## 1. Get the script
+On a device that already runs `config-sync` (agent-config and terminal-config cloned, `install.sh` run), `pi-sync` is already on the PATH: skip to step 2.
+
+Otherwise:
 ```sh
 git clone https://github.com/k-b3r/agent-config ~/agent-config
+~/agent-config/install.sh      # links pi-sync into ~/.local/bin (needs ~/.local/bin on PATH)
 ```
-Only `scripts/pi-push.mjs` and `scripts/pi-push-termux.sh` are needed. No `pnpm install`: Node built-ins only. If the clone lives elsewhere, use that path in every command below.
+Only `scripts/pi-sync.mjs`, `scripts/pi-push.mjs` and (Termux) `scripts/pi-push-termux.sh` are needed. No `pnpm install`: Node built-ins only. If the clone lives elsewhere, use that path in every command below.
 
 ## 2. rclone remote `gdrive`
 Scope `drive.file`, your own OAuth client. Check: `rclone lsd gdrive:agent-work`.
@@ -18,9 +22,11 @@ Default `~/.pi/agent/sessions`. Pi overrides, checked in this order by the scrip
 
 ## 4. Test
 ```sh
-DEVICE=<name> QUIET_MIN=0 DRY_RUN=1 node ~/agent-config/scripts/pi-push.mjs   # lists, writes nothing
-DEVICE=<name> QUIET_MIN=0 node ~/agent-config/scripts/pi-push.mjs             # real push, sets stamp
+mkdir -p ~/.config/pi-push && echo <name> > ~/.config/pi-push/device
+QUIET_MIN=0 DRY_RUN=1 pi-sync push     # lists, writes nothing
+QUIET_MIN=0 pi-sync push               # real push, sets stamp
 rclone size gdrive:agent-work/pi/<name>
+FORCE=1 DRY_RUN=1 pi-sync pull         # the PC: lists what it would copy, writes nothing
 ```
 
 ## 5. Schedule
@@ -28,10 +34,13 @@ rclone size gdrive:agent-work/pi/<name>
 The script guards itself (60 min quiet, 12 h minimum), so the scheduler only has to call it.
 
 ### Linux: cron, hourly
-Absolute node path (`which node`; nvm users: `~/.local/share/nvm/<ver>/bin/node`).
+```sh
+pi-sync schedule         # push only
+pi-sync schedule run     # the PC: push, then pull
+pi-sync schedule --print # show the line without installing
+crontab -l               # check
 ```
-0 * * * * DEVICE=<name> /abs/path/to/node $HOME/agent-config/scripts/pi-push.mjs >> $HOME/pi-push.log 2>&1
-```
+`schedule` writes the absolute node path (nvm safe) and a PATH that finds rclone, replaces only its own crontab line (marked `# pi-sync`) and logs to `~/pi-sync.log`. It also writes `~/.config/pi-push/device` when the name came from `DEVICE`, because the cron line carries none.
 
 ### Termux: Android JobScheduler, every 6 h
 Do not use `crond` + `termux-wake-lock`: the lock is held 24/7, so the device never suspends, all to wake a script that no-ops 11 runs out of 12. `scripts/pi-push-termux.sh` hands the job to Android instead: no resident process, no wake lock, and the job is persisted across reboots. Android decides when it actually runs.
@@ -57,6 +66,9 @@ termux-job-scheduler --cancel-all            # stop it
 |---|---|---|
 | `DEVICE` | required | Drive folder name |
 | `PI_PUSH_DEVICE` | unset | Wrapper only: overrides `~/.config/pi-push/device` |
+| `PI_SYNC_DIR` | `~/pi-sync` | `pi-sync pull`: mirror directory |
+| `PULL_HOURS` | 24 | `pi-sync pull`: minimum hours between pulls |
+| `FORCE` | unset | `pi-sync pull`: ignore the pull stamp |
 | `PI_PUSH_LOG` | `~/pi-push.log` | Wrapper only: log path |
 | `PI_SRC` | auto | Sessions dir |
 | `MAX_CHARS` | 20000 | Cap per user/assistant string |
@@ -68,5 +80,5 @@ termux-job-scheduler --cancel-all            # stop it
 
 ## Troubleshooting
 - "nothing to do": a session changed in the last hour, the stamp is under 12 h old, or nothing is newer than the stamp. Stamp: `~/.local/state/pi-push.stamp`. Delete it to force a push.
-- Cron does nothing: PATH or node path. Test the exact cron line by hand.
+- Cron does nothing: `crontab -l` shows the `# pi-sync` line? Run that exact line by hand and read `~/pi-sync.log`. Pull stamp: `~/.local/state/pi-pull.stamp` (delete it, or `FORCE=1`, to pull now).
 - Termux job does nothing: `termux-job-scheduler -p` (can be stale; re-register), `cat ~/pi-push.log`, `termux-battery-status` (does the Termux:API app answer at all?), and battery usage Unrestricted for Termux and Termux:API on Xiaomi.
