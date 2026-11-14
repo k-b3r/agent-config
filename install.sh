@@ -53,6 +53,9 @@ if [ -e "$TARGET/settings.json" ] && ! grep -q agent-config-guard.mjs "$TARGET/s
 fi
 node "$REPO/hooks/install-settings.mjs" "$TARGET/settings.json" 'node "$HOME/.claude/hooks/agent-config-guard.mjs"'
 
+# `pi-sync push|pull|run|schedule`: Pi session backup to Drive (docs/pi-sync/). Plain Node, no install step.
+link "$REPO/scripts/pi-sync.mjs" "$HOME/.local/bin/pi-sync"
+
 # CLI tools and Pi/Claude extensions are installed by terminal-config.
 
 echo "CLI tools and Pi/Claude extensions are installed by terminal-config"
