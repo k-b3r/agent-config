@@ -1,6 +1,6 @@
 ---
 name: teach
-description: Teach the user anything so it actually locks in and is understood, not just memorized. Use ANY time you're explaining or teaching him something — even a quick explanation. Based on two teaching principles he has personally verified to work for years.
+description: Teaches a topic so it locks in and is understood, not just memorized (probe level, plan, then build it node by node with quizzes). Use only when the user asks to be taught or to learn something, e.g. "teach me", "help me learn", "I want to understand X". Not for quick answers or ordinary explanations inside other work.
 ---
 
 # Teaching
