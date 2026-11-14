@@ -33,9 +33,15 @@ Secret masking to `[REDACTED]`: private-key blocks, JWTs, `Bearer ...`, `sk-...`
 
 Measured on 393 sessions: 245 MB in, 75.6 MiB out. 32 of 14,437 thinking blocks exceed 20k chars (2.4% of thinking text); kept head-only (D10).
 
+## `pi-sync` command (built)
+`scripts/pi-sync.mjs`, linked as `~/.local/bin/pi-sync` by `install.sh`.
+- `push`: calls pi-push's `main` with the device name (`DEVICE` env, else `~/.config/pi-push/device`).
+- `pull`: `rclone lsf --dirs-only <remote>`, drops this device and any name that is not a plain folder name, then `rclone copy <remote>/<d> ~/pi-sync/<d>` for each. Skipped while `~/.local/state/pi-pull.stamp` is under `PULL_HOURS` (24) old, unless `FORCE`. The stamp is set only after every copy exited 0; a failed device means exit 1 and a retry on the next run. Archive only, never loaded into Pi (D6).
+- `run`: push, then pull; a failed push does not skip the pull; exit is non-zero if either failed.
+- `schedule [push|run]`: hourly cron line (absolute node, PATH with `~/.local/bin`, marker `# pi-sync`), merged into the existing crontab without touching other lines. Termux keeps `pi-push-termux.sh` (JobScheduler).
+
 ## Planned (not built)
-- Cron install for laptop/pc, failure alert.
-- `pi-pull-all` on the PC: `rclone copy` other devices' folders into `~/pi-sync/<device>/`, daily. Archive only; not loaded into Pi (D6).
+- Failure alert.
 - Topic chunking of sessions into themes (prototype in `personal-dashboard/proto`, not in this repo). See below.
 
 ## Chunking design (prototype stage)
