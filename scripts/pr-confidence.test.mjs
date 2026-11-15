@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { calibrationTable, collectEvidence, openPrForSha, renderFactors, revertedPrs, scoreEvidence, setTierLabel, tickedRisks, TIER_LABELS } from './pr-confidence.mjs'
+import { calibrationTable, collectEvidence, markPending, openPrForSha, parseMarker, renderComment, renderFactors, renderPending, revertedPrs, scoreEvidence, setTierLabel, tickedRisks, TIER_LABELS, upsertComment } from './pr-confidence.mjs'
 import { REVIEW_COVERED_STEP } from './pr-automation.mjs'
 
 const clean = {
@@ -195,4 +195,95 @@ test('tests factor recognises shell, Go and Python test files, not just JS and T
     assert.deepEqual(names(scoreEvidence({ ...clean, files: ['src/a.ts', test] })), [], test)
   }
   assert.deepEqual(names(scoreEvidence({ ...clean, files: ['scripts/a.sh'] })), ['tests'])
+})
+
+// A stateful fake gh for the comment API: a list of comments, POST creates, PATCH edits.
+const fakeComments = (initial = []) => {
+  const comments = initial.map((body, i) => ({ id: 100 + i, body }))
+  const calls = []
+  const gh = (args) => {
+    calls.push(args)
+    if (args[0] === 'api' && args.includes('--jq')) {
+      const jq = args[args.indexOf('--jq') + 1]
+      const mine = comments.filter((c) => c.body.startsWith('<!-- pr-confidence'))
+      return jq.endsWith('.body') ? mine.map((c) => c.body).join('\n') : mine.map((c) => JSON.stringify(c)).join('\n')
+    }
+    if (args.includes('PATCH')) {
+      const id = Number(args[args.indexOf('PATCH') + 1].split('/').pop())
+      comments.find((c) => c.id === id).body = args.at(-1).replace(/^body=/, '')
+      return ''
+    }
+    if (args[0] === 'api' && args.includes('-f')) {
+      comments.push({ id: 200 + comments.length, body: args.at(-1).replace(/^body=/, '') })
+      return ''
+    }
+    if (args[0] === 'api') return JSON.stringify([])
+    return ''
+  }
+  return { gh, comments, calls }
+}
+
+test('renderComment: tier, small score, the factor table, a not-a-probability note, a hidden marker', () => {
+  const body = renderComment({ result: scoreEvidence({ ...clean, files: ['src/a.ts'] }), previous: null })
+  assert.match(body, /^<!-- pr-confidence tier=high score=80 -->/)
+  assert.match(body, /### Confidence: high \(80\/100\)/)
+  assert.match(body, /Not a probability/)
+  assert.match(body, /\| tests \| -20 \|/)
+  assert.doesNotMatch(body, /Was /)
+})
+
+test('renderComment says what changed since the last verdict, and carries one over a pending marker', () => {
+  const result = scoreEvidence({ ...clean, reviewed: false })
+  assert.match(renderComment({ result, previous: { tier: 'high', score: 100 } }), /Was high \(100\) before the last update\./)
+  assert.doesNotMatch(renderComment({ result, previous: { tier: 'medium', score: 60 } }), /Was /)
+  const pending = parseMarker(renderPending({ tier: 'high', score: 100 }))
+  assert.deepEqual(pending, { tier: 'pending', score: 0, was: { tier: 'high', score: 100 } })
+  assert.match(renderComment({ result, previous: pending }), /Was high \(100\)/)
+  assert.deepEqual(parseMarker(renderPending(pending)).was, { tier: 'high', score: 100 })
+  assert.equal(parseMarker('a normal comment'), null)
+})
+
+test('upsertComment creates once, edits in place, and writes nothing when the body is unchanged', () => {
+  const { gh, comments, calls } = fakeComments(['someone else said hi'])
+  const body = renderComment({ result: scoreEvidence(clean), previous: null })
+  assert.equal(upsertComment({ repo: 'o/r', pr: 7, body, gh }).action, 'created')
+  assert.equal(comments.length, 2)
+  const writes = () => calls.filter((c) => c.includes('-f')).length
+  assert.equal(upsertComment({ repo: 'o/r', pr: 7, body, gh }).action, 'unchanged')
+  assert.equal(writes(), 1)
+  const next = renderComment({ result: scoreEvidence({ ...clean, reviewed: false }), previous: { tier: 'high', score: 100 } })
+  const result = upsertComment({ repo: 'o/r', pr: 7, body: next, gh })
+  assert.deepEqual([result.action, result.previous.tier], ['updated', 'high'])
+  assert.equal(comments.length, 2)
+  assert.equal(comments[1].body, next)
+})
+
+test('markPending swaps the tier label for pending and rewrites the comment, keeping the earlier verdict', () => {
+  const labels = ['confidence-high']
+  const fake = fakeComments([renderComment({ result: scoreEvidence(clean), previous: null })])
+  const gh = (args) => {
+    if (args[0] === 'api' && args[1].endsWith('/labels')) return JSON.stringify(labels.map((name) => ({ name })))
+    if (args[0] === 'label') return ''
+    if (args[0] === 'pr' && args[1] === 'edit') {
+      labels.length = 0
+      labels.push('confidence-pending')
+      return ''
+    }
+    return fake.gh(args)
+  }
+  markPending({ repo: 'o/r', pr: 7, gh })
+  assert.deepEqual(labels, ['confidence-pending'])
+  assert.deepEqual(parseMarker(fake.comments[0].body), { tier: 'pending', score: 0, was: { tier: 'high', score: 100 } })
+  assert.match(fake.comments[0].body, /A push landed \(it was high, 100\)/)
+})
+
+test('a pending label is replaced when a tier is set', () => {
+  const calls = []
+  const gh = (args) => {
+    calls.push(args)
+    return args[0] === 'api' ? JSON.stringify([{ name: 'confidence-pending' }]) : ''
+  }
+  setTierLabel({ repo: 'o/r', pr: 7, tier: 'medium', gh })
+  const edit = calls.find((c) => c[0] === 'pr' && c[1] === 'edit')
+  assert.deepEqual(edit.slice(-4), ['--add-label', 'confidence-medium', '--remove-label', 'confidence-pending'])
 })

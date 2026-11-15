@@ -3,14 +3,17 @@
 // model's own rating of itself. Label only: it informs the human, it gates nothing.
 //   pr-confidence label <owner/repo> <pr-number>        set exactly one confidence-* label, print the factors
 //   pr-confidence label-sha <owner/repo> <sha>           the same for the open PR whose head is <sha> (none: exit 0)
+//   pr-confidence pending <owner/repo> <pr-number>       a push landed: drop the old tier, say it is being re-scored
 //   pr-confidence calibrate <owner/repo> [--limit <n>]   score recent merged PRs, compare tiers with reverts
 // Factors and weights are in FACTORS below: each one names the fact it read, so the score can be argued with.
+// Besides the label, one comment (found by its marker, edited in place) carries the factor table.
 import { execFileSync } from 'node:child_process'
 import { appendFileSync, realpathSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { reviewCovered } from './pr-automation.mjs'
 
 export const TIER_LABELS = {
+  pending: ['confidence-pending', 'BFBFBF', 'A push landed: the evidence is being re-scored'],
   high: ['confidence-high', '0E8A16', 'Evidence supports merging: checks green, reviewed, tested, small'],
   medium: ['confidence-medium', 'FBCA04', 'Some evidence is missing or a risk is open: read the factors'],
   low: ['confidence-low', 'D93F0B', 'A check fails, a blocker is open, or the evidence is thin'],
@@ -128,6 +131,76 @@ export function setTierLabel({ repo, pr, tier, gh }) {
   return true
 }
 
+export const COMMENT_MARKER = '<!-- pr-confidence'
+
+// The previous run's verdict rides in the marker, so the comment can say what changed.
+export function parseMarker(body) {
+  const m = (body ?? '').match(/^<!-- pr-confidence tier=(\w+) score=(\d+)(?: was=(\w+):(\d+))? -->/)
+  if (!m) return null
+  return { tier: m[1], score: Number(m[2]), ...(m[3] ? { was: { tier: m[3], score: Number(m[4]) } } : {}) }
+}
+
+// What the PR showed before the last push: a pending marker passes the earlier verdict along.
+const lastVerdict = (previous) => (previous?.tier === 'pending' ? previous.was ?? null : previous)
+
+const NOT_A_PROBABILITY = '_Not a probability: this counts the evidence on the PR, and changes after each finished workflow. It gates nothing._'
+
+export function renderComment({ result, previous }) {
+  const before = lastVerdict(previous)
+  const changed = before && (before.tier !== result.tier || before.score !== result.score)
+  const lines = [
+    `${COMMENT_MARKER} tier=${result.tier} score=${result.score} -->`,
+    `### Confidence: ${result.tier} (${result.score}/100)`,
+    '',
+    NOT_A_PROBABILITY,
+    '',
+    ...(changed ? [`Was ${before.tier} (${before.score}) before the last update.`, ''] : []),
+    '| factor | points | evidence |',
+    '|---|---|---|',
+    ...(result.factors.length ? result.factors.map((f) => `| ${f.name} | ${f.points} | ${f.detail} |`) : ['| none | 0 | no penalty |']),
+  ]
+  return lines.join('\n')
+}
+
+export function renderPending(previous) {
+  const before = lastVerdict(previous)
+  return [
+    `${COMMENT_MARKER} tier=pending score=0${before ? ` was=${before.tier}:${before.score}` : ''} -->`,
+    '### Confidence: pending',
+    '',
+    NOT_A_PROBABILITY,
+    '',
+    `A push landed${before ? ` (it was ${before.tier}, ${before.score})` : ''}: the evidence is being re-scored when the checks finish.`,
+  ].join('\n')
+}
+
+// One comment per PR, found by its marker and edited in place; nothing is written when it would not change.
+export function upsertComment({ repo, pr, body, gh }) {
+  const found = gh(['api', '--paginate', `repos/${repo}/issues/${pr}/comments`, '--jq', `.[] | select(.body | startswith("${COMMENT_MARKER}")) | {id, body}`])
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => JSON.parse(line))[0]
+  if (!found) {
+    gh(['api', `repos/${repo}/issues/${pr}/comments`, '-f', `body=${body}`])
+    return { action: 'created', previous: null }
+  }
+  const previous = parseMarker(found.body)
+  if (found.body === body) return { action: 'unchanged', previous }
+  gh(['api', '-X', 'PATCH', `repos/${repo}/issues/comments/${found.id}`, '-f', `body=${body}`])
+  return { action: 'updated', previous }
+}
+
+export function previousVerdict({ repo, pr, gh }) {
+  const line = gh(['api', '--paginate', `repos/${repo}/issues/${pr}/comments`, '--jq', `.[] | select(.body | startswith("${COMMENT_MARKER}")) | .body`]).split('\n')[0]
+  return parseMarker(line)
+}
+
+export function markPending({ repo, pr, gh }) {
+  const previous = previousVerdict({ repo, pr, gh })
+  setTierLabel({ repo, pr, tier: 'pending', gh })
+  upsertComment({ repo, pr, body: renderPending(previous), gh })
+}
+
 export function renderFactors({ score, tier, factors }) {
   const rows = factors.length ? factors.map((f) => `| ${f.name} | ${f.points} | ${f.detail} |`) : ['| none | 0 | no penalty |']
   return [`### Confidence: ${tier} (${score}/100)`, '', '| factor | points | evidence |', '|---|---|---|', ...rows].join('\n')
@@ -159,6 +232,7 @@ export function calibrationTable(rows) {
 const USAGE = [
   'usage: pr-confidence label <owner/repo> <pr-number>',
   '       pr-confidence label-sha <owner/repo> <sha>',
+  '       pr-confidence pending <owner/repo> <pr-number>',
   '       pr-confidence calibrate <owner/repo> [--limit <n>]',
 ].join('\n')
 
@@ -173,9 +247,16 @@ function main([command, repo, ...rest]) {
     const evidence = collectEvidence({ repo, pr, gh })
     const result = scoreEvidence(evidence)
     const changed = setTierLabel({ repo, pr, tier: result.tier, gh })
+    const previous = previousVerdict({ repo, pr, gh })
+    const comment = upsertComment({ repo, pr, body: renderComment({ result, previous }), gh })
     const report = renderFactors(result)
-    console.log(`${report}\n\n${changed ? 'label updated' : 'label already current'}`)
+    console.log(`${report}\n\n${changed ? 'label updated' : 'label already current'}, comment ${comment.action}`)
     if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${report}\n`)
+    return 0
+  }
+  if (command === 'pending' && repo && rest.length === 1) {
+    markPending({ repo, pr: rest[0], gh })
+    console.log(`confidence marked pending on #${rest[0]}`)
     return 0
   }
   if (command === 'calibrate' && repo) {
