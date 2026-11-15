@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { calibrationTable, collectEvidence, openPrForSha, renderFactors, revertedPrs, scoreEvidence, setTierLabel, TIER_LABELS } from './pr-confidence.mjs'
+import { calibrationTable, collectEvidence, openPrForSha, renderFactors, revertedPrs, scoreEvidence, setTierLabel, tickedRisks, TIER_LABELS } from './pr-confidence.mjs'
 import { REVIEW_COVERED_STEP } from './pr-automation.mjs'
 
 const clean = {
@@ -171,4 +171,28 @@ test('openPrForSha finds the open PR with that head, and null for a push to main
   assert.equal(openPrForSha({ repo: 'o/r', sha: 'abc', gh: gh([]) }), null)
   assert.equal(openPrForSha({ repo: 'o/r', sha: 'abc', gh: gh([{ ...open, state: 'closed' }]) }), null)
   assert.equal(openPrForSha({ repo: 'o/r', sha: 'abc', gh: gh([{ ...open, head: { sha: 'older' } }]) }), null)
+})
+
+test('tickedRisks reads only the Risks section: other checklists and unticked boxes do not count', () => {
+  const body = [
+    '## Verified',
+    '- [x] tests pass',
+    '',
+    '## Risks',
+    '- [ ] Touches auth',
+    '- [x] Touches money',
+    '',
+    '## Unresolved questions',
+    '- [x] done',
+  ].join('\n')
+  assert.deepEqual(tickedRisks(body), ['Touches money'])
+  assert.deepEqual(tickedRisks('- [x] no risks heading'), [])
+  assert.deepEqual(tickedRisks(null), [])
+})
+
+test('tests factor recognises shell, Go and Python test files, not just JS and TS', () => {
+  for (const test of ['scripts/a.test.sh', 'pkg/a_test.go', 'tests/test_a.py', 'pkg/a_test.py', 'src/a.spec.ts']) {
+    assert.deepEqual(names(scoreEvidence({ ...clean, files: ['src/a.ts', test] })), [], test)
+  }
+  assert.deepEqual(names(scoreEvidence({ ...clean, files: ['scripts/a.sh'] })), ['tests'])
 })

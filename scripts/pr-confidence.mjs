@@ -18,7 +18,7 @@ export const TIER_LABELS = {
 const OK_CONCLUSIONS = new Set(['success', 'skipped', 'neutral'])
 // Not evidence about the change: the jobs that decide, label and merge.
 const OWN_CHECK = /(^|\/ )(gate|confidence)$|auto-merge/
-const TEST_PATH = /(^|\/)(tests?|__tests__)\/|\.(test|spec)\.[cm]?[jt]sx?$/
+const TEST_PATH = /(^|\/)(tests?|__tests__)\/|\.(test|spec)\.([cm]?[jt]sx?|sh)$|_test\.(go|py)$|(^|\/)test_[^/]*\.py$/
 const NON_CODE_PATH = /\.(md|mdx|txt|json|ya?ml|toml)$|^docs\/|^\.github\/|(^|\/)(LICENSE|\.gitignore)$/
 const WORKFLOW_PATH = /^\.github\/workflows\//
 const MAX_REVIEWED_COMMITS = 3 // beyond this the author and the reviewer are circling (article: cap at 3 rounds)
@@ -89,10 +89,16 @@ export function collectEvidence({ repo, pr, gh }) {
     labels: view.labels.map((label) => label.name),
     reviewed: reviewCovered({ repo, sha: view.headRefOid, gh }),
     reviewedCommits: shas.filter((sha) => reviewCovered({ repo, sha, gh })).length,
-    risks: [...(view.body ?? '').matchAll(/^- \[[xX]\] (.+)$/gm)].map((m) => m[1].trim()),
+    risks: tickedRisks(view.body),
     linesChanged: view.additions + view.deletions,
     files: view.files.map((file) => file.path),
   }
+}
+
+// Only the boxes under the template's "## Risks" heading: a PR body may carry other checklists.
+export function tickedRisks(body) {
+  const section = (body ?? '').split(/^## /m).find((part) => /^Risks\b/i.test(part)) ?? ''
+  return [...section.matchAll(/^- \[[xX]\] (.+)$/gm)].map((m) => m[1].trim())
 }
 
 // Distinct commits of the branch that had a pr-review run; reviewCovered says which were really reviewed.
