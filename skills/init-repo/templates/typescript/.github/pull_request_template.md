@@ -17,9 +17,15 @@ Why this change exists. Link the ticket (`Closes ABC-1`).
 
 For each box ticked: what can go wrong, and how to roll back.
 
+## Agreed decisions
+
+Optional. When the work was discussed first, one box per decision, ticked once the diff does it:
+
+- [ ] 
+
 ## Verified
 
-Commands run and their actual output (tests, manual steps). Write "not run" for anything skipped.
+Proof per claim: the test that fails without the change, pasted command output in a fenced block, or a screenshot. Docs-only or config-only: say so. "Tests pass" and "verified manually" are not proof; write "not run" for anything skipped.
 
 ## Unresolved questions
 
