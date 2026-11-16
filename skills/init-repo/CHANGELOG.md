@@ -5,6 +5,14 @@ A repo wired by an earlier `/init-repo` never sees a later template change: the 
 Shared configs come in through the lockfile, so run `pnpm update @k-b3r/agent-config` to pick them up.
 The PR that changes a template adds its entry here.
 
+## 2026-11-13 (db6876e) CI skips draft PRs
+
+- `.github/workflows/ci.yml` and `integration.yml`: change the trigger to `pull_request: types: [opened, synchronize, reopened, ready_for_review]` (keep `paths` in `integration.yml`). The reusable jobs skip drafts, so without `ready_for_review` CI waits for the next push after a PR leaves draft.
+
+## 2026-11-13 (e91ff75) local secret scan on pre-commit
+
+- `lefthook.yml`: add the `pre-commit` job running `gitleaks git --pre-commit --staged --redact --no-banner` (the template guards a missing binary); `repo-checks audit` fails without it. Install gitleaks on the machine (`brew install gitleaks`).
+
 ## 2026-10-28 (72e2553, f6cb7da) optional Redis service for the integration job
 
 - `.github/workflows/integration.yml`: optional. For tests that need Redis add `redis-image: 'redis:7'` under `with:` (template has it commented). The job then starts Redis and exports `TEST_REDIS_URL=redis://localhost:6379`; the default (no input) is unchanged and leaves `TEST_REDIS_URL` unset. `pnpm update @k-b3r/agent-config` is not needed: the input lives in the reusable workflow, which callers use at `@main`.
