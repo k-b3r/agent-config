@@ -131,7 +131,8 @@ Read the matching file before writing code in that language:
 - `tool` Real sleeps go through an injectable delay; tests pass a no-op. _(ban setTimeout outside the delay util)_
 - `review` Test names are full sentences describing behavior: `'loadSettings falls back to defaults for a key missing from the table'`.
 - `review` Assert on query shape and params where the query itself is the contract.
-- `tool` Integration and e2e tests use a disposable database from a test-only env var, never the app's. _(`repo-checks test-db-env`)_
+- `tool` Tests never touch the repo they run in: a test that runs git works in a temp repo, and the vitest setup file clears `GIT_DIR` and the other variables git exports to hooks (a linked worktree's pre-push hook gets `GIT_DIR`, so `git -C <temp>` would act on the real repo). _(`repo-checks git-test-env`)_
+- `tool` Integration and e2e tests use a disposable database from a test-only env var, never the app's. A test that resets the database (drops schemas, truncates, migrates) takes the URL from `testDatabaseUrl()` (`@k-b3r/agent-config/test-db`) or an equivalent local guard that refuses a database name without `test`: a variable name alone does not make a database disposable. _(`repo-checks test-db-env` checks the variable; the helper checks the database)_
 
 *Examples:* `~/.claude/standards/testing.md`
 
@@ -154,8 +155,15 @@ Read the matching file before writing code in that language:
 - `review` External calls retry with bounded attempts and delay, then degrade (halve the batch, skip the item) instead of crashing the run.
 - `review` Distinguish fatal (e.g. quota exhausted) from transient errors. Fatal unwinds, transient retries.
 - `review` Log every skip or degradation with id and reason. Never lose data silently: unprocessed items stay candidates for the next run.
+- `review` For any queue, retry, restart or cancel logic, ask: what happens if this runs a second time, or while the first run is still active? A retry is enqueued under a new id per attempt (job id plus attempt number): a queue that ignores an add whose id already exists (BullMQ does, even for a finished or still-running job) silently drops a retry sent under the old id, and a retry is enqueued from inside the handler of the job it retries.
+- `review` A failure handler reads the job's current state before it moves the job, and never takes an edge out of a state another actor already finalized: a handler that takes the legal `cancelled` to `queued` retry edge undoes a cancel. A failed attempt removes what it created (git branch, temp file, lock) so the retry starts clean, and an append-only log writer starts each entry on a new line, since a crash can cut the last one.
 
 *Examples:* `~/.claude/standards/resilience.md`
+
+## Delegated work
+
+- `process` A worker's report of green checks is not proof. Cheap workers wrote code that passed tests, lint and typecheck, and review still found a log writer corrupting the next entry after a crash, a queue that dropped every retry, a retry that failed on the branch the failed attempt left behind, a cancel undone by the failure handler, and a database reset that could run on a non-test database. Each is a bug over time (retry, restart, crash, concurrency, cleanup) that a test running the path once does not find. The orchestrator reads the retry, restart, cancel and cleanup paths itself, applies the Resilience question to them, and re-runs the targeted tests for them (the canonical check still runs once, in pre-push).
+- `process` Workers on one checkout each get a prompt that lists the files they own and forbids git and dependency changes. The orchestrator owns `package.json` and the lockfile, adds shared dependencies before launch, and commits one piece at a time. Every worker prompt ends with an instruction to call its exit tool, so its pane closes (`/dispatch-tickets`).
 
 ## External Services
 

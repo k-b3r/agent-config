@@ -4,6 +4,7 @@ name: integration
 # negations drop docs and unit tests, and *.int.test.ts is re-added).
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - 'src/**'
       - 'db/**'
@@ -25,3 +26,5 @@ jobs:
     uses: k-b3r/agent-config/.github/workflows/ci-typescript.yml@main
     with:
       jobs: integration
+      # Tests that need Redis (queues): starts it and exports TEST_REDIS_URL=redis://localhost:6379.
+      # redis-image: 'redis:7'
