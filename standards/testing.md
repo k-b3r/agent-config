@@ -59,6 +59,9 @@ expect(db.query).toHaveBeenCalledWith(expect.stringContaining('WHERE key = ANY($
 
 ```ts
 // TEST_DATABASE_URL, never DATABASE_URL: local .env files point the latter at prod.
+// testDatabaseUrl() also throws when the database name lacks "test", so a reset
+// (DROP SCHEMA, TRUNCATE) cannot run on the wrong database.
+import { testDatabaseUrl } from '@k-b3r/agent-config/test-db'
 const pool = createDbPool(testDatabaseUrl())
 ```
 
