@@ -1,0 +1,8 @@
+{
+  "name": "clean-proven-behavior-change",
+  "rule": "clean control: behavior change with a test and pasted output",
+  "covers": null,
+  "expect": { "blocking": false, "needsHuman": false },
+  "message": "reject negative prices in the pricing route",
+  "body": "## Intent\n\nA negative price made the discount route return a nonsense percentage.\n\n## Changed / not changed\n\n- Changed: the route rejects a negative price with 400.\n- Not changed: the discount maths.\n\n## Risks\n\nNone.\n\n## Verified\n\nThe new test `discountRoute rejects a negative price with 400` fails without the change and passes with it:\n\n```\n$ pnpm vitest run src/server/routes/pricing.test.ts\n ✓ discountRoute rejects a non-numeric price with 400\n ✓ discountRoute rejects a negative price with 400\n Tests  2 passed (2)\n```\n"
+}

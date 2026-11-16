@@ -10,6 +10,10 @@ Two reviewers, picked by the diff, not by either model. `repo-checks review-tier
 
 `review-seeds` (bin) is the regression suite for the agent review prompt. Each seed under `review-seeds/seeds/` is a small change to the clean project in `review-seeds/base/` that breaks one standard (or, for a control, none); the script builds them into a throwaway git repo, replays each through `pr-review.yml`'s prompt with `claude -p`, and checks the verdict. Format and how to write a seed: `review-seeds/README.md`. Run it before and after any prompt or standards change (`--workflow` tests an unmerged edit, `--repeat` measures run-to-run variance, `--validate` checks the seeds without a model call; usage: header of `scripts/review-seeds.mjs`). `review-seed-gaps` (bin) lists the judgment rules of `CODING_STANDARDS.md` that no seed covers; `review-seeds/uncovered.json` excuses the ones not worth a seed, with a reason. A new `review` rule gets a seed in the same PR.
 
+## Proof check
+
+The review prompt checks every claim in the PR body (Intent, Changed, each `## Agreed decisions` item) for evidence a reader can check: a test that fails without a behavior change, a reproducing test for a bug fix, pasted output or a screenshot for the rest, a short "docs only" statement for docs or config PRs. Its verdict is the closing `proof:` line of the summary comment (format and who reads it: [ci.md](ci.md#confidence-label)). Unproven claims cap confidence at medium, so a human reviews; an Agreed-decisions item the diff contradicts blocks. Seeds: `proof-claim-without-evidence`, `agreed-decision-contradicted`, `clean-proven-behavior-change`.
+
 ## This repo's own PRs
 
 agent-config's own PRs get no agent review, by design: its `pr-review.yml` is `workflow_call`-only and nothing in this repo calls it, so a human reviews them. Consumer repos get the agent review and gate; the review prompt is regression-tested by `review-seeds` instead.
