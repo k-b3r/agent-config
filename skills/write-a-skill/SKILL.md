@@ -59,7 +59,7 @@ It copies the skill in as `<name>-verify` (so an installed copy can't stand in) 
 ## 5. Ship
 
 - In agent-config: worktree per the README, one commit (`add <name> skill`), PR. If a `CODING_STANDARDS.md` line covers the workflow, link the skill from it.
-- After merge: `git -C <checkout> pull`, then `AGENT_CONFIG_SKIP_TOOLS=1 <checkout>/install.sh`. A new skill loads in the next session.
+- After merge: `git -C <checkout> pull`, then `<checkout>/install.sh`. A new skill loads in the next session.
 
 ## Report
 
