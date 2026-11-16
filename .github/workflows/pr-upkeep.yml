@@ -83,7 +83,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           token: ${{ steps.app.outputs.token }}
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ inputs.node-version }}
@@ -133,7 +133,7 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ steps.app.outputs.token }}
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
         if: inputs.regenerate != ''
       # No pnpm cache here: this job installs only when a PR conflicts in generated
       # files, so on most pushes no store exists and the cache's post step fails
