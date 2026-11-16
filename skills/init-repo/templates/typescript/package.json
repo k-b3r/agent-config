@@ -25,6 +25,7 @@
       "src/workers/*/index.ts"
     ],
     "appDbEnv": "DATABASE_URL",
+    "generatedPaths": [],
     "mutationPaths": [
       "src/modules/*/domain/**"
     ]
@@ -43,7 +44,6 @@
     "knip": "^6.39.0",
     "lefthook": "^2.1.16",
     "prettier": "^3.9.9",
-    "tsx": "^4.19.0",
     "typescript": "^5.6.0",
     "typescript-eslint": "^8.71.0",
     "vitest": "^2.1.0"

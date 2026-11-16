@@ -14,6 +14,10 @@ module.exports = {
       entryPoints: ['src/workers'],
       // Modules lowest tier first. A module imports only lower tiers; every module must be listed.
       // moduleTiers: { dir: 'src/modules', tiers: [['collection'], ['catalog'], ['pricing']] },
+      // Flat shape (fit check 1: one module, no module folders): leave publicApis and moduleTiers empty,
+      // keep heavyDeps, and name folders (not files): `inner` holds the logic, `entryPoints` the entry
+      // files, so logic never imports an entry. For example:
+      //   inner: ['src/lib', 'src/platform'], entryPoints: ['src/cli'],
     }),
     // Repo-specific rules go here.
   ],
