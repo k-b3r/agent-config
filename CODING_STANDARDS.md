@@ -131,6 +131,7 @@ Read the matching file before writing code in that language:
 - `tool` Real sleeps go through an injectable delay; tests pass a no-op. _(ban setTimeout outside the delay util)_
 - `review` Test names are full sentences describing behavior: `'loadSettings falls back to defaults for a key missing from the table'`.
 - `review` Assert on query shape and params where the query itself is the contract.
+- `tool` Tests never touch the repo they run in: a test that runs git works in a temp repo, and the vitest setup file clears `GIT_DIR` and the other variables git exports to hooks (a linked worktree's pre-push hook gets `GIT_DIR`, so `git -C <temp>` would act on the real repo). _(`repo-checks git-test-env`)_
 - `tool` Integration and e2e tests use a disposable database from a test-only env var, never the app's. _(`repo-checks test-db-env`)_
 
 *Examples:* `~/.claude/standards/testing.md`

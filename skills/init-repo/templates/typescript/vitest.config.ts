@@ -6,6 +6,8 @@ export default defineConfig({
     environment: 'node',
     // A fresh repo has no tests yet; without this the first run exits 1 ("No test files found").
     passWithNoTests: true,
+    // Clears GIT_DIR and friends, which git exports to the pre-push hook that runs this suite.
+    setupFiles: ['./tests/setup/clear-git-env.ts'],
     exclude: ['**/node_modules/**', '.claude/**', '.stryker-tmp/**', '**/*.int.test.ts', 'tests/e2e/**'],
   },
 })
