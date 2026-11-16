@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { calibrationTable, collectEvidence, markPending, openPrForSha, parseMarker, renderComment, renderFactors, renderPending, revertedPrs, scoreEvidence, setTierLabel, tickedRisks, TIER_LABELS, upsertComment } from './pr-confidence.mjs'
+import { calibrationTable, collectEvidence, hasRisksSection, markPending, openPrForSha, parseMarker, renderComment, renderFactors, renderPending, revertedPrs, scoreEvidence, setTierLabel, tickedRisks, TIER_LABELS, upsertComment } from './pr-confidence.mjs'
 import { REVIEW_COVERED_STEP } from './pr-automation.mjs'
 
 const clean = {
@@ -286,4 +286,25 @@ test('a pending label is replaced when a tier is set', () => {
   setTierLabel({ repo: 'o/r', pr: 7, tier: 'medium', gh })
   const edit = calls.find((c) => c[0] === 'pr' && c[1] === 'edit')
   assert.deepEqual(edit.slice(-4), ['--add-label', 'confidence-medium', '--remove-label', 'confidence-pending'])
+})
+
+test('a PR with no Risks section loses 10 points; a Risks section that says none does not', () => {
+  const missing = scoreEvidence({ ...clean, risksSection: false })
+  assert.deepEqual([missing.score, names(missing)], [90, ['risk section']])
+  assert.match(missing.factors[0].detail, /say "none"/)
+  assert.deepEqual(names(scoreEvidence({ ...clean, risksSection: true })), [])
+  assert.deepEqual(names(scoreEvidence(clean)), []) // evidence without the field is not penalised
+})
+
+test('hasRisksSection: the heading is enough, whatever it says under it', () => {
+  assert.equal(hasRisksSection('## Intent\n\nx\n\n## Risks\n\nNone: docs only.\n'), true)
+  assert.equal(hasRisksSection('## Intent\n\nx\n\n## What\n\ny'), false)
+  assert.equal(hasRisksSection(''), false)
+  assert.equal(hasRisksSection(null), false)
+})
+
+test('collectEvidence reads whether the body has a Risks section', () => {
+  const noRisks = { ...view, body: '## What\n\ndone\n' }
+  assert.equal(collectEvidence({ repo: 'o/r', pr: 7, gh: fakeGh({ checkRuns: [], view: noRisks }) }).risksSection, false)
+  assert.equal(collectEvidence({ repo: 'o/r', pr: 7, gh: fakeGh({ checkRuns: [], view }) }).risksSection, true)
 })
