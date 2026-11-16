@@ -44,7 +44,7 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR once the r
   3. Mostly a framework app (UI routes, components)? Follow the framework's conventions.
   4. Any part that must scale, deploy, fail, or run on a different runtime independently? Split out only that part as a service; the rest stays a monolith.
   5. Several teams with separate release cycles? Align module or service boundaries with teams.
-  6. Event-driven or realtime core (chat, games, live trading)? Event or actor model for that core.
+  6. Event-driven or realtime core (chat, games, live trading)? Event or actor model for that core. Its bus lives in one module with typed events, and nothing outside the core subscribes.
 - `review` Record the choice and the fit-check answer in the repo (ADR or `CONTEXT.md`) so it isn't relitigated.
 - `review` A module is one feature folder: it owns that feature's logic, tables and public API, and nothing else. Each module has a `README.md` naming its features, the tables it owns, its public API and the layers it has. Elsewhere in these standards a unit that "owns one concern" is a file or function, not a module.
 - `review` A module starts flat: `index.ts` (public API), pure decisions, shell and storage files beside it. Layer folders (`domain/`, `app/`, `store/`, `clients/`) are fine inside a module, since the module is already the feature, but each is added only when a trigger fires: about 6+ files, a second kind of leaf (DB and external API), or several use cases sharing rules. A layer that only forwards calls is deleted, not kept.
@@ -71,7 +71,7 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR once the r
 - `tool`+`review` Minimize parameters: derive any value the function can work out from what it's given. Inject outside-world dependencies; never derive from ambient state (globals, singletons, env). Pass a whole object when the function works on that entity, a single value when it's a utility. _(env/global reads banned outside entry points)_
 - `tool`+`review` Functional core, imperative shell: pure logic takes data and returns data; I/O stays at the edges. _(`pureCorePaths` bans clock, randomness, `fetch`, `process`; the rest of "I/O" is review)_
 - `review` Smell test: a function that needs mocks to unit test mixes logic with effects. Split the decision into a pure function and test that with plain input and output; the shell keeps one integration test.
-- `review` Inject only I/O (db, network, clock, delay, model clients); pure logic takes plain data. Wire dependencies in one composition root per entry point. No DI containers, service locators, singletons, or in-process event buses.
+- `review` Inject only I/O (db, network, clock, delay, model clients); pure logic takes plain data. Wire dependencies in one composition root per entry point. No DI containers, service locators, singletons, or in-process event buses (the one exception is the event core chosen by fit check 6).
 - `review` Interfaces only at I/O boundaries (adapters); no one-implementation interfaces elsewhere. Strategies are plain functions. Composition over inheritance.
 - `review` Use a design pattern when the code already has its shape (rule of three), not in advance. Simplest form first: a function before a class, a class before a hierarchy.
 - `review` Make operations idempotent wherever retries or reruns can happen.
