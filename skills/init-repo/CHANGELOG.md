@@ -5,6 +5,10 @@ A repo wired by an earlier `/init-repo` never sees a later template change: the 
 Shared configs come in through the lockfile, so run `pnpm update @k-b3r/agent-config` to pick them up.
 The PR that changes a template adds its entry here.
 
+## 2026-11-16 confidence label gates auto-merge
+
+- No consumer change: the reusable `auto-merge.yml` now merges an `automerge` PR only at `confidence-high` (no `needs-human`, unless `human-approved`) and leaves one comment otherwise. Keep calling it as before; the `pr-review` caller must stay in the `workflow_run` list so the label is set.
+
 ## 2026-11-13 (db6876e) CI skips draft PRs
 
 - `.github/workflows/ci.yml` and `integration.yml`: change the trigger to `pull_request: types: [opened, synchronize, reopened, ready_for_review]` (keep `paths` in `integration.yml`). The reusable jobs skip drafts, so without `ready_for_review` CI waits for the next push after a PR leaves draft.

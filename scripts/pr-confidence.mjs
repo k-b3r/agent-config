@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // A confidence label for a PR, computed from evidence the pipeline already has, never from the
-// model's own rating of itself. Label only: it informs the human, it gates nothing.
+// model's own rating of itself. The label gates auto-merge: pr-automation merges an `automerge` PR only at confidence-high.
 //   pr-confidence label <owner/repo> <pr-number>        set exactly one confidence-* label, print the factors
 //   pr-confidence label-sha <owner/repo> <sha>           the same for the open PR whose head is <sha> (none: exit 0)
 //   pr-confidence pending <owner/repo> <pr-number>       a push landed: drop the old tier, say it is being re-scored
@@ -153,7 +153,7 @@ export function parseMarker(body) {
 // What the PR showed before the last push: a pending marker passes the earlier verdict along.
 const lastVerdict = (previous) => (previous?.tier === 'pending' ? previous.was ?? null : previous)
 
-const NOT_A_PROBABILITY = '_Not a probability: this counts the evidence on the PR, and changes after each finished workflow. It gates nothing._'
+const NOT_A_PROBABILITY = '_Not a probability: this counts the evidence on the PR, and changes after each finished workflow. It gates auto-merge: only confidence-high merges._'
 
 export function renderComment({ result, previous }) {
   const before = lastVerdict(previous)

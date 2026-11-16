@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { prDiffUnchanged, mergeDecision, mergeIfReady, reviewCovered, reviewReusable, REVIEW_COVERED_STEP, sameChange, workflowGate } from './pr-automation.mjs'
+import { confidenceTier, gateComment, GATE_MARKER, prDiffUnchanged, mergeDecision, mergeIfReady, reviewCovered, reviewReusable, REVIEW_COVERED_STEP, sameChange, workflowGate } from './pr-automation.mjs'
 
 const SHA = 'abc123'
 const greenPr = {
   number: 7,
   state: 'OPEN',
   isDraft: false,
-  labels: [{ name: 'automerge' }],
+  labels: [{ name: 'automerge' }, { name: 'confidence-high' }],
   headRefName: 'buy-30-lint',
   headRefOid: SHA,
   baseRefName: 'main',
@@ -37,7 +37,7 @@ test('mergeDecision ignores the confidence label job, running or cancelled', () 
 })
 
 test('mergeDecision holds a PR without the automerge label', () => {
-  const decision = mergeDecision({ ...ready, pr: { ...greenPr, labels: [] } })
+  const decision = mergeDecision({ ...ready, pr: { ...greenPr, labels: [{ name: 'confidence-high' }] } })
   assert.equal(decision.merge, false)
   assert.deepEqual(failed(decision), ['labelled automerge'])
 })
@@ -48,10 +48,9 @@ test('mergeDecision holds a draft and a PR whose head moved past the evaluated c
 })
 
 test('mergeDecision holds on agent-changes-requested and on needs-human until human-approved', () => {
-  const withLabels = (...names) => ({ ...ready, pr: { ...greenPr, labels: names.map((name) => ({ name })) } })
-  assert.deepEqual(failed(mergeDecision(withLabels('automerge', 'agent-changes-requested'))), ['no agent-changes-requested'])
-  assert.deepEqual(failed(mergeDecision(withLabels('automerge', 'needs-human'))), ['no needs-human, or human-approved'])
-  assert.equal(mergeDecision(withLabels('automerge', 'needs-human', 'human-approved')).merge, true)
+  assert.deepEqual(failed(mergeDecision(withLabels('automerge', 'confidence-high', 'agent-changes-requested'))), ['no agent-changes-requested'])
+  assert.deepEqual(failed(mergeDecision(withLabels('automerge', 'confidence-high', 'needs-human'))), ['no needs-human, or human-approved'])
+  assert.equal(mergeDecision(withLabels('automerge', 'confidence-high', 'needs-human', 'human-approved')).merge, true)
 })
 
 test('mergeDecision holds while any other check is pending or failed and names it', () => {
@@ -100,6 +99,7 @@ const apiResponses = (pr) => ({
   'pr view 7': JSON.stringify(pr),
   [`api repos/o/r/commits/${SHA}/check-runs`]: JSON.stringify({ check_runs: greenChecks }),
   [`api repos/o/r/compare/main...${SHA}`]: JSON.stringify({ behind_by: 0 }),
+  'api --paginate repos/o/r/issues/7/comments': '',
   'pr merge 7': '',
 })
 
@@ -308,4 +308,85 @@ test('workflowGate unflag acts once: a dropped marker, or an already removed lab
 test('workflowGate flag after a drop flags again with a fresh marker', () => {
   const run = gateRun('flag', { files: [WF], states: ['flagged', 'dropped'] })
   assert.match(run.comments[0].at(-1), /:flagged -->/)
+})
+
+const withLabels = (...names) => ({ ...ready, pr: { ...greenPr, labels: names.map((name) => ({ name })) } })
+
+test('mergeDecision merges only at confidence-high', () => {
+  assert.equal(mergeDecision(withLabels('automerge', 'confidence-high')).merge, true)
+  for (const tier of ['confidence-medium', 'confidence-low', 'confidence-pending']) {
+    const decision = mergeDecision(withLabels('automerge', tier))
+    assert.equal(decision.merge, false, tier)
+    assert.deepEqual(failed(decision), ['confidence-high (or human-approved)'])
+  }
+  assert.deepEqual(failed(mergeDecision(withLabels('automerge'))), ['confidence-high (or human-approved)'])
+})
+
+test('mergeDecision lets pending win over a stale high, and the lowest tier win over the rest', () => {
+  assert.equal(confidenceTier(['confidence-high', 'confidence-pending']), 'pending')
+  assert.equal(confidenceTier(['confidence-high', 'confidence-medium']), 'medium')
+  assert.equal(confidenceTier(['confidence-medium', 'confidence-low']), 'low')
+  assert.equal(confidenceTier(['automerge']), 'none')
+  assert.equal(mergeDecision(withLabels('automerge', 'confidence-high', 'confidence-pending')).merge, false)
+})
+
+test('mergeDecision holds needs-human even at confidence-high, human-approved is the human call', () => {
+  assert.equal(mergeDecision(withLabels('automerge', 'confidence-high', 'needs-human')).merge, false)
+  assert.equal(mergeDecision(withLabels('automerge', 'confidence-medium', 'needs-human', 'human-approved')).merge, true)
+})
+
+test('gateComment names the tier or needs-human, and is null when neither blocks', () => {
+  assert.match(gateComment({ conditions: mergeDecision(withLabels('automerge', 'confidence-medium')).conditions }), /confidence-medium/)
+  assert.match(gateComment({ conditions: mergeDecision(withLabels('automerge')).conditions }), /no confidence label/)
+  assert.match(gateComment({ conditions: mergeDecision(withLabels('automerge', 'confidence-high', 'needs-human')).conditions }), /needs-human/)
+  assert.equal(gateComment({ conditions: mergeDecision(ready).conditions }), null)
+})
+
+function holdGh({ labels, comments = [] }) {
+  const calls = []
+  const store = [...comments]
+  const gh = (args) => {
+    calls.push(args)
+    const url = args.find((a) => a.startsWith('repos/')) ?? ''
+    if (url.endsWith(`commits/${SHA}/pulls`)) return JSON.stringify([{ number: 7, state: 'open' }])
+    if (args[0] === 'pr' && args[1] === 'view') return JSON.stringify({ ...greenPr, labels: labels.map((name) => ({ name })) })
+    if (url.includes('check-runs')) return JSON.stringify({ check_runs: greenChecks })
+    if (url.includes('/compare/')) return JSON.stringify({ behind_by: 0 })
+    if (url.endsWith('/issues/7/comments') && args.includes('--paginate')) return store.map((c) => JSON.stringify(c)).join('\n')
+    if (args[0] === 'pr' && args[1] === 'comment') store.push({ id: 1, body: args[args.indexOf('--body') + 1] })
+    if (args.includes('PATCH')) store[0].body = args.find((a) => a.startsWith('body=')).slice(5)
+    return ''
+  }
+  return { gh, calls, store }
+}
+const writes = (calls, what) => calls.filter((a) => (what === 'merge' ? a[1] === 'merge' : a[1] === 'comment' || a.includes('PATCH')))
+
+test('mergeIfReady comments once when held for confidence, then edits it in place, never duplicates', () => {
+  const env = holdGh({ labels: ['automerge', 'confidence-medium'] })
+  mergeIfReady({ repo: 'o/r', sha: SHA, gh: env.gh, report: () => {} })
+  assert.equal(env.store.length, 1)
+  assert.ok(env.store[0].body.includes(GATE_MARKER))
+  const before = env.calls.length
+  mergeIfReady({ repo: 'o/r', sha: SHA, gh: env.gh, report: () => {} })
+  assert.equal(writes(env.calls.slice(before), 'comment').length, 0, 'same text: no write')
+  assert.equal(writes(env.calls, 'merge').length, 0)
+  env.calls.length = 0
+  env.store[0].body = `${GATE_MARKER}\nold text`
+  mergeIfReady({ repo: 'o/r', sha: SHA, gh: env.gh, report: () => {} })
+  assert.equal(env.store.length, 1)
+  assert.equal(env.calls.filter((a) => a.includes('PATCH')).length, 1)
+})
+
+test('mergeIfReady merges at confidence-high and updates an earlier hold comment', () => {
+  const env = holdGh({ labels: ['automerge', 'confidence-high'], comments: [{ id: 5, body: `${GATE_MARKER}\nheld` }] })
+  mergeIfReady({ repo: 'o/r', sha: SHA, gh: env.gh, report: () => {} })
+  assert.equal(writes(env.calls, 'merge').length, 1)
+  assert.equal(env.store.length, 1)
+  assert.match(env.store[0].body, /merging/)
+})
+
+test('mergeIfReady posts no comment on a PR without automerge', () => {
+  const env = holdGh({ labels: ['confidence-medium'] })
+  mergeIfReady({ repo: 'o/r', sha: SHA, gh: env.gh, report: () => {} })
+  assert.equal(env.store.length, 0)
 })
