@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Symlink this repo's agent config into ~/.claude. Safe to rerun.
+# Symlink this repo's agent config into ~/.claude, ~/.pi/agent and ~/.local/bin. Safe to rerun.
 # Only touches entries this repo owns; third-party skills in ~/.claude/skills are left alone.
 set -euo pipefail
 
@@ -21,6 +21,18 @@ link() {
   echo "linked $dest"
 }
 
+# Removes links left behind by a skill or extension that was renamed or deleted here: a dangling
+# link in $1 whose target is under $2. A link that points anywhere else is not ours to remove.
+prune() {
+  local dir="$1" owned="$2" dest
+  for dest in "$dir"/*; do
+    if [ -L "$dest" ] && [ ! -e "$dest" ] && [[ "$(readlink "$dest")" == "$owned"/* ]]; then
+      rm "$dest"
+      echo "removed stale link $dest"
+    fi
+  done
+}
+
 mkdir -p "$TARGET/skills"
 link "$REPO/AGENTS.md" "$TARGET/CLAUDE.md"
 # pi reads the same file as its global instructions.
@@ -35,6 +47,7 @@ for skill in "$REPO"/skills/*/; do
   name="$(basename "$skill")"
   link "${skill%/}" "$TARGET/skills/$name"
 done
+prune "$TARGET/skills" "$REPO/skills"
 # pi reads skills from ~/.pi/agent/skills.
 if [ -d "$HOME/.pi/agent" ]; then
   mkdir -p "$HOME/.pi/agent/skills"
@@ -42,6 +55,7 @@ if [ -d "$HOME/.pi/agent" ]; then
     name="$(basename "$skill")"
     link "${skill%/}" "$HOME/.pi/agent/skills/$name"
   done
+  prune "$HOME/.pi/agent/skills" "$REPO/skills"
 fi
 
 # Pi extensions: the guard (same rules as the hook below, on pi's tool_call) and the standards loader
@@ -51,6 +65,7 @@ if [ -d "$HOME/.pi/agent" ]; then
   for ext in "$REPO"/pi/extensions/*.js; do
     link "$ext" "$HOME/.pi/agent/extensions/$(basename "$ext")"
   done
+  prune "$HOME/.pi/agent/extensions" "$REPO/pi/extensions"
 fi
 
 # Guard hook: blocks pushes to main, --no-verify, AI attribution, generated-file edits.
@@ -63,6 +78,7 @@ fi
 node "$REPO/hooks/install-settings.mjs" "$TARGET/settings.json" 'node "$HOME/.claude/hooks/agent-config-guard.mjs"'
 
 # `pi-sync push|pull|run|schedule`: Pi session backup to Drive (docs/pi-sync/). Plain Node, no install step.
+mkdir -p "$HOME/.local/bin"
 link "$REPO/scripts/pi-sync.mjs" "$HOME/.local/bin/pi-sync"
 
 # CLI tools and Pi/Claude extensions are installed by terminal-config.
