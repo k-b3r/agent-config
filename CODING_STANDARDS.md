@@ -61,7 +61,7 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR once the r
 - `review` Deep modules: simple interface, substantial functionality behind it. Avoid shallow pass-through layers and wrappers that add an interface without hiding anything.
 - `review` Prefer deep modules over many small functions. Don't split a function just to make it shorter; split only when the piece is a coherent abstraction. Small private helpers inside a module are fine.
 - `tool`+`review` Deep is not big. One file owns one concern; when a file mixes unrelated features (e.g. every query for every page), split it by feature. _(max-lines hint)_
-- `review` Group code by feature, not by technical layer or pipeline stage, so one change lives in one folder. Layer folders inside one feature module (see Architecture) are fine; layer folders at the top of the repo are not.
+- `review` Group code by feature, not by technical layer or pipeline stage, so one change lives in one folder. Layer folders inside one feature module (see Architecture) are fine; layer folders at the top of the repo are not. The only top-level source folders are `modules/`, `platform/`, `processes/` and entry points (`workers/`, routes).
 - `tool`+`review` Importing a module must be cheap and side-effect free: no connections, network calls, or heavy work at import time. _(dependency-cruiser)_
 - `tool` Module boundaries are enforced in CI, not prose: no wildcard re-exports, no heavy deps leaking into shared entry points, no cycles, no upward module imports. _(see language guide)_
 - `tool`+`review` Hide information. Each module owns its decisions; callers never depend on internals. _(no deep imports past index)_
