@@ -8,6 +8,7 @@
   "bin": {
     "repo-checks": "./scripts/repo-checks.mjs",
     "pr-automation": "./scripts/pr-automation.mjs",
+    "pr-confidence": "./scripts/pr-confidence.mjs",
     "ci-report": "./scripts/ci-report.mjs",
     "review-seeds": "./scripts/review-seeds.mjs",
     "review-outcomes": "./scripts/review-outcomes.mjs",

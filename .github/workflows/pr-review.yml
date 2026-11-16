@@ -96,6 +96,17 @@ jobs:
           repository: k-b3r/agent-config
           path: .agent-config
 
+      # A push makes the confidence label stale: drop the old tier now, so a new commit never
+      # carries the previous commit's "high". The confidence job (auto-merge.yml) re-scores
+      # when the workflows finish. Informational only, so it can never fail the review.
+      - name: Mark the confidence label pending
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: node .agent-config/scripts/pr-confidence.mjs pending "$REPO" "$PR"
+
       # A push that leaves the PR's own diff unchanged (pr-upkeep merging the
       # base in, or committing regenerated files under generated-paths) changes
       # nothing a reviewer saw: keep `human-approved` and skip the re-review

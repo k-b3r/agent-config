@@ -27,6 +27,15 @@ test('mergeDecision merges a labelled, green, up-to-date PR and ignores its own 
   assert.deepEqual(failed(decision), [])
 })
 
+test('mergeDecision ignores the confidence label job, running or cancelled', () => {
+  for (const check of [
+    { name: 'merge / confidence', status: 'in_progress', conclusion: null },
+    { name: 'merge / confidence', status: 'completed', conclusion: 'cancelled' },
+  ]) {
+    assert.equal(mergeDecision({ ...ready, checks: [...greenChecks, check] }).merge, true)
+  }
+})
+
 test('mergeDecision holds a PR without the automerge label', () => {
   const decision = mergeDecision({ ...ready, pr: { ...greenPr, labels: [] } })
   assert.equal(decision.merge, false)
