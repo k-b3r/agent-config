@@ -60,6 +60,8 @@ if [ -e "$TARGET/settings.json" ] && ! grep -q agent-config-guard.mjs "$TARGET/s
   mkdir -p "$BACKUP"
   cp "$TARGET/settings.json" "$BACKUP/settings.json"
 fi
+# $HOME stays literal on purpose: settings.json keeps the variable, the hook runner expands it.
+# shellcheck disable=SC2016
 node "$REPO/hooks/install-settings.mjs" "$TARGET/settings.json" 'node "$HOME/.claude/hooks/agent-config-guard.mjs"'
 
 # `pi-sync push|pull|run|schedule`: Pi session backup to Drive (docs/pi-sync/). Plain Node, no install step.
