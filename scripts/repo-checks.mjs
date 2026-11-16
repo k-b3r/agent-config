@@ -9,6 +9,9 @@
 //   test-placement           unit tests sit next to their module; integration/e2e under tests/
 //   entry-scripts            every entry file has a package.json script
 //   test-db-env              integration/e2e code never reads the app's database env var
+//   git-test-env             a repo whose tests call git has a vitest setupFiles entry (in every vitest config)
+//                            that deletes the GIT_* variables git exports to hooks
+
 //   review-tier <base>       prints `claude` when the PR touches an irreversible write, a migration,
 //                            a deleted file or the business-logic paths (`agentConfig.claudeReviewPaths`),
 //                            `deepseek` otherwise (which reviewer to run; not in `all`)
@@ -28,7 +31,7 @@
 // commitlint was skipped: its parser expects a `type:` prefix these repos don't use.
 import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync, realpathSync } from 'node:fs'
-import { basename } from 'node:path'
+import { basename, dirname, join, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const MAX_SUBJECT = 72
@@ -199,6 +202,35 @@ export function testDbEnvLeaks(files, appDbEnv) {
     .filter(({ path }) => path.startsWith('tests/integration/') || path.startsWith('tests/e2e/'))
     .filter(({ text }) => reads.test(withoutComments(text)))
     .map(({ path }) => path)
+}
+
+// Git exports these to its hooks, so a test running `git -C <temp repo>` from the pre-push
+// hook acts on the repository being pushed. The setup file of the template deletes them.
+const GIT_HOOK_ENV = ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_COMMON_DIR', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_PREFIX', 'GIT_NAMESPACE']
+const CALLS_GIT = /\b(?:execFile|execFileSync|exec|execSync|spawn|spawnSync)\s*\(\s*['"`]git\b/
+const isVitestConfig = (path) => /(^|\/)vitest(\.[\w-]+)?\.(config|workspace)\.[cm]?[jt]s$/.test(path)
+
+// The files a vitest config names in `setupFiles` (a list of strings or one string).
+export function setupFilesOf(configText) {
+  const value = withoutComments(configText).match(/setupFiles\s*:\s*(\[[^\]]*\]|['"`][^'"`]+['"`])/)?.[1] ?? ''
+  return [...value.matchAll(/['"`]([^'"`]+)['"`]/g)].map((match) => match[1])
+}
+
+const clearsGitEnv = (text) => {
+  const code = withoutComments(text)
+  return /\bdelete\b/.test(code) && GIT_HOOK_ENV.every((name) => new RegExp(`\\b${name}\\b`).test(code))
+}
+
+// tests: { path, text } of test files and files under tests/. configs: { path, text, setups: [{ path, text }] }
+// per vitest config, setups being the files its `setupFiles` names. Returns the problems found.
+export function gitEnvProblems(tests, configs) {
+  const callers = tests.filter(({ text }) => CALLS_GIT.test(withoutComments(text))).map(({ path }) => path)
+  if (!callers.length) return []
+  const fix = `wire a setupFiles entry in every vitest config that deletes ${GIT_HOOK_ENV.join(', ')} (template: tests/setup/clear-git-env.ts)`
+  if (!configs.length) return [`${callers.join(', ')}: tests call git but there is no vitest config; ${fix}`]
+  return configs
+    .filter(({ setups }) => !setups.some(({ text }) => clearsGitEnv(text)))
+    .map(({ path }) => `${path}: ${callers.length} test file(s) call git (${callers.slice(0, 3).join(', ')}) but no setupFiles entry clears the GIT_* variables; ${fix}`)
 }
 
 // The added lines of a `git diff -U0 --no-prefix` patch, as { path, text }.
@@ -422,6 +454,7 @@ export function auditWiring(repo) {
       `Workflow: package.json has scripts ${REQUIRED_SCRIPTS.filter((name) => !(name in scripts)).join(', ')}`,
     ],
     [/pre-push:[\s\S]*pnpm check/.test(text('lefthook.yml')), 'Workflow: lefthook.yml runs pnpm check on pre-push'],
+    [/pre-commit:[\s\S]*gitleaks/.test(text('lefthook.yml')), 'Security: lefthook.yml scans staged changes with gitleaks on pre-commit'],
     [
       /commit-msg:[\s\S]*repo-checks commit-msg/.test(text('lefthook.yml')),
       'Version Control: lefthook.yml runs repo-checks commit-msg on commit-msg',
@@ -517,6 +550,20 @@ const COMMANDS = {
     const leaks = testDbEnvLeaks(files, config.appDbEnv)
     return report('test-db-env', leaks.map((p) => `${p}: use the test-only database env var`), 'ok')
   },
+  'git-test-env'() {
+    const paths = trackedAt('HEAD')
+    const exists = new Set(paths)
+    const read = (path) => ({ path, text: showAt('HEAD', path) })
+    const tests = paths.filter((path) => isSource(path) && (isTest(path) || path.startsWith('tests/'))).map(read)
+    const configs = paths.filter(isVitestConfig).map((path) => {
+      const { text } = read(path)
+      const dir = dirname(path)
+      const setups = setupFilesOf(text).map((file) => normalize(join(dir, file))).filter((file) => exists.has(file)).map(read)
+      return { path, text, setups }
+    })
+    return report('git-test-env', gitEnvProblems(tests, configs), 'ok')
+  },
+
   // Prints the tier on stdout (for `$GITHUB_OUTPUT`) and why on stderr. Labels and body come from the
   // workflow: REVIEW_PR_LABELS (comma-separated) and REVIEW_PR_BODY (the PR body, which can only escalate).
   'review-tier'(base, config) {

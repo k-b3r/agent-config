@@ -1,18 +1,22 @@
 # agent-config
 
-Personal Claude Code setup: global instructions, general coding standards, own skills.
+Personal Claude Code setup: global instructions, general coding standards, own skills. CLI tools and Pi/Claude extensions live in the companion `terminal-config` repo.
 
 ```
-CLAUDE.md            -> ~/.claude/CLAUDE.md (imports CODING_STANDARDS.md)
+AGENTS.md            -> ~/.claude/CLAUDE.md and ~/.pi/agent/AGENTS.md (global instructions; imports CODING_STANDARDS.md, TOOLS.md)
+CLAUDE.md            -> this repo only: imports AGENTS.md
 CODING_STANDARDS.md  -> ~/.claude/CODING_STANDARDS.md (language-agnostic)
-TOOLS.md             -> ~/.claude/TOOLS.md (imported by CLAUDE.md: when to use each tool)
-tools/<name>.sh      -> sourced by install.sh: installs + wires one tool (pinned, idempotent)
+TOOLS.md             -> ~/.claude/TOOLS.md (imported by AGENTS.md: when to use each tool)
 languages/           -> ~/.claude/languages (read on demand per language)
 standards/           -> ~/.claude/standards (do/don't examples per section, read on demand)
-skills/<name>/       -> ~/.claude/skills/<name>
+skills/<name>/       -> ~/.claude/skills/<name> and ~/.pi/agent/skills/<name>
 hooks/guard.mjs      -> ~/.claude/hooks/agent-config-guard.mjs (PreToolUse; install.sh adds it to settings.json)
 configs/             -> shared lint/boundary configs, installed into each repo as a git dependency
 ```
+
+## Companion repo
+
+CLI tools (CodeGraph, diagram-design) and Pi/Claude extensions live in the private `k-b3r/terminal-config` repo; run its `install.sh` on every device. This repo keeps the usage guidance in `TOOLS.md` and the skills that call those tools, so agent behavior does not change.
 
 ## Install
 
@@ -21,7 +25,7 @@ git clone git@github.com:k-b3r/agent-config.git ~/Develop/agent-config
 ~/Develop/agent-config/install.sh
 ```
 
-Symlinks config, adds the guard hook to `~/.claude/settings.json` (blocks pushes to main, `--no-verify`, AI attribution in commits/PRs, edits to lockfiles and `@generated` files, before CI would catch them; also reads of secret files (`.env*`, keys, cloud credentials), recursive deletes outside the workspace, and destructive SQL or applied migrations unless the target is a test database; limits in the header of `hooks/guard.mjs`), then installs each tool in `tools/` (pinned version, user-scope MCP, telemetry off). Existing non-linked files are moved to `~/.claude/backup-<timestamp>/`. Rerun after adding a skill or tool; `AGENT_CONFIG_SKIP_TOOLS=1` links only.
+Symlinks config, adds the guard hook to `~/.claude/settings.json` (blocks pushes to main, `--no-verify`, AI attribution in commits/PRs, edits to lockfiles and `@generated` files, before CI would catch them; also reads of secret files (`.env*`, keys, cloud credentials), recursive deletes outside the workspace, and destructive SQL or applied migrations unless the target is a test database; limits in the header of `hooks/guard.mjs`). Existing non-linked files are moved to `~/.claude/backup-<timestamp>/`. Rerun after adding a skill. CLI tools and Pi/Claude extensions are installed by `terminal-config`.
 
 ## Shared configs
 
@@ -41,7 +45,9 @@ const { baseRules, baseOptions } = require('@k-b3r/agent-config/dependency-cruis
 module.exports = { forbidden: [...baseRules({ publicApis: ['src/modules/catalog'], heavyDeps: [{ packages: ['playwright'], owner: 'src/modules/collection/browser.ts' }], inner: ['src/modules'], entryPoints: ['src/workers'] })], options: baseOptions() }
 ```
 
-Each config's options are documented in its file. `moduleTiers` (dependency-cruiser) lists modules lowest tier first: a module imports only lower tiers, so cycles can't form, and an unlisted module fails. Opt-in `baseConfig` options enforce the mechanical half of three `tool`+`review` rules: `parameterizedSqlFiles` (+ `sqlFragment`) bans interpolating anything but constant SQL fragments into `.query()` text, `noConsoleFiles` bans `console.*` in domain code, and `pureCorePaths` bans `new Date()`, `Date.now()`, `Math.random()`, `fetch` and `process` in the pure core. `repo-checks` (bin) covers the `tool` rules no linter fits: `review-tier <base>` prints which reviewer a PR needs (see Review tier below); commit subjects, escape-hatch and untested-module ratchets, test placement, entry scripts, test DB env, workflow permissions (no `write-all`), contract tests never edited (`contracts-unmodified`; label `contract-change-approved` waives it), no added skipped or `.only` test (`skip-only`, `agentConfig.skipPatterns`), changed-file listing for the report-only mutation job (`mutation-targets`, `agentConfig.mutationPaths`), PR size (`diff-size`: `agentConfig.maxDiffLines`, default 800; lockfiles, `generatedPaths` and blocks of lines moved between files don't count; label `large-diff-approved` waives it), and `audit` (fails on any shared check the repo hasn't wired). Settings: `package.json` `"agentConfig"`; commands: header of `scripts/repo-checks.mjs`.
+Each config's options are documented in its file. `moduleTiers` (dependency-cruiser) lists modules lowest tier first: a module imports only lower tiers, so cycles can't form, and an unlisted module fails. Opt-in `baseConfig` options enforce the mechanical half of three `tool`+`review` rules: `parameterizedSqlFiles` (+ `sqlFragment`) bans interpolating anything but constant SQL fragments into `.query()` text, `noConsoleFiles` bans `console.*` in domain code, and `pureCorePaths` bans `new Date()`, `Date.now()`, `Math.random()`, `fetch` and `process` in the pure core. `repo-checks` (bin) covers the `tool` rules no linter fits: `review-tier <base>` prints which reviewer a PR needs (see Review tier below); commit subjects, escape-hatch and untested-module ratchets, test placement, entry scripts, test DB env, tests that run git have a setup file clearing the `GIT_*` hook variables (`git-test-env`), workflow permissions (no `write-all`), contract tests never edited (`contracts-unmodified`; label `contract-change-approved` waives it), no added skipped or `.only` test (`skip-only`, `agentConfig.skipPatterns`), changed-file listing for the report-only mutation job (`mutation-targets`, `agentConfig.mutationPaths`), PR size (`diff-size`: `agentConfig.maxDiffLines`, default 800; lockfiles, `generatedPaths` and blocks of lines moved between files don't count; label `large-diff-approved` waives it), and `audit` (fails on any shared check the repo hasn't wired). Settings: `package.json` `"agentConfig"`; commands: header of `scripts/repo-checks.mjs`.
+
+`@k-b3r/agent-config/test-db` exports `testDatabaseUrl()` (and `assertTestDatabase(url)`): integration tests that reset the database take their URL from it, and it throws unless the database name contains `test` (`test-db-env` checks the variable name, not what it points at).
 
 ## Review tier
 
@@ -66,7 +72,7 @@ Remove it once the PR merges: `git -C "$AGENT_CONFIG" worktree remove ../agent-c
 ## Scope
 
 - Here: rules that apply to every project, skills written by me.
-- Not here: third-party skills (install via their own tooling so they keep updating; a `tools/<name>.sh` step may run that tooling), project-specific rules (live in each repo's `CODING_STANDARDS.md` / `CLAUDE.md`).
+- Not here: CLI tool installation and Pi/Claude extensions (`terminal-config`), third-party skills (install via their own tooling), project-specific rules (live in each repo's `CODING_STANDARDS.md` / `CLAUDE.md`).
 - Add a skill once a workflow has repeated 3+ times or the agent needed the same correction twice.
 - Skill descriptions may say what the skill does as well as when to use it. Tested 2026-10-06 against superpowers' "triggers only, never summarize the workflow" rule: 12 headless runs (Opus 5.5, direct and indirect prompts) of a skill whose description contradicted its body; every run loaded the body and followed it, with either description style.
-- Add a tool to `tools/` only if it should be on in every project; per-project tools go in that repo's `.mcp.json`.
+- Add tool usage guidance to `TOOLS.md`; installation belongs in `terminal-config`. Per-project tools go in that repo's `.mcp.json`.
