@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { calibrationTable, collectEvidence, hasRisksSection, markPending, openPrForSha, parseMarker, renderComment, renderFactors, renderPending, revertedPrs, scoreEvidence, setTierLabel, tickedRisks, TIER_LABELS, upsertComment } from './pr-confidence.mjs'
+import { calibrationTable, carryProof, collectEvidence, hasRisksSection, markPending, openPrForSha, parseMarker, parseProof, proofVerdict, renderComment, renderFactors, renderPending, revertedPrs, scoreEvidence, setTierLabel, tickedRisks, TIER_LABELS, upsertComment, verifiedState } from './pr-confidence.mjs'
 import { REVIEW_COVERED_STEP } from './pr-automation.mjs'
 
 const clean = {
@@ -9,6 +9,8 @@ const clean = {
   reviewed: true,
   reviewedCommits: 1,
   risks: [],
+  proof: { status: 'sufficient', claims: [] },
+  verified: 'output',
   linesChanged: 40,
   files: ['src/a.ts', 'src/a.test.ts'],
 }
@@ -76,11 +78,12 @@ test('renderFactors lists every factor with its points and evidence', () => {
 })
 
 // A fake gh answering the calls collectEvidence and reviewCovered make.
-const SHA = 'head1'
-const fakeGh = ({ checkRuns, view, coveredShas = [SHA], branchShas = [SHA] }) => (args) => {
+const SHA = 'abc1234'
+const fakeGh = ({ checkRuns, view, coveredShas = [SHA], branchShas = [SHA], comments = [] }) => (args) => {
   const [first, second] = args
   if (first === 'pr' && second === 'view') return JSON.stringify(view)
-  const path = args[1]
+  const path = args.find((a) => a.startsWith('repos/')) ?? args[1]
+  if (path.includes('/issues/') && path.endsWith('/comments')) return comments.map((body) => JSON.stringify(body)).join('\n')
   if (path.includes('/check-runs')) return JSON.stringify({ check_runs: checkRuns })
   if (path.includes('actions/runs?event=pull_request&branch=')) {
     return JSON.stringify({ workflow_runs: branchShas.map((sha) => ({ name: 'pr-review', head_sha: sha })) })
@@ -99,7 +102,7 @@ const view = {
   deletions: 10,
   files: [{ path: 'src/a.ts' }, { path: 'src/a.test.ts' }],
   labels: [{ name: 'automerge' }],
-  body: '## Risks\n\n- [ ] Touches auth\n- [x] Touches user data\n- [X] Touches infra, CI or secrets\n',
+  body: '## Risks\n\n- [ ] Touches auth\n- [x] Touches user data\n- [X] Touches infra, CI or secrets\n\n## Verified\n\n```\n3 passing\n```\n',
   headRefOid: SHA,
   headRefName: 'feature',
 }
@@ -307,4 +310,112 @@ test('collectEvidence reads whether the body has a Risks section', () => {
   const noRisks = { ...view, body: '## What\n\ndone\n' }
   assert.equal(collectEvidence({ repo: 'o/r', pr: 7, gh: fakeGh({ checkRuns: [], view: noRisks }) }).risksSection, false)
   assert.equal(collectEvidence({ repo: 'o/r', pr: 7, gh: fakeGh({ checkRuns: [], view }) }).risksSection, true)
+})
+
+const fence = '```'
+const verifiedBody = (text) => `## Intent\n\nx\n\n## Verified\n\n${text}\n\n## Unresolved questions\n\nnone\n`
+
+test('verifiedState tells a missing, empty, text-only and output-backed Verified section apart', () => {
+  assert.equal(verifiedState('## Intent\n\nx'), 'missing')
+  assert.equal(verifiedState(null), 'missing')
+  assert.equal(verifiedState(verifiedBody('')), 'empty')
+  assert.equal(verifiedState(verifiedBody('not run')), 'empty')
+  assert.equal(verifiedState(verifiedBody('<!-- paste output -->')), 'empty')
+  assert.equal(verifiedState(verifiedBody('Proof per claim: test names, pasted output, screenshot.')), 'empty')
+  assert.equal(verifiedState(verifiedBody('Commands run and their actual output (tests).')), 'empty')
+  assert.equal(verifiedState(verifiedBody('ran the tests, all good')), 'text')
+  assert.equal(verifiedState(verifiedBody(`${fence}\n\n${fence}`)), 'text')
+  assert.equal(verifiedState(verifiedBody(`${fence}\n3 passing\n${fence}`)), 'output')
+  assert.equal(verifiedState(verifiedBody('![after](https://example.com/a.png)')), 'output')
+})
+
+test('a missing or empty Verified section costs 20; text without output costs 10 only when code changed', () => {
+  const missing = scoreEvidence({ ...clean, verified: 'missing' })
+  assert.deepEqual([names(missing), missing.score, missing.tier], [['verified section'], 80, 'high'])
+  assert.deepEqual([scoreEvidence({ ...clean, verified: 'empty' }).score], [80])
+  const text = scoreEvidence({ ...clean, verified: 'text' })
+  assert.deepEqual([names(text), text.score], [['verified output'], 90])
+  assert.deepEqual(names(scoreEvidence({ ...clean, verified: 'text', files: ['README.md', 'docs/x.md'] })), [])
+  assert.deepEqual(names(scoreEvidence({ ...clean, verified: 'text', files: ['.github/pull_request_template.md'] })), [])
+})
+
+test('proof sufficient and otherwise clean is high', () => {
+  assert.deepEqual([scoreEvidence(clean).tier, scoreEvidence(clean).score], ['high', 100])
+})
+
+test('a missing proof verdict caps the tier at medium whatever the score', () => {
+  const result = scoreEvidence({ ...clean, proof: null })
+  assert.deepEqual([result.tier, result.score, names(result)], ['medium', 100, ['proof']])
+  assert.match(result.factors[0].detail, /current head commit/)
+})
+
+test('an insufficient proof verdict caps at medium and lists the unproven claims', () => {
+  const result = scoreEvidence({ ...clean, proof: { status: 'insufficient', claims: ['retry is bounded', 'no schema change'] } })
+  assert.equal(result.tier, 'medium')
+  assert.match(result.factors[0].detail, /Unproven: retry is bounded; no schema change/)
+})
+
+test('the proof cap never lifts a low tier', () => {
+  assert.equal(scoreEvidence({ ...clean, proof: null, labels: ['agent-changes-requested'] }).tier, 'low')
+})
+
+test('a docs-only PR with a short statement and a sufficient verdict is high', () => {
+  const docs = scoreEvidence({ ...clean, files: ['README.md'], verified: 'text' })
+  assert.deepEqual([docs.tier, docs.score, names(docs)], ['high', 100, []])
+})
+
+test('parseProof reads the verdict line and the unproven claims under it', () => {
+  assert.deepEqual(parseProof('No issues.\n\nproof: insufficient sha=ABC1234\n- claim one\n* claim two\n\nmore'), {
+    status: 'insufficient',
+    sha: 'abc1234',
+    claims: ['claim one', 'claim two'],
+  })
+  assert.deepEqual(parseProof('proof: sufficient sha=abc1234'), { status: 'sufficient', sha: 'abc1234', claims: [] })
+  assert.equal(parseProof('proof: sufficient'), null)
+  assert.equal(parseProof('we have proof: sufficient sha=abc1234 here'), null)
+  assert.equal(parseProof(null), null)
+})
+
+test('proofVerdict counts only a verdict for the current head: an older commit, a human comment or no comment is missing', () => {
+  const verdict = (sha, status = 'sufficient') => `Summary\n\nproof: ${status} sha=${sha}`
+  const read = (comments, sha = SHA) => proofVerdict({ repo: 'o/r', pr: 7, sha, gh: fakeGh({ comments }) })
+  assert.deepEqual(read([verdict(SHA)]), { status: 'sufficient', claims: [] })
+  assert.equal(read([verdict('def5678')]), null)
+  assert.equal(read([]), null)
+  assert.deepEqual(read([verdict('def5678'), verdict(SHA, 'insufficient')]), { status: 'insufficient', claims: [] })
+  assert.deepEqual(read([verdict(SHA, 'insufficient'), verdict(SHA)]), { status: 'sufficient', claims: [] })
+  assert.deepEqual(read([verdict(SHA.slice(0, 7))], `${SHA}0000`), { status: 'sufficient', claims: [] })
+})
+
+test('proofVerdict asks gh for bot comments only, and a gh failure is a missing verdict', () => {
+  const calls = []
+  proofVerdict({ repo: 'o/r', pr: 7, sha: SHA, gh: (args) => (calls.push(args), '') })
+  assert.match(calls[0].join(' '), /user\.type == "Bot"/)
+  assert.equal(proofVerdict({ repo: 'o/r', pr: 7, sha: SHA, gh: () => { throw new Error('boom') } }), null)
+})
+
+test('collectEvidence reads the proof verdict of the head commit and the Verified state', () => {
+  const comments = ['review\n\nproof: insufficient sha=def5678\n- old', `review\n\nproof: insufficient sha=${SHA}\n- retry is bounded`]
+  const evidence = collectEvidence({ repo: 'o/r', pr: 7, gh: fakeGh({ checkRuns: [], view, comments }) })
+  assert.deepEqual(evidence.proof, { status: 'insufficient', claims: ['retry is bounded'] })
+  assert.equal(evidence.verified, 'output')
+  const stale = collectEvidence({ repo: 'o/r', pr: 7, gh: fakeGh({ checkRuns: [], view, comments: [comments[0]] }) })
+  assert.equal(stale.proof, null)
+})
+
+test('carryProof repeats the verdict for the new head once, and never invents one', () => {
+  const posted = []
+  const comments = ['proof: insufficient sha=abc1234\n- retry is bounded']
+  const gh = (extra) => (args) => {
+    if (args.includes('-f')) {
+      posted.push(args.at(-1))
+      return ''
+    }
+    return fakeGh({ comments: [...comments, ...extra] })(args)
+  }
+  assert.equal(carryProof({ repo: 'o/r', pr: 7, from: 'abc1234', to: 'def5678', gh: gh([]) }), true)
+  assert.match(posted[0], /^body=proof: insufficient sha=def5678\n- retry is bounded/)
+  assert.equal(carryProof({ repo: 'o/r', pr: 7, from: 'abc1234', to: 'def5678', gh: gh([posted[0].slice(5)]) }), false)
+  assert.equal(carryProof({ repo: 'o/r', pr: 7, from: '1111111', to: 'def5678', gh: gh([]) }), false)
+  assert.equal(posted.length, 1)
 })

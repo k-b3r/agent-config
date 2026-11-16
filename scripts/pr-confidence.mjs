@@ -1,10 +1,13 @@
 #!/usr/bin/env node
 // A confidence label for a PR, computed from evidence the pipeline already has, never from the
 // model's own rating of itself. The label gates auto-merge: pr-automation merges an `automerge` PR only at confidence-high.
+// High is earned by proof: the agent review must judge the PR's proof sufficient for the CURRENT head commit
+// (its `proof: sufficient sha=<head>` line, see proofVerdict), else the tier is capped at medium.
 //   pr-confidence label <owner/repo> <pr-number>        set exactly one confidence-* label, print the factors
 //   pr-confidence label-sha <owner/repo> <sha>           the same for the open PR whose head is <sha> (none: exit 0)
 //   pr-confidence pending <owner/repo> <pr-number>       a push landed: drop the old tier, say it is being re-scored
 //   pr-confidence calibrate <owner/repo> [--limit <n>]   score recent merged PRs, compare tiers with reverts
+//   pr-confidence carry-proof <owner/repo> <pr> <from-sha> <to-sha>   a push left the diff unchanged: repeat the proof verdict for the new head
 // Factors and weights are in FACTORS below: each one names the fact it read, so the score can be argued with.
 // Besides the label, one comment (found by its marker, edited in place) carries the factor table.
 import { execFileSync } from 'node:child_process'
@@ -14,8 +17,8 @@ import { reviewCovered } from './pr-automation.mjs'
 
 export const TIER_LABELS = {
   pending: ['confidence-pending', 'BFBFBF', 'A push landed: the evidence is being re-scored'],
-  high: ['confidence-high', '0E8A16', 'Evidence supports merging: checks green, reviewed, tested, small'],
-  medium: ['confidence-medium', 'FBCA04', 'Some evidence is missing or a risk is open: read the factors'],
+  high: ['confidence-high', '0E8A16', 'Proven: checks green, reviewed, proof judged sufficient, tested, small. Auto-merge allowed'],
+  medium: ['confidence-medium', 'FBCA04', 'Proof or evidence is missing or a risk is open: a human decides (read the factors)'],
   low: ['confidence-low', 'D93F0B', 'A check fails, a blocker is open, or the evidence is thin'],
 }
 const OK_CONCLUSIONS = new Set(['success', 'skipped', 'neutral'])
@@ -26,7 +29,7 @@ const NON_CODE_PATH = /\.(md|mdx|txt|json|ya?ml|toml)$|^docs\/|^\.github\/|(^|\/
 const WORKFLOW_PATH = /^\.github\/workflows\//
 const MAX_REVIEWED_COMMITS = 3 // beyond this the author and the reviewer are circling (article: cap at 3 rounds)
 
-// Hard factors force the low tier; the rest subtract points from 100.
+// Hard factors force the low tier; a cap factor limits the tier to its `cap`; the rest subtract points from 100.
 const FACTORS = [
   ({ checks }) =>
     checks.failing.length
@@ -70,6 +73,26 @@ const FACTORS = [
       ? { name: 'tests', points: -20, detail: `${code.length} code file(s) changed, no test file` }
       : null
   },
+  // The authoring agent earns high by showing its work: the review judges each claim in the PR.
+  ({ proof }) =>
+    proof?.status === 'sufficient'
+      ? null
+      : {
+          name: 'proof',
+          points: 0,
+          cap: 'medium',
+          detail: !proof
+            ? 'no agent review verdict "proof: sufficient" for the current head commit: capped at medium'
+            : `the review judged the proof insufficient: capped at medium. Unproven: ${proof.claims.join('; ') || 'see the review summary'}`,
+        },
+  ({ verified }) =>
+    verified === 'missing' || verified === 'empty'
+      ? { name: 'verified section', points: -20, detail: 'the PR body has no filled "## Verified" section: paste proof per claim (test names, command output, screenshot), or say "docs only" / "config only"' }
+      : null,
+  ({ verified, files }) =>
+    verified === 'text' && files.some((f) => !NON_CODE_PATH.test(f))
+      ? { name: 'verified output', points: -10, detail: 'code changed but "## Verified" has no fenced output block or screenshot' }
+      : null,
   ({ files }) =>
     files.some((f) => WORKFLOW_PATH.test(f)) ? { name: 'workflow files', points: -15, detail: 'CI is part of this change' } : null,
 ]
@@ -78,7 +101,8 @@ export function scoreEvidence(evidence) {
   const factors = FACTORS.map((factor) => factor(evidence)).filter(Boolean)
   const score = Math.max(0, 100 + factors.reduce((sum, f) => sum + f.points, 0))
   const hard = factors.some((f) => f.hard)
-  const tier = hard || score < 50 ? 'low' : score >= 80 ? 'high' : 'medium'
+  const capped = factors.some((f) => f.cap === 'medium')
+  const tier = hard || score < 50 ? 'low' : score >= 80 && !capped ? 'high' : 'medium'
   return { score, tier, factors }
 }
 
@@ -97,6 +121,8 @@ export function collectEvidence({ repo, pr, gh }) {
     labels: view.labels.map((label) => label.name),
     reviewed: reviewCovered({ repo, sha: view.headRefOid, gh }),
     reviewedCommits: shas.filter((sha) => reviewCovered({ repo, sha, gh })).length,
+    proof: proofVerdict({ repo, pr, sha: view.headRefOid, gh }),
+    verified: verifiedState(view.body),
     risks: tickedRisks(view.body),
     risksSection: hasRisksSection(view.body),
     linesChanged: view.additions + view.deletions,
@@ -112,6 +138,65 @@ export const hasRisksSection = (body) => risksSectionOf(body) !== undefined
 export function tickedRisks(body) {
   const section = risksSectionOf(body) ?? ''
   return [...section.matchAll(/^- \[[xX]\] (.+)$/gm)].map((m) => m[1].trim())
+}
+
+// The proof section of the PR body: 'missing' (no section), 'empty' (nothing, "not run", or the template's
+// guidance left in), 'text' (words only), 'output' (a non-empty fenced block or an image).
+export function verifiedState(body) {
+  const part = (body ?? '').split(/^## /m).find((p) => /^Verified\b/i.test(p))
+  if (part === undefined) return 'missing'
+  const text = part.replace(/^Verified[^\n]*\n/i, '').replace(/<!--[\s\S]*?-->/g, '').trim()
+  const placeholder = /^(not run|n\/a|none|tbd|todo|-)\.?$/i
+  const guidance = /^(Proof per claim|Commands run and their actual output)/i
+  const lines = text.split('\n').map((l) => l.trim()).filter(Boolean)
+  if (!lines.length || lines.every((l) => placeholder.test(l)) || guidance.test(text)) return 'empty'
+  return /```[^\n]*\n\s*\S[\s\S]*?```|!\[[^\]]*\]\(/.test(text) ? 'output' : 'text'
+}
+
+// The review's proof verdict for exactly this commit, or null (none, or only for an older commit: a verdict
+// does not carry across pushes). The reviewer ends its summary comment with `proof: sufficient sha=<head>` or
+// `proof: insufficient sha=<head>` plus one `- claim` line per unproven claim. Only comments by a bot count,
+// so the PR's author cannot write its own verdict; the newest matching comment wins.
+const PROOF_LINE = /^proof: (sufficient|insufficient) sha=([0-9a-f]{7,40})[ \t]*$/im
+
+export function parseProof(body) {
+  const lines = (body ?? '').split('\n')
+  const at = lines.findIndex((l) => PROOF_LINE.test(l))
+  if (at === -1) return null
+  const [, status, sha] = lines[at].match(PROOF_LINE)
+  const claims = []
+  for (const line of lines.slice(at + 1)) {
+    const m = line.match(/^\s*[-*] (.+)$/)
+    if (!m) break
+    claims.push(m[1].trim())
+  }
+  return { status: status.toLowerCase(), sha: sha.toLowerCase(), claims }
+}
+
+export function proofVerdict({ repo, pr, sha, gh }) {
+  let bodies
+  try {
+    bodies = gh(['api', '--paginate', `repos/${repo}/issues/${pr}/comments`, '--jq', '.[] | select(.user.type == "Bot") | .body | @json'])
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line))
+  } catch {
+    return null
+  }
+  const head = sha.toLowerCase()
+  const verdicts = bodies.map(parseProof).filter((v) => v && (head.startsWith(v.sha) || v.sha.startsWith(head)))
+  const found = verdicts.at(-1)
+  return found ? { status: found.status, claims: found.claims } : null
+}
+
+// A push that leaves the PR diff unchanged skips the re-review; the verdict of the reviewed commit still
+// holds, so repeat it for the new head. Idempotent: nothing is posted when the new head already has one.
+export function carryProof({ repo, pr, from, to, gh }) {
+  const verdict = proofVerdict({ repo, pr, sha: from, gh })
+  if (!verdict || proofVerdict({ repo, pr, sha: to, gh })) return false
+  const body = [`proof: ${verdict.status} sha=${to}`, ...verdict.claims.map((c) => `- ${c}`), '', `_Carried over from ${from.slice(0, 7)}: this push left the PR diff unchanged._`].join('\n')
+  gh(['api', `repos/${repo}/issues/${pr}/comments`, '-f', `body=${body}`])
+  return true
 }
 
 // Distinct commits of the branch that had a pr-review run; reviewCovered says which were really reviewed.
@@ -244,6 +329,7 @@ const USAGE = [
   '       pr-confidence label-sha <owner/repo> <sha>',
   '       pr-confidence pending <owner/repo> <pr-number>',
   '       pr-confidence calibrate <owner/repo> [--limit <n>]',
+  '       pr-confidence carry-proof <owner/repo> <pr-number> <from-sha> <to-sha>',
 ].join('\n')
 
 function main([command, repo, ...rest]) {
@@ -262,6 +348,11 @@ function main([command, repo, ...rest]) {
     const report = renderFactors(result)
     console.log(`${report}\n\n${changed ? 'label updated' : 'label already current'}, comment ${comment.action}`)
     if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${report}\n`)
+    return 0
+  }
+  if (command === 'carry-proof' && repo && rest.length === 3) {
+    const [pr, from, to] = rest
+    console.log(carryProof({ repo, pr, from, to, gh }) ? `proof verdict carried to ${to}` : 'no proof verdict to carry')
     return 0
   }
   if (command === 'pending' && repo && rest.length === 1) {
