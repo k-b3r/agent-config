@@ -4,8 +4,11 @@
 # @k-b3r/agent-config as a dev dependency (repo-checks).
 #
 # Caller (path filters stay in the caller: reusable workflows can't declare them):
-#   # .github/workflows/ci.yml
-#   on: pull_request
+#   # .github/workflows/ci.yml (drafts are skipped, so list ready_for_review to run on
+#   # the draft-to-ready switch)
+#   on:
+#     pull_request:
+#       types: [opened, synchronize, reopened, ready_for_review]
 #   concurrency: { group: ci-${{ github.ref }}, cancel-in-progress: true }
 #   jobs:
 #     ci:
@@ -67,9 +70,10 @@ env:
 
 jobs:
   static:
-    if: contains(format(' {0} ', inputs.jobs), ' static ')
+    if: contains(format(' {0} ', inputs.jobs), ' static ') && github.event.pull_request.draft != true
     name: static checks
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -123,9 +127,10 @@ jobs:
           exit $status
 
   unit:
-    if: contains(format(' {0} ', inputs.jobs), ' unit ')
+    if: contains(format(' {0} ', inputs.jobs), ' unit ') && github.event.pull_request.draft != true
     name: unit tests
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
@@ -140,9 +145,10 @@ jobs:
       - run: pnpm test
 
   mutation:
-    if: contains(format(' {0} ', inputs.jobs), ' mutation ') && github.event_name == 'pull_request'
+    if: contains(format(' {0} ', inputs.jobs), ' mutation ') && github.event_name == 'pull_request' && github.event.pull_request.draft != true
     name: mutation report
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     # Report only until a floor is calibrated: surviving mutants point at tests that
     # run code without asserting on it, but equivalent mutants add noise.
     continue-on-error: true
@@ -176,9 +182,10 @@ jobs:
           pnpm test:mutation --mutate "$targets"
 
   integration:
-    if: contains(format(' {0} ', inputs.jobs), ' integration ')
+    if: contains(format(' {0} ', inputs.jobs), ' integration ') && github.event.pull_request.draft != true
     name: integration tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     services:
       postgres:
         image: ${{ inputs.postgres-image }}
@@ -209,9 +216,10 @@ jobs:
       - run: pnpm test:integration
 
   e2e:
-    if: contains(format(' {0} ', inputs.jobs), ' e2e ')
+    if: contains(format(' {0} ', inputs.jobs), ' e2e ') && github.event.pull_request.draft != true
     name: e2e tests
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
         image: ${{ inputs.postgres-image }}

@@ -74,6 +74,7 @@ jobs:
     # Label changes only re-run the gate; reviewing again would just repeat itself.
     if: github.event_name == 'pull_request' && github.event.action != 'labeled' && github.event.action != 'unlabeled' && !github.event.pull_request.draft
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
       pull-requests: write
@@ -332,7 +333,8 @@ jobs:
       always() && github.event_name == 'pull_request' && !github.event.pull_request.draft &&
       ((github.event.action != 'labeled' && github.event.action != 'unlabeled') ||
       contains(fromJSON('["agent-changes-requested", "needs-human", "human-approved"]'), github.event.label.name))
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
+    timeout-minutes: 5
     permissions:
       pull-requests: read
       actions: read
@@ -368,7 +370,8 @@ jobs:
       github.event_name == 'issue_comment' && github.event.issue.pull_request &&
       github.event.comment.author_association == 'OWNER' &&
       startsWith(github.event.comment.body, '/approve')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
+    timeout-minutes: 5
     permissions:
       actions: write
       pull-requests: write
