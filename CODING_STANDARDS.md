@@ -123,8 +123,8 @@ Read the matching file before writing code in that language:
 
 - `tool` Every source file in a module has a test file; a `types.ts` holding only types is exempt. _(untested-modules ratchet)_
 - `process` TDD by default: red, green, refactor. A bug fix starts with a test that reproduces the bug and fails before the fix, for the reason the bug gives (see Examples).
-- `process` A feature built through `/spike-and-rebuild` gets contract tests first, written by a fresh-context agent that sees only the committed stubs, their doc comments, and the plan's data structures and invariants, never the implementation. They sit beside the module as `foo.contract.test.ts` and start red because the stubs throw. The implementer's own red-green-refactor tests go in `foo.test.ts`. Bug fixes and small changes keep plain TDD by one agent.
-- `tool` Contract tests are only added in a PR, never changed or deleted; a wrong one goes back to its author with the reason and the contract comment gains the missing sentence. _(`repo-checks contracts-unmodified`)_
+- `process` A feature built through `/spike-and-rebuild` gets contract tests first, written by a fresh-context agent that sees only the committed stubs, their doc comments, and the plan's data structures and invariants, never the implementation. They sit beside the module as `foo.contract.test.ts` and start red because the stubs throw. That commit may be red locally; push the branch only when it is green (pre-push enforces this). The implementer's own red-green-refactor tests go in `foo.test.ts`. Bug fixes and small changes keep plain TDD by one agent.
+- `tool` Contract tests are only added in a PR, never changed or deleted, not even by a later commit in the same PR; a wrong one goes back to its author with the reason and the contract comment gains the missing sentence. _(`repo-checks contracts-unmodified`, per commit once wired)_
 - `tool` A PR adds no skipped or isolated test (`.skip(`, `.only(`, `xit(`, `xdescribe(`) in a test file; `it.todo` is fine. Fix or delete the test. _(`repo-checks skip-only`, `agentConfig.skipPatterns`)_
 - `review` A public function's contract lives in its doc comment: behavior, boundaries, and the input shape of loosely typed parameters (`unknown`, `Record<string, unknown>`). The contract author has nothing else to go on.
 - `hint` Mutation report on changed files under `agentConfig.mutationPaths` (the pure core): a surviving mutant is a change no test notices. Report only; equivalent mutants make 100% the wrong target. _(CI `mutation` job; becomes `tool` once a floor is calibrated)_
@@ -147,7 +147,7 @@ Read the matching file before writing code in that language:
 - `tool` Commit subjects are imperative, lowercase, concise, no trailing period (`add search page`). _(commit-msg hook, CI)_
 - `tool`+`review` One logical change per commit. Feature branches merge with `merge <branch>`. _(merge format is tool)_
 - `tool` A PR changes at most `maxDiffLines` (default 800) outside lockfiles, generated paths and moved blocks; larger work becomes stacked PRs. _(`repo-checks diff-size`; label `large-diff-approved` waives it)_
-- `tool` Never commit a broken build or failing tests; never `--no-verify`; never force-push `main`. _(CI, guard hook)_
+- `tool` Never commit a broken build or failing tests (the one exception is the contract-test commit above, which is never pushed red); never `--no-verify`; never force-push `main`. _(CI, guard hook)_
 - `tool` No AI attribution in commits or PR descriptions. _(commit-message check)_
 - `tool` Never hand-edit generated files (lockfiles, generated clients, `DO NOT EDIT` / `@generated`); change the source and rerun the generator. _(guard hook, generator + `git diff --exit-code`)_
 
