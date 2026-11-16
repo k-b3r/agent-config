@@ -1,6 +1,6 @@
-# This repo's own checks: tests for the shared configs, scripts and skills, and
-# a lint of every workflow (the reusable ones run in other repos, so a typo here
-# breaks them all).
+# This repo's own checks: lint and tests for the shared configs, scripts and skills,
+# shellcheck on the shell scripts, and a lint of every workflow (the reusable ones
+# run in other repos, so a typo here breaks them all).
 name: ci
 
 on:
@@ -31,10 +31,11 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm test
-      # No model call: the seeds build and validate, and every judgment rule has a seed or a stated excuse.
-      - run: node scripts/review-seeds.mjs --validate
-      - run: node scripts/review-seed-gaps.mjs
+      # The canonical check (package.json): eslint, tests, and with no model call, the seeds build and
+      # validate and every judgment rule has a seed or a stated excuse.
+      - run: pnpm check
+      # shellcheck ships on the ubuntu-latest image.
+      - run: git ls-files -z '*.sh' | xargs -0 shellcheck
 
   actionlint:
     name: workflow lint
