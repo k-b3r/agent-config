@@ -5,6 +5,14 @@ A repo wired by an earlier `/init-repo` never sees a later template change: the 
 Shared configs come in through the lockfile, so run `pnpm update @k-b3r/agent-config` to pick them up.
 The PR that changes a template adds its entry here.
 
+## 2026-11-13 (db6876e) CI skips draft PRs
+
+- `.github/workflows/ci.yml` and `integration.yml`: change the trigger to `pull_request: types: [opened, synchronize, reopened, ready_for_review]` (keep `paths` in `integration.yml`). The reusable jobs skip drafts, so without `ready_for_review` CI waits for the next push after a PR leaves draft.
+
+## 2026-11-13 (e91ff75) local secret scan on pre-commit
+
+- `lefthook.yml`: add the `pre-commit` job running `gitleaks git --pre-commit --staged --redact --no-banner` (the template guards a missing binary); `repo-checks audit` fails without it. Install gitleaks on the machine (`brew install gitleaks`).
+
 ## 2026-10-28 (35628d4) a fresh repo passes `pnpm check` and the integration job
 
 - `vitest.config.ts` and `vitest.integration.config.ts`: add `passWithNoTests: true` to `test`. Without it the first `pnpm test` exits 1 ("No test files found"), and so does the integration job of a PR in a repo with no integration test yet.

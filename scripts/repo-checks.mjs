@@ -356,6 +356,7 @@ export function auditWiring(repo) {
       `Workflow: package.json has scripts ${REQUIRED_SCRIPTS.filter((name) => !(name in scripts)).join(', ')}`,
     ],
     [/pre-push:[\s\S]*pnpm check/.test(text('lefthook.yml')), 'Workflow: lefthook.yml runs pnpm check on pre-push'],
+    [/pre-commit:[\s\S]*gitleaks/.test(text('lefthook.yml')), 'Security: lefthook.yml scans staged changes with gitleaks on pre-commit'],
     [
       /commit-msg:[\s\S]*repo-checks commit-msg/.test(text('lefthook.yml')),
       'Version Control: lefthook.yml runs repo-checks commit-msg on commit-msg',

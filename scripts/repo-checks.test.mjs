@@ -145,7 +145,7 @@ const wiredRepo = {
   '.env.example': 'DATABASE_URL=',
   '.gitignore': 'node_modules\n.env*\n!.env.example',
   'lefthook.yml':
-    'pre-push:\n  jobs:\n    - run: pnpm check\ncommit-msg:\n  jobs:\n    - run: pnpm exec repo-checks commit-msg {1}',
+    'pre-commit:\n  jobs:\n    - run: gitleaks git --pre-commit --staged\npre-push:\n  jobs:\n    - run: pnpm check\ncommit-msg:\n  jobs:\n    - run: pnpm exec repo-checks commit-msg {1}',
   'eslint.config.js': "import { baseConfig } from '@k-b3r/agent-config/eslint'",
   '.dependency-cruiser.cjs': "require('@k-b3r/agent-config/dependency-cruiser')",
   'knip.json': '{}',
@@ -179,6 +179,7 @@ test('auditWiring names each missing piece and the rule it enforces', () => {
     'Architecture: CONTEXT.md "## Architecture" section or docs/adr/ records the fit check',
     'Security: no .env file is tracked (found .env)',
     'Workflow: lefthook.yml runs pnpm check on pre-push',
+    'Security: lefthook.yml scans staged changes with gitleaks on pre-commit',
     'Version Control: lefthook.yml runs repo-checks commit-msg on commit-msg',
   ])
 })

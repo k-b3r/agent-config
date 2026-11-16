@@ -22,7 +22,11 @@ link() {
 }
 
 mkdir -p "$TARGET/skills"
-link "$REPO/CLAUDE.md" "$TARGET/CLAUDE.md"
+link "$REPO/AGENTS.md" "$TARGET/CLAUDE.md"
+# pi reads the same file as its global instructions.
+if [ -d "$HOME/.pi/agent" ]; then
+  link "$REPO/AGENTS.md" "$HOME/.pi/agent/AGENTS.md"
+fi
 link "$REPO/CODING_STANDARDS.md" "$TARGET/CODING_STANDARDS.md"
 link "$REPO/TOOLS.md" "$TARGET/TOOLS.md"
 link "$REPO/languages" "$TARGET/languages"
@@ -31,6 +35,14 @@ for skill in "$REPO"/skills/*/; do
   name="$(basename "$skill")"
   link "${skill%/}" "$TARGET/skills/$name"
 done
+# pi reads skills from ~/.pi/agent/skills.
+if [ -d "$HOME/.pi/agent" ]; then
+  mkdir -p "$HOME/.pi/agent/skills"
+  for skill in "$REPO"/skills/*/; do
+    name="$(basename "$skill")"
+    link "${skill%/}" "$HOME/.pi/agent/skills/$name"
+  done
+fi
 
 # Guard hook: blocks pushes to main, --no-verify, AI attribution, generated-file edits.
 mkdir -p "$TARGET/hooks"
@@ -41,11 +53,9 @@ if [ -e "$TARGET/settings.json" ] && ! grep -q agent-config-guard.mjs "$TARGET/s
 fi
 node "$REPO/hooks/install-settings.mjs" "$TARGET/settings.json" 'node "$HOME/.claude/hooks/agent-config-guard.mjs"'
 
-# Tools: each tools/<name>.sh defines install_<name>; skip with AGENT_CONFIG_SKIP_TOOLS=1.
-if [ "${AGENT_CONFIG_SKIP_TOOLS:-0}" != "1" ]; then
-  for tool in "$REPO"/tools/*.sh; do
-    # shellcheck source=/dev/null
-    . "$tool"
-    "install_$(basename "$tool" .sh)"
-  done
-fi
+# `pi-sync push|pull|run|schedule`: Pi session backup to Drive (docs/pi-sync/). Plain Node, no install step.
+link "$REPO/scripts/pi-sync.mjs" "$HOME/.local/bin/pi-sync"
+
+# CLI tools and Pi/Claude extensions are installed by terminal-config.
+
+echo "CLI tools and Pi/Claude extensions are installed by terminal-config"
