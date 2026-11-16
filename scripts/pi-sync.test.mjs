@@ -13,7 +13,7 @@ const withDevice = (h, name) => {
 // A fake rclone: answers `lsf` with a listing, records every other call, fails on demand.
 const fakeRclone = ({ listing = "", lsfStatus = 0, failFor = [] } = {}) => {
   const calls = [];
-  const run = (args, opts) => {
+  const run = (args) => {
     calls.push(args);
     if (args[0] === "lsf") return { status: lsfStatus, stdout: listing };
     return { status: failFor.some((n) => args[1].endsWith(`/${n}`)) ? 1 : 0 };

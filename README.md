@@ -72,6 +72,8 @@ git -C "$AGENT_CONFIG" worktree add ../agent-config-<branch> -b <branch> main
 
 Remove it once the PR merges: `git -C "$AGENT_CONFIG" worktree remove ../agent-config-<branch>`. A new skill or rule goes live only after its PR merges (rerun `install.sh` for a new skill).
 
+`pnpm check` is this repo's canonical check: eslint on its own scripts, hooks and pi extensions (`eslint.config.mjs`), the tests, and the seed validation and coverage. CI runs it, plus shellcheck on the shell scripts and actionlint on the workflows.
+
 ## Scope
 
 - Here: rules that apply to every project, skills written by me.

@@ -78,7 +78,7 @@ test('renderFactors lists every factor with its points and evidence', () => {
 // A fake gh answering the calls collectEvidence and reviewCovered make.
 const SHA = 'head1'
 const fakeGh = ({ checkRuns, view, coveredShas = [SHA], branchShas = [SHA] }) => (args) => {
-  const [first, second, third] = args
+  const [first, second] = args
   if (first === 'pr' && second === 'view') return JSON.stringify(view)
   const path = args[1]
   if (path.includes('/check-runs')) return JSON.stringify({ check_runs: checkRuns })

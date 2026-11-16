@@ -24,7 +24,9 @@
     }
   },
   "scripts": {
-    "test": "node --test \"**/*.test.mjs\""
+    "lint": "eslint .",
+    "test": "node --test \"**/*.test.mjs\"",
+    "check": "pnpm lint && pnpm test && node scripts/review-seeds.mjs --validate && node scripts/review-seed-gaps.mjs"
   },
   "peerDependencies": {
     "@eslint-community/eslint-plugin-eslint-comments": ">=4.4",
