@@ -48,7 +48,6 @@ test('mergeDecision holds a draft and a PR whose head moved past the evaluated c
 })
 
 test('mergeDecision holds on agent-changes-requested and on needs-human until human-approved', () => {
-  const withLabels = (...names) => ({ ...ready, pr: { ...greenPr, labels: names.map((name) => ({ name })) } })
   assert.deepEqual(failed(mergeDecision(withLabels('automerge', 'confidence-high', 'agent-changes-requested'))), ['no agent-changes-requested'])
   assert.deepEqual(failed(mergeDecision(withLabels('automerge', 'confidence-high', 'needs-human'))), ['no needs-human, or human-approved'])
   assert.equal(mergeDecision(withLabels('automerge', 'confidence-high', 'needs-human', 'human-approved')).merge, true)
