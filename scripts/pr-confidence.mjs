@@ -49,6 +49,11 @@ const FACTORS = [
     labels.includes('needs-human') && !labels.includes('human-approved')
       ? { name: 'open decision', points: -25, detail: 'needs-human without human-approved' }
       : null,
+  // A trivial change can just say so under the heading ("None: docs only"); a missing section says nothing.
+  ({ risksSection }) =>
+    risksSection === false
+      ? { name: 'risk section', points: -10, detail: 'the PR body has no "## Risks" section: say "none" there if the change carries no risk' }
+      : null,
   ({ risks }) =>
     risks.length
       ? { name: 'risk boxes', points: -Math.min(40, 20 * risks.length), detail: risks.join('; ') }
@@ -93,14 +98,19 @@ export function collectEvidence({ repo, pr, gh }) {
     reviewed: reviewCovered({ repo, sha: view.headRefOid, gh }),
     reviewedCommits: shas.filter((sha) => reviewCovered({ repo, sha, gh })).length,
     risks: tickedRisks(view.body),
+    risksSection: hasRisksSection(view.body),
     linesChanged: view.additions + view.deletions,
     files: view.files.map((file) => file.path),
   }
 }
 
 // Only the boxes under the template's "## Risks" heading: a PR body may carry other checklists.
+const risksSectionOf = (body) => (body ?? '').split(/^## /m).find((part) => /^Risks\b/i.test(part))
+
+export const hasRisksSection = (body) => risksSectionOf(body) !== undefined
+
 export function tickedRisks(body) {
-  const section = (body ?? '').split(/^## /m).find((part) => /^Risks\b/i.test(part)) ?? ''
+  const section = risksSectionOf(body) ?? ''
   return [...section.matchAll(/^- \[[xX]\] (.+)$/gm)].map((m) => m[1].trim())
 }
 

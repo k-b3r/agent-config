@@ -1,0 +1,10 @@
+{
+  "name": "requeue-same-job-id",
+  "rule": "a retry gets its own delivery id; a queue ignores an add whose id already exists",
+  "covers": "A retry is enqueued under a new id per attempt",
+  "expect": {
+    "blocking": true
+  },
+  "message": "retry failed sync jobs through the queue",
+  "body": "A sync job that throws is added back to the queue after RETRY_DELAY_MS, up to MAX_ATTEMPTS. The job id is kept on the retry so every attempt shows under one job in the dashboard."
+}
