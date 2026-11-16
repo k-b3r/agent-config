@@ -28,6 +28,24 @@ test('install.sh links pi-sync on a machine that has no ~/.local/bin yet', () =>
   })
 })
 
+test('install.sh removes a link to a skill or extension this repo no longer has', () => {
+  withHome((home, install) => {
+    mkdirSync(join(home, '.pi', 'agent'), { recursive: true })
+    install()
+    const stale = [
+      [join(home, '.claude', 'skills', 'renamed-away'), join(ROOT, 'skills', 'renamed-away')],
+      [join(home, '.pi', 'agent', 'skills', 'renamed-away'), join(ROOT, 'skills', 'renamed-away')],
+      [join(home, '.pi', 'agent', 'extensions', 'gone.js'), join(ROOT, 'pi', 'extensions', 'gone.js')],
+    ]
+    for (const [link, target] of stale) symlinkSync(target, link)
+    const output = install()
+    for (const [link] of stale) {
+      assert.equal(isLink(link), false, `${link} should be removed`)
+      assert.match(output, new RegExp(`removed stale link ${link}`))
+    }
+  })
+})
+
 test('install.sh leaves links it does not own alone, dangling or not', () => {
   withHome((home, install) => {
     install()
