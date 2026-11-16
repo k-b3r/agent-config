@@ -20,7 +20,7 @@ The reusable workflows consumer repos call, and the scripts behind them. Which r
 
 ## Reports
 
-`ci-report` (bin) shows where a repo's Actions minutes go. `review-outcomes` (bin) counts how the agent review held up on merged PRs from timeline events: fixed, early-approve (code pushed after a human approval), approved-past (unclassified); no precision figure, approvals are not proof the review was wrong.
+`ci-report` (bin) shows where a repo's Actions minutes go.
 
 ## Wiring a repo
 
