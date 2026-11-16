@@ -56,7 +56,7 @@ export function extractModel(workflowYaml) {
 
 // The prompt block of the claude-code-action step, dedented, with the workflow
 // expressions filled in and standards paths pointed at this checkout.
-export function extractPrompt(workflowYaml, { repository = 'owner/repo', number = 0, agentConfigDir = ROOT } = {}) {
+export function extractPrompt(workflowYaml, { repository = 'owner/repo', number = 0, agentConfigDir = ROOT, headSha = '0'.repeat(40) } = {}) {
   const start = workflowYaml.indexOf('prompt: |\n')
   const end = workflowYaml.indexOf('claude_args:', start)
   if (start === -1 || end === -1) throw new Error('no prompt block found in the workflow')
@@ -69,6 +69,7 @@ export function extractPrompt(workflowYaml, { repository = 'owner/repo', number 
     .replaceAll('.agent-config/', `${agentConfigDir}/`)
     .replaceAll('${{ github.repository }}', repository)
     .replaceAll('${{ github.event.pull_request.number }}', String(number))
+    .replaceAll('${{ github.event.pull_request.head.sha }}', headSha)
     .trimEnd()
 }
 
