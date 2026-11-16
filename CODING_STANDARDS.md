@@ -33,7 +33,7 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR once the r
 - `tool` A PR that changes the rules it is judged by gets `needs-human`: `CODING_STANDARDS.md`, `AGENTS.md` or `CLAUDE.md`, `REVIEW.md`, the PR template and `.github/workflows/`. The agent review reads those files from the base branch, never from the PR. _(`pr-review` gate; treat as `review` until wired)_
 - `process` When the review labels a PR `needs-human`, stop and get the human decision; never add `human-approved` yourself (`/resolve-needs-human`).
 - `process` Review findings are fixed on the PR's own branch, one commit per finding (`/address-pr-review`).
-- `process` Anything found outside the task's scope (bug, smell, debt) becomes a ticket in the project's own tracker board the moment it's seen, linked from the PR; notes and memory are not a backlog. Confirm the connector is on the right workspace before any tracker write (a "not found" often means the wrong one); if the board is unreachable, queue the call in `TRACKER_OUTBOX.md` (in `.git/info/exclude`), tell the user, and never write to another board. Small tidy-ups (never a bug a user could hit) may wait in the held-findings list (`/ticket-held-findings`).
+- `process` Anything found outside the task's scope (bug, smell, debt) becomes a ticket in the project's own tracker board the moment it's seen, linked from the PR (the one exception is the small touched-file smell fix under Refactoring); notes and memory are not a backlog. Confirm the connector is on the right workspace before any tracker write (a "not found" often means the wrong one); if the board is unreachable, queue the call in `TRACKER_OUTBOX.md` (in `.git/info/exclude`), tell the user, and never write to another board. Small tidy-ups (never a bug a user could hit) may wait in the held-findings list (`/ticket-held-findings`).
 
 ## Architecture
 
@@ -104,7 +104,7 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR once the r
 
 - `review` Refactor in small, behavior-preserving steps with tests green between each. Separate refactoring commits from behavior changes.
 - `hint` Code smells (duplication, long parameter lists, feature envy, shotgun surgery) trigger refactoring; fix when touching the code, not in big-bang rewrites. _(jscpd, complexity, max-params)_
-- `review` Make it work, then make it right. No opportunistic refactoring mid-feature: note smells, fix them after the feature is green as separate commits in the same PR, limited to files the change touched; ticket the rest. Exception: a refactor the feature needs goes first. `/spike-and-rebuild` applies this at feature scale. Don't delete unrelated dead code; do remove what your own change orphaned.
+- `review` Make it work, then make it right. No opportunistic refactoring mid-feature: note smells, fix them after the feature is green as separate commits in the same PR, limited to files the change touched and to a behavior-preserving fix of about 20 changed lines or fewer; ticket the rest. A bug found on the way is never fixed in passing: ticket it. Exception: a refactor the feature needs goes first. `/spike-and-rebuild` applies this at feature scale. Don't delete unrelated dead code; do remove what your own change orphaned.
 
 *Examples:* `~/.claude/standards/refactoring.md`
 
