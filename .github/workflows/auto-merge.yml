@@ -1,5 +1,6 @@
 # Reusable auto-merge: merges a PR labelled `automerge` once every check on its
-# head is green, the review gate passed and it is current with its base. A
+# head is green, the review gate passed, it is current with its base and it carries
+# `confidence-high` (no `needs-human`, unless `human-approved`). A
 # small merge queue together with pr-upkeep.yml's update-branches job. Private
 # free-plan repos can't use GitHub's native auto-merge (it needs required checks).
 #
@@ -42,10 +43,10 @@ permissions:
   contents: read
 
 jobs:
-  # Label only: a confidence-high|medium|low label computed from the evidence on the PR (checks,
-  # review coverage and rounds, size, tests, ticked risks). Runs after every finished workflow, so
-  # the last run sees the final state, failures included; it never decides or blocks anything
-  # (pr-automation ignores this check). Details: scripts/pr-confidence.mjs.
+  # A confidence-high|medium|low label computed from the evidence on the PR (checks, review
+  # coverage and rounds, size, tests, ticked risks). Runs after every finished workflow, so the
+  # last run sees the final state, failures included. The evaluate job runs after it and merges
+  # only at confidence-high (the check itself is ignored there). Details: scripts/pr-confidence.mjs.
   confidence:
     name: confidence
     if: >-
@@ -79,14 +80,19 @@ jobs:
         run: node .agent-config/scripts/pr-confidence.mjs label-sha "$REPO" "$SHA"
 
   evaluate:
+    needs: confidence # the label for this head is set before the merge decision reads it
     # The job name must contain "auto-merge": the script skips its own
     # in-progress check run. Skipped jobs bill nothing, so filter here.
     name: auto-merge evaluate
+    # always(): confidence is skipped on a label event. A cancelled confidence run (superseded by
+    # a newer queued one, which then evaluates itself) must not merge on a stale label.
     if: >-
-      (github.event_name == 'workflow_run' &&
-       github.event.workflow_run.event == 'pull_request' &&
-       github.event.workflow_run.conclusion == 'success') ||
-      (github.event_name == 'pull_request' && github.event.label.name == 'automerge')
+      always() &&
+      contains(fromJSON('["success", "failure", "skipped"]'), needs.confidence.result) &&
+      ((github.event_name == 'workflow_run' &&
+        github.event.workflow_run.event == 'pull_request' &&
+        github.event.workflow_run.conclusion == 'success') ||
+       (github.event_name == 'pull_request' && github.event.label.name == 'automerge'))
     runs-on: ubuntu-slim # light API calls; 1 vCPU bills a third of ubuntu-latest
     timeout-minutes: 5
     concurrency:

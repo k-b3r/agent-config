@@ -5,8 +5,8 @@
 //   pr-automation review-covered <owner/repo> <sha>
 //   pr-automation review-reusable <owner/repo> <sha> <pr-number>
 //   pr-automation workflow-gate <flag|unflag> <owner/repo> <pr-number> <workflow-path>
-// Merges the open PR whose head is <sha> once it is opted in, green and current
-// with its base; otherwise reports which condition holds it. Writes a markdown
+// Merges the open PR whose head is <sha> once it is opted in, green, current
+// with its base and labelled confidence-high (see mergeDecision); otherwise reports which condition holds it. Writes a markdown
 // table to stdout (the run log, readable with `gh run view --log`) and to
 // $GITHUB_STEP_SUMMARY when set (web UI only). Needs `gh` authenticated
 // with a token whose merge triggers push workflows (a GitHub App token, not
@@ -30,7 +30,8 @@ const OPT_IN_LABEL = 'automerge'
 const OK_CONCLUSIONS = new Set(['success', 'skipped', 'neutral'])
 const GATE_CHECK = /(^|\/ )gate$/
 // The evaluating job's own check run is still in progress while it decides; so can be the
-// confidence label job (pr-confidence), whose result is not about the change.
+// confidence label job (pr-confidence), whose result is not about the change. Its verdict
+// gates the merge through the confidence-* label instead (see confidenceTier).
 const SELF_CHECK = /auto-merge|(^|\/ )confidence$/
 
 // Checks re-run on the same commit (label events skip the gate, a human
@@ -52,12 +53,20 @@ function currentRuns(checks) {
   return [...byName.values()]
 }
 
+// The tier label on the PR, most cautious first: a stale `high` left beside a fresh
+// `pending` (a push landed, re-scoring) must never count as high.
+const TIER_ORDER = ['pending', 'low', 'medium', 'high']
+export function confidenceTier(labelNames) {
+  return TIER_ORDER.find((tier) => labelNames.includes(`confidence-${tier}`)) ?? 'none'
+}
+
 export function mergeDecision({ pr, checks, behindBy, sha }) {
   const labels = new Set(pr.labels.map((label) => label.name))
   const others = currentRuns(checks.filter((check) => !SELF_CHECK.test(check.name)))
   const notGreen = others
     .filter((check) => check.status !== 'completed' || !OK_CONCLUSIONS.has(check.conclusion))
     .map((check) => `${check.name}: ${check.status === 'completed' ? check.conclusion : check.status}`)
+  const tier = confidenceTier([...labels])
   const gate = others.find((check) => GATE_CHECK.test(check.name))
   const conditions = [
     { name: 'open and ready', ok: pr.state === 'OPEN' && !pr.isDraft },
@@ -65,6 +74,11 @@ export function mergeDecision({ pr, checks, behindBy, sha }) {
     { name: `labelled ${OPT_IN_LABEL}`, ok: labels.has(OPT_IN_LABEL) },
     { name: 'no agent-changes-requested', ok: !labels.has('agent-changes-requested') },
     { name: 'no needs-human, or human-approved', ok: !labels.has('needs-human') || labels.has('human-approved') },
+    {
+      name: 'confidence-high (or human-approved)',
+      ok: tier === 'high' || labels.has('human-approved'),
+      detail: tier === 'none' ? 'no confidence label' : `confidence-${tier}`,
+    },
     { name: 'all checks finished green', ok: notGreen.length === 0, detail: notGreen.join(', ') },
     { name: 'gate passed', ok: gate?.conclusion === 'success' },
     { name: `up to date with ${pr.baseRefName}`, ok: behindBy === 0, detail: `${behindBy} behind` },
@@ -72,7 +86,42 @@ export function mergeDecision({ pr, checks, behindBy, sha }) {
   return { merge: conditions.every((condition) => condition.ok), conditions }
 }
 
+// The one comment on a held automerge PR. Names the label or needs-human that blocks; null when
+// neither does (some other condition holds it and says so in the run summary).
+export const GATE_MARKER = '<!-- gate:automerge-confidence -->'
+export function gateComment({ conditions }) {
+  const unmet = (name) => conditions.find((c) => c.name.startsWith(name) && !c.ok)
+  const reasons = []
+  const human = unmet('no needs-human')
+  if (human) reasons.push('the PR carries `needs-human`: a human decides, then `/approve`')
+  const tier = unmet('confidence-high')
+  if (tier) {
+    reasons.push(
+      tier.detail === 'no confidence label'
+        ? 'it has no confidence label yet (scoring runs after the PR workflows finish)'
+        : `its confidence is \`${tier.detail}\`, auto-merge needs \`confidence-high\``,
+    )
+  }
+  if (!reasons.length) return null
+  return `${GATE_MARKER}\nNot auto-merging: ${reasons.join('; and ')}. This comment updates in place; a PR that reaches \`confidence-high\` is evaluated again by itself. See the confidence comment for the factors.`
+}
+
 const json = (text) => JSON.parse(text)
+
+// Idempotent: a rerun finds the marker comment and writes only when the text changed.
+function upsertGateComment({ repo, number, body, gh, onlyIfExists = false }) {
+  const found = gh([
+    'api', '--paginate', `repos/${repo}/issues/${number}/comments`,
+    '--jq', `.[] | select(.body | contains("${GATE_MARKER}")) | {id, body} | tojson`,
+  ]).split('\n').filter(Boolean).map((line) => JSON.parse(line))
+  const existing = found.at(-1)
+  if (!existing) {
+    if (!onlyIfExists) gh(['pr', 'comment', String(number), '--repo', repo, '--body', body])
+    return
+  }
+  if (existing.body === body) return
+  gh(['api', '-X', 'PATCH', `repos/${repo}/issues/comments/${existing.id}`, '-f', `body=${body}`])
+}
 
 export function mergeIfReady({ repo, sha, gh, report }) {
   const open = json(gh(['api', `repos/${repo}/commits/${sha}/pulls`])).filter((pr) => pr.state === 'open')
@@ -91,10 +140,15 @@ export function mergeIfReady({ repo, sha, gh, report }) {
   report(`### auto-merge: PR #${number} (${pr.headRefName})\n`)
   report('| condition | met | detail |\n|---|---|---|')
   for (const { name, ok, detail } of decision.conditions) report(`| ${name} | ${ok ? 'yes' : 'no'} | ${detail ?? ''} |`)
+  const labelled = pr.labels.some((label) => label.name === OPT_IN_LABEL)
+  const upsert = (body, options) => upsertGateComment({ repo, number, body, gh, ...options })
   if (!decision.merge) {
     report('\nHeld: waiting on the conditions marked no.')
+    const body = labelled ? gateComment(decision) : null
+    if (body) upsert(body)
     return decision
   }
+  upsert(`${GATE_MARKER}\nConfidence is \`confidence-high\` and nothing holds this PR: merging.`, { onlyIfExists: true })
   gh(['pr', 'merge', number, '--repo', repo, '--merge', '--subject', `merge ${pr.headRefName}`, '--body', '', '--match-head-commit', sha])
   report(`\nmerged as \`merge ${pr.headRefName}\``)
   return decision
