@@ -163,7 +163,7 @@ Read the matching file before writing code in that language:
 
 - `review` Be a polite, low-volume client. Pace requests against rate-sensitive targets: no rapid ad-hoc probing, batch checks into one run.
 - `review` Respect each service's ToS and robots.txt. Don't collect from sources that forbid it.
-- `review` $0 budget default: prefer free tiers, self-hosting, and round-robin keys over paid services.
+- `review` $0 budget default: prefer free tiers, self-hosting, and round-robin keys over paid services. The one accepted exception is the agent review (a paid subscription with its own limit; `/approve` is the owner's override when it cannot run).
 
 ## Data
 
