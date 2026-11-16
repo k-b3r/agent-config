@@ -85,10 +85,11 @@ jobs:
     # in-progress check run. Skipped jobs bill nothing, so filter here.
     name: auto-merge evaluate
     # always(): confidence is skipped on a label event. A cancelled confidence run (superseded by
-    # a newer queued one, which then evaluates itself) must not merge on a stale label.
+    # a newer queued one, which then evaluates itself) must not merge on a stale label, and nor
+    # must a failed one: fail closed, the next finished workflow scores and evaluates again.
     if: >-
       always() &&
-      contains(fromJSON('["success", "failure", "skipped"]'), needs.confidence.result) &&
+      contains(fromJSON('["success", "skipped"]'), needs.confidence.result) &&
       ((github.event_name == 'workflow_run' &&
         github.event.workflow_run.event == 'pull_request' &&
         github.event.workflow_run.conclusion == 'success') ||
