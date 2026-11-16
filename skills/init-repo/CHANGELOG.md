@@ -13,6 +13,37 @@ The PR that changes a template adds its entry here.
 
 - `lefthook.yml`: add the `pre-commit` job running `gitleaks git --pre-commit --staged --redact --no-banner` (the template guards a missing binary); `repo-checks audit` fails without it. Install gitleaks on the machine (`brew install gitleaks`).
 
+## 2026-10-28 (4f8c564) flat-shape examples, generatedPaths, swap files
+
+- `.gitignore`: add `*.swp` and `*.swo` (an editor swap file of an ignored secret file holds its contents; `.env.swp` was ignored only by `.env.*`, which a repo with its own ignore file often lacks). `node ~/.claude/skills/init-repo/scripts/merge-missing-lines.mjs <template .gitignore> .gitignore` appends just the missing lines.
+- `package.json`: add `"generatedPaths": []` to `agentConfig`; fill it with the globs of generated output (ORM migrations, API clients) so they do not count toward the 800-line diff limit. Same globs go in `pr-upkeep.yml` `regenerate-paths` and `pr-review.yml` `generated-paths`.
+- `eslint.config.js`, `.dependency-cruiser.cjs`: comment-only; a flat-shape example (`pureCorePaths` as a file list; `inner` / `entryPoints` folders). A flat repo also sets `stryker.config.json` `mutate` to the same files.
+
+## 2026-10-28 (72e2553, f6cb7da) optional Redis service for the integration job
+
+- `.github/workflows/integration.yml`: optional. For tests that need Redis add `redis-image: 'redis:7'` under `with:` (template has it commented). The job then starts Redis and exports `TEST_REDIS_URL=redis://localhost:6379`; the default (no input) is unchanged and leaves `TEST_REDIS_URL` unset. `pnpm update @k-b3r/agent-config` is not needed: the input lives in the reusable workflow, which callers use at `@main`.
+
+## 2026-10-28 (f8e46dd) integration tests refuse a database not named test
+
+- `CODING_STANDARDS.md` > Testing: the `TEST_DATABASE_URL` line also says a test that resets the database takes the URL from `testDatabaseUrl()`.
+- In integration tests that drop schemas, truncate or migrate: `import { testDatabaseUrl } from '@k-b3r/agent-config/test-db'` and build the pool from `testDatabaseUrl()` (reads `TEST_DATABASE_URL`, throws unless the database name contains `test`). A repo's own equivalent guard keeps working; `assertTestDatabase(url)` checks a URL from another variable. Run `pnpm update @k-b3r/agent-config` first.
+
+## 2026-10-28 (fa63541) tests that run git ignore the git variables of a hook
+
+- Add `tests/setup/clear-git-env.ts` from the template: it deletes `GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE`, `GIT_COMMON_DIR`, `GIT_OBJECT_DIRECTORY`, `GIT_ALTERNATE_OBJECT_DIRECTORIES`, `GIT_PREFIX` and `GIT_NAMESPACE` from `process.env`.
+- `vitest.config.ts` and `vitest.integration.config.ts`: add `setupFiles: ['./tests/setup/clear-git-env.ts']` to `test`.
+- Why: from a linked worktree git runs the pre-push hook with `GIT_DIR` set, so a test running `git -C <temp repo> ...` changed the real repository. `repo-checks git-test-env` (part of `all`, so CI) fails a repo whose tests call git without this setup file, after `pnpm update @k-b3r/agent-config`.
+
+## 2026-10-28 (35628d4) a fresh repo passes `pnpm check` and the integration job
+
+- `vitest.config.ts` and `vitest.integration.config.ts`: add `passWithNoTests: true` to `test`. Without it the first `pnpm test` exits 1 ("No test files found"), and so does the integration job of a PR in a repo with no integration test yet.
+- `package.json`: remove the `tsx` devDependency if nothing uses it; `knip` fails on it ("Unused devDependencies").
+- `stryker.config.json`: reformat with `pnpm exec prettier --write stryker.config.json`; the old copy failed `prettier --check .` on day one.
+- `knip.json`: `entry` becomes `["src/workers/*/index.ts", "tests/**/*.int.test.ts"]` (the vitest plugin already adds `src/**/*.test.ts`). `project` is unchanged. In a repo with no files yet knip still prints "no matches" hints; they are expected and go away once files exist.
+
+## 2026-10-28 (c30a6da) which reviewer a PR gets
+
+- `package.json` `agentConfig`: set `claudeReviewPaths` to the files the dear reviewer gets (decisions and writes), e.g. `["src/modules/*/domain/**", "src/modules/*/store.ts"]`, and `migrationPaths` if migrations live somewhere other than `**/migrations/**` or `**/*.sql`. Optional: those are the defaults. `pnpm exec repo-checks review-tier origin/main` prints `claude` or `deepseek` for the current branch and says why; a glob list that matches no tracked file warns. Run `pnpm update @k-b3r/agent-config` for the command. Nothing calls it yet: `pr-review.yml` wires it in the follow-up.
 ## 2026-10-21 (f66572d) local-only files stay out of the format check
 
 - `.prettierignore`: add `SESSION_RESUME.md`, `TODOS.md` and `TRACKER_OUTBOX.md`; they live in `.git/info/exclude`, which prettier does not read, so `prettier --check .` failed the pre-push hook in a repo that had one.

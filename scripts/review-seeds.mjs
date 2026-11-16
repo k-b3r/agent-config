@@ -323,11 +323,25 @@ function parseArgs(argv) {
   return opts
 }
 
+// The review prompt reads the standards from `.agent-config/`, a checkout inside the PR's workspace in CI. The
+// seed repo lives elsewhere, and `claude -p` refuses reads outside its working directory, so a run there could
+// not see any house rule: stage the same tree inside the seed repo and keep it out of every diff.
+const STANDARDS_ENTRIES = ['CODING_STANDARDS.md', 'standards', 'languages']
+
+export function stageStandards(repo, source = ROOT) {
+  for (const entry of STANDARDS_ENTRIES) cpSync(join(source, entry), join(repo, '.agent-config', entry), { recursive: true })
+  writeFileSync(join(repo, '.git/info/exclude'), '.agent-config/\n')
+  return '.agent-config'
+}
+
+// A relative path keeps the prompt's reads inside the reviewed workspace; legacy mode has no staged copy.
+export const standardsDirFor = (selfContained) => (selfContained ? '.agent-config' : ROOT)
+
 // Legacy: the seeds are branches already fetched in a target repo. Default: build them from base + overlays.
 function prepare(opts) {
   if (opts.repo) {
     const seeds = JSON.parse(readFileSync(opts.seeds, 'utf8')).filter((s) => !opts.only || opts.only.includes(s.name))
-    return { seeds, repo: opts.repo, cleanup: () => {} }
+    return { seeds, repo: opts.repo, staged: false, cleanup: () => {} }
   }
   const all = loadSeeds(opts.seedsDir)
   const problems = all.flatMap((seed) => validateSeed(seed).map((problem) => `${seed.dirName}: ${problem}`))
@@ -336,14 +350,16 @@ function prepare(opts) {
   if (problems.length) throw new Error(`invalid seeds:\n  ${problems.join('\n  ')}`)
   const seeds = all.filter((s) => !opts.only || opts.only.includes(s.name))
   const repo = buildSeedRepo({ baseDir: opts.baseDir, seeds })
+  stageStandards(repo)
   if (opts.keep) console.log(`seed repo kept at ${repo}`)
-  return { seeds, repo, cleanup: () => !opts.keep && rmSync(repo, { recursive: true, force: true }) }
+  return { seeds, repo, staged: true, cleanup: () => !opts.keep && rmSync(repo, { recursive: true, force: true }) }
 }
 
 async function main() {
   const opts = parseArgs(process.argv.slice(2))
-  const { seeds, repo, cleanup } = prepare(opts)
+  const { seeds, repo, staged, cleanup } = prepare(opts)
   opts.repo = repo
+  opts.staged = staged
   try {
     await runSeeds(opts, seeds)
   } finally {
@@ -362,7 +378,7 @@ async function runSeeds(opts, seeds) {
   }
   if (opts.out) mkdirSync(opts.out, { recursive: true })
   const workflow = readFileSync(opts.workflow, 'utf8')
-  const prompt = extractPrompt(workflow)
+  const prompt = extractPrompt(workflow, { agentConfigDir: standardsDirFor(opts.staged) })
   opts.model ??= extractModel(workflow)
   const tasks = seeds.flatMap((seed) =>
     Array.from({ length: opts.repeat }, (_, run) => async () => {

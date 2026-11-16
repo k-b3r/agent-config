@@ -4,7 +4,7 @@ Source of truth for Claude Code and pi. `install.sh` links this file to `~/.clau
 
 ## Style
 - Extremely concise in all responses and commit messages. Sacrifice grammar for concision.
-- Only explain reasoning when it adds real value — skip narration for obvious/mechanical steps.
+- Only explain reasoning when it adds real value: skip narration for obvious/mechanical steps.
 - At the end of each plan, list unresolved questions as terse bullet points.
 - Never use em dashes (—). Use commas, colons, periods, or parentheses instead.
 
@@ -27,6 +27,7 @@ Source of truth for Claude Code and pi. `install.sh` links this file to `~/.clau
 - After an idle-sub-agent check, once I have the data I need from it (its final report, PR URL, results), close its pane (`herdr pane close <pane-id>`). Keep an interactive pane open only while the user is still talking to it.
 
 ## Coding standards
+Pi does not expand `@` imports; its `standards-loader` extension adds the standards and `TOOLS.md` at session start inside a git repo. Claude Code expands the imports.
 @CODING_STANDARDS.md
 
 ## LabX Linear

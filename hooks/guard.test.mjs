@@ -68,6 +68,10 @@ test('checkSecretPath blocks env files, keys and cloud credentials but not templ
     '/repo/deploy.key',
     '/home/kim/.kube/config',
     '/home/kim/.netrc',
+    '/home/kim/.pi/agent/auth.json',
+    '/home/kim/.pi/agent/mcp-auth.json',
+    '/home/kim/.config/rclone/rclone.conf',
+    '/home/kim/.config/gh/hosts.yml',
   ]) {
     assert.match(checkSecretPath(path), /secret/i, path)
   }

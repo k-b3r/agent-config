@@ -42,6 +42,16 @@ Cross-PR: BUY-42 owns src/platform/settings.ts; read SETTING_DEFAULTS from it, d
 
 Repo rules come from `CODING_STANDARDS.md` and the skill; don't paste them. Mark the row `running`.
 
+End every worker prompt with: `When finished, call your exit tool (subagent_done under pi-herdr-subagents) so your pane closes, with the full report in your last message.` A worker that never exits leaves an idle pane, and the "looks finished" notice can arrive before the real report; a mid-work progress message is not a report.
+
+### Several workers on one checkout (no worktrees)
+
+When the pieces are small and share one checkout, conflicts are avoided by ownership, not by luck (6 workers ran this way without a clash):
+- Each prompt lists the files the worker **owns** and the files it may only read. Scopes do not overlap.
+- Workers never run git (no add, commit, stash, checkout, branch) and never change dependencies (`pnpm add`, `package.json`, lockfile).
+- One named owner for `package.json` and the lockfile: the orchestrator. It adds every shared dependency **before** launching, so no worker needs one.
+- The orchestrator commits one piece at a time: `git status` shows only that worker's files, run that piece's targeted tests, commit those paths explicitly, then take the next report.
+
 ## 3. On each report: verify, don't trust
 
 An agent's "done" is a claim. Check before marking `report verified`:
@@ -49,6 +59,8 @@ An agent's "done" is a claim. Check before marking `report verified`:
 - `gh pr diff <pr> --name-only` stays inside the file scope; anything outside is a finding or a scope miss.
 - `gh pr checks <pr>`: green, or the report says what's red and why.
 - The decisions it lists match the ticket. A decision the ticket didn't cover goes to the user.
+
+Read the state paths yourself. For anything with a queue, retry, restart, cancel or cleanup path, open the code and answer: *what happens if this runs a second time, or while the first run is still active?* Check each of: the retry's id differs from the failed attempt's (a queue that ignores an add with an existing id drops it, even from inside the handler of the job it retries); a failure handler reads the job's state before it moves it (it must not take the retry edge out of `cancelled`); a failed attempt removes what it left (branch, temp file, lock); an append-only log that a crash cut mid-line starts the next entry on a new line; a test that resets a database refuses one not named `test`. A worker's "all green" covers none of these, since each test runs the path once. Re-run the tests for those paths yourself; the pre-push hook still runs the canonical check.
 
 Mismatch: send it back to the agent (SendMessage) or mark `failed` and tell the user.
 

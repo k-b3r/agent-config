@@ -9,6 +9,12 @@
 //   test-placement           unit tests sit next to their module; integration/e2e under tests/
 //   entry-scripts            every entry file has a package.json script
 //   test-db-env              integration/e2e code never reads the app's database env var
+//   git-test-env             a repo whose tests call git has a vitest setupFiles entry (in every vitest config)
+//                            that deletes the GIT_* variables git exports to hooks
+
+//   review-tier <base>       prints `claude` when the PR touches an irreversible write, a migration,
+//                            a deleted file or the business-logic paths (`agentConfig.claudeReviewPaths`),
+//                            `deepseek` otherwise (which reviewer to run; not in `all`)
 //   workflow-permissions     no workflow grants `permissions: write-all` (least-privilege tokens)
 //   diff-size <base>         the PR changes at most maxDiffLines lines outside lockfiles, generatedPaths and
 //                            moved blocks (override: env ALLOW_LARGE_DIFF=true, CI sets it from label
@@ -25,7 +31,7 @@
 // commitlint was skipped: its parser expects a `type:` prefix these repos don't use.
 import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync, realpathSync } from 'node:fs'
-import { basename } from 'node:path'
+import { basename, dirname, join, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const MAX_SUBJECT = 72
@@ -38,6 +44,19 @@ const DIFF_LARGEST_SHOWN = 3
 // sibling test is expected (CODING_STANDARDS.md, Testing). A repo cannot switch the
 // exemption off; `untestedExempt` only adds globs to it.
 const TYPES_ONLY_EXEMPT = ['**/types.ts']
+// The reviewers' split (README, "Review tier"): a cheap model reviews most PRs, Claude reviews what a
+// mistake would make hard to undo. These are the paths it gets; a repo overrides them in `agentConfig`.
+const CLAUDE_TIER = 'claude'
+const DEEPSEEK_TIER = 'deepseek'
+const DEFAULT_CLAUDE_REVIEW_PATHS = ['src/modules/*/domain/**', 'src/modules/*/store.ts']
+const DEFAULT_MIGRATION_PATHS = ['**/migrations/**', '**/migration/**', 'drizzle/**', 'prisma/**', '**/*.sql']
+// SQL that destroys or rewrites stored data, in the forms a line of code uses. Qualified on purpose:
+// a bare /update/ would match "update the docs" and send every PR to the dear reviewer. A test or doc
+// that quotes these words is not an irreversible write, so those paths are skipped in `reviewTier`.
+const DESTRUCTIVE_SQL =
+  /\bdelete\s+from\b|\bupdate\s+[\w.]+\s+set\b|\balter\s+table\b|\bdrop\s+(?:table|schema|index|view|column|database|type|constraint)\b|\btruncate\s+(?:table\s+)?[\w.]+/i
+const RISK_BOX = /\b(?:money|payment|pricing|billing|auth|permission|credentials?|secrets?|user data|personal data|migration|deletes? data|infra|deployment)\b/i
+
 const DEFAULTS = {
   sourceDirs: ['src', 'server'],
   untestedExempt: TYPES_ONLY_EXEMPT,
@@ -47,6 +66,8 @@ const DEFAULTS = {
   maxDiffLines: MAX_DIFF_LINES,
   generatedPaths: [],
   mutationPaths: [],
+  claudeReviewPaths: DEFAULT_CLAUDE_REVIEW_PATHS,
+  migrationPaths: DEFAULT_MIGRATION_PATHS,
   skipPatterns: ['\\.skip\\(', '\\.only\\(', '\\bxit\\(', '\\bxdescribe\\('],
 }
 
@@ -181,6 +202,83 @@ export function testDbEnvLeaks(files, appDbEnv) {
     .filter(({ path }) => path.startsWith('tests/integration/') || path.startsWith('tests/e2e/'))
     .filter(({ text }) => reads.test(withoutComments(text)))
     .map(({ path }) => path)
+}
+
+// Git exports these to its hooks, so a test running `git -C <temp repo>` from the pre-push
+// hook acts on the repository being pushed. The setup file of the template deletes them.
+const GIT_HOOK_ENV = ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_COMMON_DIR', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_PREFIX', 'GIT_NAMESPACE']
+const CALLS_GIT = /\b(?:execFile|execFileSync|exec|execSync|spawn|spawnSync)\s*\(\s*['"`]git\b/
+const isVitestConfig = (path) => /(^|\/)vitest(\.[\w-]+)?\.(config|workspace)\.[cm]?[jt]s$/.test(path)
+
+// The files a vitest config names in `setupFiles` (a list of strings or one string).
+export function setupFilesOf(configText) {
+  const value = withoutComments(configText).match(/setupFiles\s*:\s*(\[[^\]]*\]|['"`][^'"`]+['"`])/)?.[1] ?? ''
+  return [...value.matchAll(/['"`]([^'"`]+)['"`]/g)].map((match) => match[1])
+}
+
+const clearsGitEnv = (text) => {
+  const code = withoutComments(text)
+  return /\bdelete\b/.test(code) && GIT_HOOK_ENV.every((name) => new RegExp(`\\b${name}\\b`).test(code))
+}
+
+// tests: { path, text } of test files and files under tests/. configs: { path, text, setups: [{ path, text }] }
+// per vitest config, setups being the files its `setupFiles` names. Returns the problems found.
+export function gitEnvProblems(tests, configs) {
+  const callers = tests.filter(({ text }) => CALLS_GIT.test(withoutComments(text))).map(({ path }) => path)
+  if (!callers.length) return []
+  const fix = `wire a setupFiles entry in every vitest config that deletes ${GIT_HOOK_ENV.join(', ')} (template: tests/setup/clear-git-env.ts)`
+  if (!configs.length) return [`${callers.join(', ')}: tests call git but there is no vitest config; ${fix}`]
+  return configs
+    .filter(({ setups }) => !setups.some(({ text }) => clearsGitEnv(text)))
+    .map(({ path }) => `${path}: ${callers.length} test file(s) call git (${callers.slice(0, 3).join(', ')}) but no setupFiles entry clears the GIT_* variables; ${fix}`)
+}
+
+// The added lines of a `git diff -U0 --no-prefix` patch, as { path, text }.
+export function addedLines(patch) {
+  const lines = []
+  let path = null
+  for (const row of patch.split('\n')) {
+    if (row.startsWith('+++ ')) path = row.slice(4).replace(/\t$/, '')
+    else if (row.startsWith('--- ')) continue
+    else if (row.startsWith('+') && path && path !== '/dev/null') lines.push({ path, text: row.slice(1) })
+  }
+  return lines
+}
+
+// The risk boxes a PR body ticked (`- [x] Touches money`), which can only escalate a PR to the dear reviewer.
+export function tickedRiskBoxes(body) {
+  return body
+    .split('\n')
+    .map((line) => line.match(/^\s*[-*]\s+\[x\]\s+(.*)$/i)?.[1]?.trim())
+    .filter((text) => text && RISK_BOX.test(text))
+}
+
+// Which reviewer a PR needs. Deterministic on purpose: a cheap model never decides whether a PR is risky
+// enough for the dear one, and a PR body can escalate but never downgrade (it is the author's text).
+// files: parseNameStatus output; addedLines: addedLines(patch); labels: PR labels; body: PR body.
+export function reviewTier({ files, addedLines: added = [], labels = [], body = '', config = {} }) {
+  const claudePaths = config.claudeReviewPaths ?? DEFAULT_CLAUDE_REVIEW_PATHS
+  const migrationPaths = config.migrationPaths ?? DEFAULT_MIGRATION_PATHS
+  const reasons = new Set()
+  for (const { status, paths } of files) {
+    const [oldPath, newPath] = paths
+    if (status === 'D') {
+      reasons.add(`deletes ${oldPath}`)
+      continue
+    }
+    for (const path of paths) {
+      if (matchesAny(path, migrationPaths)) reasons.add(`migration ${path}`)
+      if (matchesAny(path, claudePaths)) reasons.add(`business logic ${path}`)
+    }
+    if (status === 'R' && matchesAny(newPath, claudePaths)) reasons.add(`business logic ${newPath}`)
+  }
+  for (const { path, text } of added) {
+    if (isTest(path) || /\.(?:md|json|snap)$/.test(path)) continue
+    if (DESTRUCTIVE_SQL.test(text)) reasons.add(`irreversible write in ${path}`)
+  }
+  for (const box of tickedRiskBoxes(body)) reasons.add(`PR body box: ${box}`)
+  if (labels.includes('review-opus')) reasons.add('label review-opus')
+  return { tier: reasons.size ? CLAUDE_TIER : DEEPSEEK_TIER, reasons: [...reasons] }
 }
 
 // files: { path, text } of tracked workflow files. `write-all` hands every token
@@ -452,6 +550,37 @@ const COMMANDS = {
     const leaks = testDbEnvLeaks(files, config.appDbEnv)
     return report('test-db-env', leaks.map((p) => `${p}: use the test-only database env var`), 'ok')
   },
+  'git-test-env'() {
+    const paths = trackedAt('HEAD')
+    const exists = new Set(paths)
+    const read = (path) => ({ path, text: showAt('HEAD', path) })
+    const tests = paths.filter((path) => isSource(path) && (isTest(path) || path.startsWith('tests/'))).map(read)
+    const configs = paths.filter(isVitestConfig).map((path) => {
+      const { text } = read(path)
+      const dir = dirname(path)
+      const setups = setupFilesOf(text).map((file) => normalize(join(dir, file))).filter((file) => exists.has(file)).map(read)
+      return { path, text, setups }
+    })
+    return report('git-test-env', gitEnvProblems(tests, configs), 'ok')
+  },
+
+  // Prints the tier on stdout (for `$GITHUB_OUTPUT`) and why on stderr. Labels and body come from the
+  // workflow: REVIEW_PR_LABELS (comma-separated) and REVIEW_PR_BODY (the PR body, which can only escalate).
+  'review-tier'(base, config) {
+    const files = parseNameStatus(git('diff', '--name-status', '-z', '-M', `${base}...HEAD`))
+    const patch = git('-c', 'core.quotepath=off', 'diff', '-U0', '--no-prefix', `${base}...HEAD`)
+    const labels = (process.env.REVIEW_PR_LABELS ?? '').split(',').map((label) => label.trim()).filter(Boolean)
+    const { tier, reasons } = reviewTier({ files, addedLines: addedLines(patch), labels, body: process.env.REVIEW_PR_BODY ?? '', config })
+    console.log(tier)
+    for (const reason of reasons) console.error(`  ${reason}`)
+    // A glob list that matches nothing (a flat repo left on the module default) would quietly send every
+    // PR, business logic included, to the cheap reviewer.
+    const claudePaths = config.claudeReviewPaths ?? DEFAULTS.claudeReviewPaths
+    if (!trackedAt('HEAD').some((path) => matchesAny(path, claudePaths))) {
+      console.error(`warning: agentConfig.claudeReviewPaths (${claudePaths.join(', ')}) matches no tracked file, so no PR reaches the ${CLAUDE_TIER} reviewer on business-logic paths`)
+    }
+    return 0
+  },
   'workflow-permissions'() {
     const files = trackedAt('HEAD')
       .filter((path) => /^\.github\/workflows\/.+\.ya?ml$/.test(path))
@@ -499,8 +628,8 @@ const COMMANDS = {
   },
 }
 
-const NEEDS_BASE = new Set(['commits', 'escape-hatches', 'untested-modules', 'diff-size', 'contracts-unmodified', 'skip-only', 'mutation-targets', 'all'])
-const NOT_IN_ALL = new Set(['commit-msg', 'mutation-targets'])
+const NEEDS_BASE = new Set(['commits', 'escape-hatches', 'untested-modules', 'diff-size', 'contracts-unmodified', 'skip-only', 'mutation-targets', 'review-tier', 'all'])
+const NOT_IN_ALL = new Set(['commit-msg', 'mutation-targets', 'review-tier'])
 
 function main([command, base]) {
   if (!(command in COMMANDS) && command !== 'all') {

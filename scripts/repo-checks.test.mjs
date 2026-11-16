@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict'
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import {
+  addedLines,
   auditWiring,
   changedContractTests,
   checkCommitMessage,
@@ -13,15 +14,19 @@ import {
   diffSize,
   entriesWithoutScript,
   escapeHatchGrowth,
+  gitEnvProblems,
+  setupFilesOf,
   globToRegExp,
   misplacedTests,
   mutationTargets,
   movedLinesByFile,
   newlyUntested,
   parseNumstat,
+  reviewTier,
   skippedTestLines,
   sourcePaths,
   testDbEnvLeaks,
+  tickedRiskBoxes,
   writeAllWorkflows,
   untestedModules,
 } from './repo-checks.mjs'
@@ -469,4 +474,187 @@ test('repo-checks skip-only reads agentConfig.skipPatterns and runs inside all',
   assert.equal(repoChecksIn(repo, 'skip-only', 'main').code, 0)
   writeFileSync(join(repo, 'package.json'), '{}')
   assert.match(repoChecksIn(repo, 'all', 'main').out, /skip-only:/)
+})
+
+const GIT_VARS = ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_COMMON_DIR', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_PREFIX', 'GIT_NAMESPACE']
+const CLEARING_SETUP = `${GIT_VARS.map((name) => `delete process.env.${name}`).join('\n')}\n`
+const GIT_TEST = "import { execFileSync } from 'node:child_process'\nexecFileSync('git', ['-C', dir, 'init'])\n"
+
+test('setupFilesOf reads setupFiles given as a list or a single string', () => {
+  assert.deepEqual(setupFilesOf("test: { setupFiles: ['./tests/setup/a.ts', \"b.ts\"] }"), ['./tests/setup/a.ts', 'b.ts'])
+  assert.deepEqual(setupFilesOf("test: { setupFiles: './a.ts' }"), ['./a.ts'])
+  assert.deepEqual(setupFilesOf('test: { globals: true }'), [])
+})
+
+test('gitEnvProblems flags a test that runs git when no vitest config wires a git-variable clearing setup file', () => {
+  const tests = [{ path: 'src/repo.test.ts', text: GIT_TEST }]
+  assert.match(gitEnvProblems(tests, [])[0], /src\/repo\.test\.ts/)
+  const unwired = [{ path: 'vitest.config.ts', text: 'export default {}', setups: [] }]
+  const problems = gitEnvProblems(tests, unwired)
+  assert.equal(problems.length, 1)
+  assert.match(problems[0], /vitest\.config\.ts/)
+})
+
+test('gitEnvProblems names the config that lacks the setup file when another one has it', () => {
+  const tests = [{ path: 'src/repo.test.ts', text: GIT_TEST }]
+  const configs = [
+    { path: 'vitest.config.ts', text: '', setups: [{ path: 'tests/setup/clear-git-env.ts', text: CLEARING_SETUP }] },
+    { path: 'vitest.integration.config.ts', text: '', setups: [] },
+  ]
+  const problems = gitEnvProblems(tests, configs)
+  assert.equal(problems.length, 1)
+  assert.match(problems[0], /vitest\.integration\.config\.ts/)
+})
+
+test('gitEnvProblems passes a repo whose every vitest config wires a setup file that clears all the variables', () => {
+  const tests = [
+    { path: 'src/repo.test.ts', text: GIT_TEST },
+    { path: 'tests/integration/helpers.ts', text: "spawnSync('git', ['status'])" },
+  ]
+  const setups = [{ path: 'tests/setup/clear-git-env.ts', text: CLEARING_SETUP }]
+  const configs = [{ path: 'vitest.config.ts', text: '', setups }, { path: 'vitest.integration.config.ts', text: '', setups }]
+  assert.deepEqual(gitEnvProblems(tests, configs), [])
+})
+
+test('gitEnvProblems rejects a setup file that clears only some variables, and ignores git named in comments', () => {
+  const tests = [{ path: 'src/repo.test.ts', text: GIT_TEST }]
+  const partial = [{ path: 'vitest.config.ts', text: '', setups: [{ path: 's.ts', text: 'delete process.env.GIT_DIR\n// GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_PREFIX GIT_NAMESPACE' }] }]
+  assert.match(gitEnvProblems(tests, partial)[0], /GIT_WORK_TREE/)
+  assert.deepEqual(gitEnvProblems([{ path: 'src/a.test.ts', text: "// execFileSync('git', [])\nit('x', () => {})" }], []), [])
+})
+
+test('gitEnvProblems does not look at tests that never call git', () => {
+  assert.deepEqual(gitEnvProblems([{ path: 'src/a.test.ts', text: "execFileSync('node', ['x'])" }], []), [])
+})
+
+// A repo whose tests call git, with the given vitest config and setup file contents.
+function repoWithGitTest({ setup } = {}) {
+  const repo = mkdtempSync(join(tmpdir(), 'git-test-env-'))
+  const git = (...args) => execFileSync('git', ['-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { stdio: 'ignore' })
+  mkdirSync(join(repo, 'src'))
+  mkdirSync(join(repo, 'tests/setup'), { recursive: true })
+  writeFileSync(join(repo, 'package.json'), '{}')
+  writeFileSync(join(repo, 'src/repo.test.ts'), GIT_TEST)
+  writeFileSync(join(repo, 'vitest.config.ts'), `export default { test: { ${setup ? "setupFiles: ['./tests/setup/clear-git-env.ts']" : ''} } }\n`)
+  if (setup) writeFileSync(join(repo, 'tests/setup/clear-git-env.ts'), setup)
+  git('init', '-q', '-b', 'main')
+  git('add', '-A')
+  git('commit', '-qm', 'base')
+  return repo
+}
+
+test('repo-checks git-test-env fails a repo whose tests call git without the setup file', () => {
+  const { code, out } = repoChecksIn(repoWithGitTest(), 'git-test-env')
+  assert.equal(code, 1, out)
+  assert.match(out, /src\/repo\.test\.ts/)
+})
+
+test('repo-checks git-test-env passes a repo with the setup file wired, and runs inside all', () => {
+  const repo = repoWithGitTest({ setup: CLEARING_SETUP })
+  assert.equal(repoChecksIn(repo, 'git-test-env').code, 0)
+  assert.match(repoChecksIn(repo, 'all', 'main').out, /git-test-env:/)
+})
+
+const file = (status, ...paths) => ({ status, paths })
+const TIER_DEFAULTS = { claudeReviewPaths: ['src/modules/*/domain/**', 'src/modules/*/store.ts'], migrationPaths: ['**/migrations/**', '**/*.sql'] }
+
+test('addedLines reads the added lines of a -U0 patch with their paths and skips deletions', () => {
+  const patch = [
+    '--- src/a.ts', '+++ src/a.ts', '@@ -1,1 +1,2 @@', '-old line', '+new line', '+another',
+    '--- src/gone.ts', '+++ /dev/null', '@@ -1,1 +0,0 @@', '-deleted',
+  ].join('\n')
+  assert.deepEqual(addedLines(patch), [{ path: 'src/a.ts', text: 'new line' }, { path: 'src/a.ts', text: 'another' }])
+})
+
+test('tickedRiskBoxes returns the risk boxes a PR body ticked and ignores unticked ones', () => {
+  const body = ['## Risks', '- [x] Touches money or payments', '- [ ] Touches auth or permissions', '- [x] Touches infra, CI or secrets', '- [x] Something else'].join('\n')
+  assert.deepEqual(tickedRiskBoxes(body), ['Touches money or payments', 'Touches infra, CI or secrets'])
+})
+
+test('reviewTier sends a docs and test change to the cheap reviewer', () => {
+  const files = [file('M', 'docs/guide.md'), file('A', 'src/modules/pricing/index.test.ts'), file('M', 'src/server/routes/pricing.ts')]
+  assert.deepEqual(reviewTier({ files, config: TIER_DEFAULTS }), { tier: 'deepseek', reasons: [] })
+})
+
+test('reviewTier sends a deleted file, a migration and the business-logic paths to Claude with reasons', () => {
+  const files = [file('D', 'src/legacy/old.ts'), file('A', 'db/migrations/0007_add_fee.sql'), file('M', 'src/modules/pricing/store.ts')]
+  const { tier, reasons } = reviewTier({ files, config: TIER_DEFAULTS })
+  assert.equal(tier, 'claude')
+  assert.deepEqual(reasons, ['deletes src/legacy/old.ts', 'migration db/migrations/0007_add_fee.sql', 'business logic src/modules/pricing/store.ts'])
+})
+
+test('reviewTier sends an added destructive SQL statement to Claude, but not one quoted in a test or a doc', () => {
+  const config = TIER_DEFAULTS
+  const sql = [
+    { path: 'src/modules/pricing/store.ts', text: "  await db.query('DELETE FROM prices WHERE day < $1', [cutoff])" },
+    { path: 'src/modules/pricing/store.ts', text: "  await db.query('UPDATE prices SET amount = $1 WHERE id = $2', [amount, id])" },
+    { path: 'src/modules/pricing/store.ts', text: "  await db.query('DROP TABLE prices')" },
+    { path: 'src/modules/pricing/store.ts', text: '  // update the docs when this changes' },
+  ]
+  const files = [file('M', 'src/modules/pricing/store.ts')]
+  const reasons = reviewTier({ files, addedLines: sql, config }).reasons
+  assert.deepEqual(reasons, ['business logic src/modules/pricing/store.ts', 'irreversible write in src/modules/pricing/store.ts'])
+  // Route the SQL outside the business-logic paths to see the SQL rule on its own.
+  const elsewhere = [file('M', 'src/workers/sync/run.ts')]
+  const workerSql = sql.map(({ text }) => ({ path: 'src/workers/sync/run.ts', text }))
+  const onlySql = reviewTier({ files: elsewhere, addedLines: workerSql, config }).reasons
+  assert.deepEqual(onlySql, ['irreversible write in src/workers/sync/run.ts'])
+  const quoted = [{ path: 'src/workers/sync/run.test.ts', text: "  expect(sql).toBe('DELETE FROM prices')" }]
+  assert.equal(reviewTier({ files: [file('M', 'src/workers/sync/run.test.ts')], addedLines: quoted, config }).tier, 'deepseek')
+})
+
+test('reviewTier lets the PR body and the review-opus label escalate, never downgrade', () => {
+  const files = [file('M', 'src/server/routes/pricing.ts')]
+  const ticked = reviewTier({ files, body: '- [x] Touches money or payments', config: TIER_DEFAULTS })
+  assert.equal(ticked.tier, 'claude')
+  assert.deepEqual(ticked.reasons, ['PR body box: Touches money or payments'])
+  assert.equal(reviewTier({ files, body: '- [ ] Touches money or payments', config: TIER_DEFAULTS }).tier, 'deepseek')
+  assert.deepEqual(reviewTier({ files, labels: ['review-opus'], config: TIER_DEFAULTS }).reasons, ['label review-opus'])
+  // No flag, no label, no path: a plain change stays cheap even when the body mentions risk.
+  assert.equal(reviewTier({ files, body: 'this PR touches money', config: TIER_DEFAULTS }).tier, 'deepseek')
+})
+
+test('reviewTier reads the repo\'s own claudeReviewPaths and migrationPaths', () => {
+  const files = [file('M', 'lib/billing.ts')]
+  assert.equal(reviewTier({ files, config: { claudeReviewPaths: ['lib/billing.ts'] } }).tier, 'claude')
+  assert.equal(reviewTier({ files, config: { claudeReviewPaths: ['src/**'] } }).tier, 'deepseek')
+})
+
+test('repo-checks review-tier prints deepseek for a plain PR and claude for a business-logic one, with reasons on stderr', () => {
+  const repo = mkdtempSync(join(tmpdir(), 'review-tier-'))
+  const git = (...args) => execFileSync('git', ['-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { stdio: 'ignore' })
+  mkdirSync(join(repo, 'src/modules/pricing'), { recursive: true })
+  mkdirSync(join(repo, 'docs'), { recursive: true })
+  writeFileSync(join(repo, 'package.json'), JSON.stringify({ agentConfig: { claudeReviewPaths: ['src/modules/*/domain/**'] } }))
+  writeFileSync(join(repo, 'docs/a.md'), 'a\n')
+  git('init', '-q', '-b', 'main')
+  git('add', '-A')
+  git('commit', '-qm', 'base')
+  git('checkout', '-qb', 'feature')
+  writeFileSync(join(repo, 'docs/a.md'), 'b\n')
+  git('commit', '-qam', 'edit docs')
+  const run = (base, env = {}) =>
+    spawnSync('node', [fileURLToPath(new URL('./repo-checks.mjs', import.meta.url)), 'review-tier', base], { cwd: repo, encoding: 'utf8', env: { ...process.env, ...env } })
+  const plain = run('main')
+  assert.equal(plain.status, 0, plain.stderr)
+  assert.equal(plain.stdout, 'deepseek\n')
+  assert.match(plain.stderr, /matches no tracked file/) // no domain file yet in this repo
+  mkdirSync(join(repo, 'src/modules/pricing/domain'), { recursive: true })
+  writeFileSync(join(repo, 'src/modules/pricing/domain/discount.ts'), 'export const x = 1\n')
+  git('add', '-A')
+  git('commit', '-qm', 'add discount')
+  const risky = run('main')
+  assert.equal(risky.status, 0, risky.stderr)
+  assert.equal(risky.stdout, 'claude\n')
+  assert.match(risky.stderr, /business logic src\/modules\/pricing\/domain\/discount\.ts/)
+  // REVIEW_PR_LABELS is how the workflow passes the PR's labels to the classifier.
+  writeFileSync(join(repo, 'docs/a.md'), 'c\n')
+  git('commit', '-qam', 'edit docs again')
+  const escalated = run('HEAD~1', { REVIEW_PR_LABELS: 'bug,review-opus' })
+  assert.equal(escalated.stdout, 'claude\n')
+  assert.match(escalated.stderr, /label review-opus/)
+  // A glob list that matches nothing warns: a flat repo cannot silently send its logic to the cheap tier.
+  writeFileSync(join(repo, 'package.json'), JSON.stringify({ agentConfig: { claudeReviewPaths: ['lib/**'] } }))
+  git('commit', '-qam', 'point the tier at a folder that does not exist')
+  assert.match(run('HEAD~1').stderr, /matches no tracked file/)
 })
