@@ -148,7 +148,7 @@ Read the matching file before writing code in that language:
 - `tool`+`review` One logical change per commit. Feature branches merge with `merge <branch>`. _(merge format is tool)_
 - `tool` A PR changes at most `maxDiffLines` (default 800) outside lockfiles, generated paths and moved blocks; larger work becomes stacked PRs (stacking is manual for now: base each PR on its parent branch and update it by hand; `pr-upkeep` and `auto-merge` handle only PRs based on the default branch). _(`repo-checks diff-size`; label `large-diff-approved` waives it)_
 - `tool` Never commit a broken build or failing tests (the one exception is the contract-test commit above, which is never pushed red); never `--no-verify`; never force-push `main`. _(CI, guard hook)_
-- `tool` No AI attribution in commits or PR descriptions. _(commit-message check)_
+- `tool` No AI attribution in commits or PR descriptions: no `Co-Authored-By`, `Assisted-by` or `Generated with` trailer or phrase naming an AI tool. _(commit-message check, guard hook)_
 - `tool` Never hand-edit generated files (lockfiles, generated clients, `DO NOT EDIT` / `@generated`); change the source and rerun the generator. _(guard hook, generator + `git diff --exit-code`)_
 
 ## Resilience
