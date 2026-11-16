@@ -1,6 +1,6 @@
 # This repo's own checks: lint and tests for the shared configs, scripts and skills,
-# shellcheck on the shell scripts, and a lint of every workflow (the reusable ones run in other repos, so a typo here
-# breaks them all).
+# shellcheck on the shell scripts, and a lint of every workflow (the reusable ones
+# run in other repos, so a typo here breaks them all).
 name: ci
 
 on:
