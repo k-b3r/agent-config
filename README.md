@@ -11,6 +11,7 @@ languages/           -> ~/.claude/languages (read on demand per language)
 standards/           -> ~/.claude/standards (do/don't examples per section, read on demand)
 skills/<name>/       -> ~/.claude/skills/<name> and ~/.pi/agent/skills/<name>
 hooks/guard.mjs      -> ~/.claude/hooks/agent-config-guard.mjs (PreToolUse; install.sh adds it to settings.json)
+pi/extensions/*.js   -> ~/.pi/agent/extensions/ (agent-guard.js: the same rules on pi's tool_call, AGENT_GUARD=off disables; standards-loader.js: adds CODING_STANDARDS.md and TOOLS.md to every run inside a git repo, PI_STANDARDS=off disables)
 configs/             -> shared lint/boundary configs, installed into each repo as a git dependency
 ```
 

@@ -27,6 +27,7 @@ Source of truth for Claude Code and pi. `install.sh` links this file to `~/.clau
 - After an idle-sub-agent check, once I have the data I need from it (its final report, PR URL, results), close its pane (`herdr pane close <pane-id>`). Keep an interactive pane open only while the user is still talking to it.
 
 ## Coding standards
+Pi does not expand `@` imports; its `standards-loader` extension adds the standards and `TOOLS.md` at session start inside a git repo. Claude Code expands the imports.
 @CODING_STANDARDS.md
 
 ## LabX Linear
