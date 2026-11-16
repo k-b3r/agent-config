@@ -1,7 +1,17 @@
-# Bumps the commit SHAs that the workflows pin their actions to (`uses: owner/repo@<sha> # v1.2.3`).
+# Bumps the commit SHAs that the workflows pin their actions to (`uses: owner/repo@<sha> # v1.2.3`),
+# and the devDependencies in package.json and pnpm-lock.yaml.
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+  # This repo's own devDependencies (the tools its config tests run against). One grouped PR a week.
+  # Consumer repos resolve their own versions through the peerDependencies ranges, not through these.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      dev-dependencies:
+        patterns: ['*']
