@@ -1,0 +1,9 @@
+# Bumps the commit SHAs that this repo's workflows pin third-party actions to (`uses: owner/repo@<sha> # v1.2.3`).
+# Dependabot reads the version in the trailing comment and updates both.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+# The calls to k-b3r/agent-config's reusable workflows stay at `@main` on purpose: a fix there reaches every repo.
