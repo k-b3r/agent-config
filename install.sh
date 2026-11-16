@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Symlink this repo's agent config into ~/.claude. Safe to rerun.
+# Symlink this repo's agent config into ~/.claude, ~/.pi/agent and ~/.local/bin. Safe to rerun.
 # Only touches entries this repo owns; third-party skills in ~/.claude/skills are left alone.
 set -euo pipefail
 
@@ -63,6 +63,7 @@ fi
 node "$REPO/hooks/install-settings.mjs" "$TARGET/settings.json" 'node "$HOME/.claude/hooks/agent-config-guard.mjs"'
 
 # `pi-sync push|pull|run|schedule`: Pi session backup to Drive (docs/pi-sync/). Plain Node, no install step.
+mkdir -p "$HOME/.local/bin"
 link "$REPO/scripts/pi-sync.mjs" "$HOME/.local/bin/pi-sync"
 
 # CLI tools and Pi/Claude extensions are installed by terminal-config.
