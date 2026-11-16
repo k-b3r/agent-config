@@ -42,6 +42,42 @@ permissions:
   contents: read
 
 jobs:
+  # Label only: a confidence-high|medium|low label computed from the evidence on the PR (checks,
+  # review coverage and rounds, size, tests, ticked risks). Runs after every finished workflow, so
+  # the last run sees the final state, failures included; it never decides or blocks anything
+  # (pr-automation ignores this check). Details: scripts/pr-confidence.mjs.
+  confidence:
+    name: confidence
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      contains(fromJSON('["success", "failure"]'), github.event.workflow_run.conclusion)
+    runs-on: ubuntu-slim # gh and node only
+    timeout-minutes: 5
+    concurrency:
+      group: confidence-${{ github.event.workflow_run.head_sha }}
+      cancel-in-progress: false # a cancelled run would show as a red check on the PR
+    steps:
+      - id: app
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ inputs.app-id }}
+          private-key: ${{ secrets.CI_APP_PRIVATE_KEY }}
+
+      # agent-config is public, so the default token can read it.
+      - uses: actions/checkout@v7
+        with:
+          repository: k-b3r/agent-config
+          path: .agent-config
+
+      - name: Label the PR
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: node .agent-config/scripts/pr-confidence.mjs label-sha "$REPO" "$SHA"
+
   evaluate:
     # The job name must contain "auto-merge": the script skips its own
     # in-progress check run. Skipped jobs bill nothing, so filter here.

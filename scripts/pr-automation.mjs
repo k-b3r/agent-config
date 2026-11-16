@@ -29,8 +29,9 @@ import { fileURLToPath } from 'node:url'
 const OPT_IN_LABEL = 'automerge'
 const OK_CONCLUSIONS = new Set(['success', 'skipped', 'neutral'])
 const GATE_CHECK = /(^|\/ )gate$/
-// The evaluating job's own check run is still in progress while it decides.
-const SELF_CHECK = /auto-merge/
+// The evaluating job's own check run is still in progress while it decides; so can be the
+// confidence label job (pr-confidence), whose result is not about the change.
+const SELF_CHECK = /auto-merge|(^|\/ )confidence$/
 
 // Checks re-run on the same commit (label events skip the gate, a human
 // re-runs a failed job): judge each name by its newest run that actually ran,
