@@ -1,0 +1,68 @@
+# Sets the confidence-high|medium|low label (and its comment) on agent-config's own PRs, the way
+# auto-merge.yml's `confidence` job does for repos that call it. agent-config calls neither
+# auto-merge nor pr-review, so it needs its own. Label only: it gates nothing.
+#
+# Both jobs check out the default branch, never the PR, so the script that runs with a write token is
+# always the reviewed one. A `workflow_run` workflow also runs from the default branch, so this file
+# and scripts/pr-confidence.mjs take effect once they are on main.
+name: confidence
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  pending:
+    # A push makes the old tier stale: drop it now, re-score when ci finishes.
+    name: confidence pending
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
+    runs-on: ubuntu-slim
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - name: Mark the label pending
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: node scripts/pr-confidence.mjs pending "$REPO" "$PR"
+
+  confidence:
+    name: confidence
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      contains(fromJSON('["success", "failure"]'), github.event.workflow_run.conclusion)
+    runs-on: ubuntu-slim
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      checks: read
+      actions: read
+    concurrency:
+      group: confidence-${{ github.event.workflow_run.head_sha }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+      - name: Label the PR
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: node scripts/pr-confidence.mjs label-sha "$REPO" "$SHA"
