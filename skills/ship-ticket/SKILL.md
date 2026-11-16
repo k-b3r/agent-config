@@ -31,6 +31,7 @@ Orchestrator side: `/dispatch-tickets`. Input from the orchestrator: ticket id, 
 - Targeted tests only while iterating (quiet reporter, e.g. `pnpm --dir <dir> exec vitest run --silent --reporter=dot <path>`). Don't run the canonical check or CI's checks by hand: the pre-push hook runs the check, CI runs the rest.
 - Regenerate generated files the repo lists (docs, clients); CI can only verify them.
 - Fake secrets in tests look obviously fake (`test-key`, `xxx`), never shaped like real keys: secret scanning flags them.
+- Fixtures and test names carry no real tracker key or host: the ticket you are shipping (`BUY-421`) or its workspace URL reads as another team's data. Use a neutral prefix (`TST-`) and `example.com`.
 
 ## 4. Commit and open the PR early
 
