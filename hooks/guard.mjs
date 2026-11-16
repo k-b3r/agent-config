@@ -34,6 +34,10 @@ const SECRET_PATHS = [
   /(^|\/)\.config\/gcloud\//,
   /(^|\/)\.(netrc|pgpass|git-credentials)$/,
   /(^|\/)\.docker\/config\.json$/,
+  // The tools' own stores: pi's provider keys, rclone's remotes, gh's tokens.
+  /(^|\/)\.pi\/agent\/(auth|mcp-auth)\.json$/,
+  /(^|\/)\.config\/rclone\/rclone\.conf$/,
+  /(^|\/)\.config\/gh\/hosts\.yml$/,
 ]
 // Variable names and public keys, not credentials.
 const SECRET_TEMPLATE = /\.(example|sample|template|dist|pub)$/

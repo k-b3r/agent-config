@@ -11,12 +11,13 @@ languages/           -> ~/.claude/languages (read on demand per language)
 standards/           -> ~/.claude/standards (do/don't examples per section, read on demand)
 skills/<name>/       -> ~/.claude/skills/<name> and ~/.pi/agent/skills/<name>
 hooks/guard.mjs      -> ~/.claude/hooks/agent-config-guard.mjs (PreToolUse; install.sh adds it to settings.json)
+pi/extensions/*.js   -> ~/.pi/agent/extensions/ (agent-guard.js: the same rules on pi's tool_call, AGENT_GUARD=off disables; standards-loader.js: adds CODING_STANDARDS.md and TOOLS.md to every run inside a git repo, PI_STANDARDS=off disables)
 configs/             -> shared lint/boundary configs, installed into each repo as a git dependency
 ```
 
 ## Companion repo
 
-CLI tools (CodeGraph, diagram-design) and Pi/Claude extensions live in the private `k-b3r/terminal-config` repo; run its `install.sh` on every device. This repo keeps the usage guidance in `TOOLS.md` and the skills that call those tools, so agent behavior does not change.
+CLI tools (CodeGraph, diagram-design) and the pi extensions for the terminal (`bash-compact`, `claude-usage`, the Herdr state) live in the private `k-b3r/terminal-config` repo; run its `install.sh` on every device. This repo keeps the usage guidance in `TOOLS.md` and the skills that call those tools, so agent behavior does not change. The rule for where a pi extension lives: if it shapes what the agent does (the guard, the standards loader), it is agent behavior and lives here, next to the rules it enforces; terminal and display extensions live in `terminal-config`.
 
 ## Install
 

@@ -44,6 +44,15 @@ if [ -d "$HOME/.pi/agent" ]; then
   done
 fi
 
+# Pi extensions: the guard (same rules as the hook below, on pi's tool_call) and the standards loader
+# (pi does not expand the @ imports in AGENTS.md). Plain .js, no build step.
+if [ -d "$HOME/.pi/agent" ]; then
+  mkdir -p "$HOME/.pi/agent/extensions"
+  for ext in "$REPO"/pi/extensions/*.js; do
+    link "$ext" "$HOME/.pi/agent/extensions/$(basename "$ext")"
+  done
+fi
+
 # Guard hook: blocks pushes to main, --no-verify, AI attribution, generated-file edits.
 mkdir -p "$TARGET/hooks"
 link "$REPO/hooks/guard.mjs" "$TARGET/hooks/agent-config-guard.mjs"
