@@ -17,7 +17,7 @@ configs/             -> shared lint/boundary configs, installed into each repo a
 
 ## Companion repo
 
-CLI tools (CodeGraph, diagram-design) and Pi/Claude extensions live in the private `k-b3r/terminal-config` repo; run its `install.sh` on every device. This repo keeps the usage guidance in `TOOLS.md` and the skills that call those tools, so agent behavior does not change.
+CLI tools (CodeGraph, diagram-design) and the pi extensions for the terminal (`bash-compact`, `claude-usage`, the Herdr state) live in the private `k-b3r/terminal-config` repo; run its `install.sh` on every device. This repo keeps the usage guidance in `TOOLS.md` and the skills that call those tools, so agent behavior does not change. The rule for where a pi extension lives: if it shapes what the agent does (the guard, the standards loader), it is agent behavior and lives here, next to the rules it enforces; terminal and display extensions live in `terminal-config`.
 
 ## Install
 
