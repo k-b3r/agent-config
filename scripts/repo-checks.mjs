@@ -44,7 +44,7 @@ const DIFF_LARGEST_SHOWN = 3
 // sibling test is expected (CODING_STANDARDS.md, Testing). A repo cannot switch the
 // exemption off; `untestedExempt` only adds globs to it.
 const TYPES_ONLY_EXEMPT = ['**/types.ts']
-// The reviewers' split (README, "Review tier"): a cheap model reviews most PRs, Claude reviews what a
+// The reviewers' split (docs/review.md, "Review tier"): a cheap model reviews most PRs, Claude reviews what a
 // mistake would make hard to undo. These are the paths it gets; a repo overrides them in `agentConfig`.
 const CLAUDE_TIER = 'claude'
 const DEEPSEEK_TIER = 'deepseek'
