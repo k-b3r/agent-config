@@ -5,6 +5,10 @@ A repo wired by an earlier `/init-repo` never sees a later template change: the 
 Shared configs come in through the lockfile, so run `pnpm update @k-b3r/agent-config` to pick them up.
 The PR that changes a template adds its entry here.
 
+## 2026-11-17 DeepSeek reviewer and Claude fallback
+
+- Add the repo secret `OPENCODE_API_KEY` (the opencode-go key: `gh secret set OPENCODE_API_KEY`). The `pr-review.yml` caller needs no change when it uses `secrets: inherit`; one that lists secrets must pass `OPENCODE_API_KEY` too. Without the secret every PR is still reviewed by Claude. With it, PRs that `repo-checks review-tier` does not send to Claude get DeepSeek, and a Claude failure on the session limit or at start-up reruns on DeepSeek (that PR is capped at `confidence-medium`). Keep `agentConfig.claudeReviewPaths` right for the repo: it picks the PRs Claude reviews.
+
 ## 2026-11-16 proof earns confidence-high
 
 - `.github/pull_request_template.md`: replace the `## Verified` section with the new one and add the optional `## Agreed decisions` section before it (copy both from `templates/typescript/.github/pull_request_template.md`). The agent review now judges proof per claim and `confidence-high` needs a `proof: sufficient` verdict for the head commit; an empty `## Verified` costs 20 points.

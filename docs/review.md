@@ -4,7 +4,18 @@ How a PR gets its reviewer, and how the review prompt is tested. The workflow th
 
 ## Review tier
 
-Two reviewers, picked by the diff, not by either model. `repo-checks review-tier <base>` prints `claude` when the PR does anything a mistake would make hard to undo: it deletes a file, touches a migration path, adds a `DELETE FROM` / `UPDATE ... SET` / `ALTER TABLE` / `DROP ...` / `TRUNCATE`, changes a file under `agentConfig.claudeReviewPaths` (default `src/modules/*/domain/**` and `src/modules/*/store.ts`, the decisions and the writes), ticks a risk box in the PR body, or carries the label `review-opus`. Everything else gets `deepseek`. The PR body and the label can escalate but never downgrade, and a `claudeReviewPaths` glob list that matches no tracked file warns, so a flat repo cannot send its logic to the cheap reviewer by accident. Labels and body reach the classifier as `REVIEW_PR_LABELS` and `REVIEW_PR_BODY`. `pr-review.yml` wires it.
+Two reviewers, picked by the diff, not by either model. `repo-checks review-tier <base>` prints `claude` when the PR does anything a mistake would make hard to undo: it deletes a file, touches a migration path, adds a `DELETE FROM` / `UPDATE ... SET` / `ALTER TABLE` / `DROP ...` / `TRUNCATE`, changes a file under `agentConfig.claudeReviewPaths` (default `src/modules/*/domain/**` and `src/modules/*/store.ts`, the decisions and the writes), ticks a risk box in the PR body, or carries the label `review-opus`. Everything else gets `deepseek`. The PR body and the label can escalate but never downgrade, and a `claudeReviewPaths` glob list that matches no tracked file warns, so a flat repo cannot send its logic to the cheap reviewer by accident. Labels and body reach the classifier as `REVIEW_PR_LABELS` and `REVIEW_PR_BODY`.
+
+`pr-review.yml` runs it first (the `agent-config` checkout's copy, from the caller's cwd and `package.json`; if it fails the PR goes to Claude) and `review-route pick` turns the tier into a model:
+
+| tier | `OPENCODE_API_KEY` | reviewer | if it fails |
+|---|---|---|---|
+| deepseek | set | DeepSeek (`deepseek-model`, via opencode-go) | job fails, gate blocked |
+| deepseek | missing | Claude (note in the step summary) | job fails |
+| claude | set | Claude | session limit or start-up error before any tool call or post: rerun on DeepSeek, no PR comment (step summary line), marker `reviewer: deepseek-fallback sha=<head>`; any other error fails the job |
+| claude | missing | Claude | job fails (rate-limit comment as before) |
+
+DeepSeek runs through the same `claude-code-action`, prompt and tools, pointed at opencode-go's Anthropic-compatible endpoint (`ANTHROPIC_BASE_URL=https://opencode.ai/inference/go/anthropic`, key in `OPENCODE_API_KEY`). The fallback is decided by `review-route fallback` from the failed transcript (`fallbackDecision`); it never reruns once Claude has commented or edited a label, so a review is not posted twice. A claude-tier PR that the fallback reviewed is capped at `confidence-medium` (`pr-confidence`, factor `reviewer`), so a human decides; a push that leaves the diff unchanged carries the marker with the proof verdict. If DeepSeek also fails, the job fails and the gate stays blocked; a rate-limit comment is posted as before.
 
 ## Review seeds
 
