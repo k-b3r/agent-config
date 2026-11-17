@@ -22,20 +22,27 @@ import {
 } from './review-seeds.mjs'
 
 const WORKFLOW = [
-  '      - uses: anthropics/claude-code-action@v1',
-  '        with:',
-  '          prompt: |',
-  '            REPO: ${{ github.repository }}',
-  '            PR NUMBER: ${{ github.event.pull_request.number }}',
+  '    env:',
+  '      REVIEW_PROMPT: |',
+  '        REPO: ${{ github.repository }}',
+  '        PR NUMBER: ${{ github.event.pull_request.number }}',
   '',
-  '            Standards: .agent-config/CODING_STANDARDS.md',
-  '          claude_args: |',
-  '            --allowedTools "Read"',
+  '        Standards: .agent-config/CODING_STANDARDS.md',
+  '    steps:',
+  '      - uses: anthropics/claude-code-action@v1',
 ].join('\n')
 
 test('extractPrompt dedents the prompt block and fills in the workflow expressions', () => {
   const prompt = extractPrompt(WORKFLOW, { repository: 'k-b3r/x', number: 7, agentConfigDir: '/cfg' })
   assert.equal(prompt, 'REPO: k-b3r/x\nPR NUMBER: 7\n\nStandards: /cfg/CODING_STANDARDS.md')
+})
+
+test('extractPrompt reads the real review workflow\'s prompt up to the end of the env block', () => {
+  const real = readFileSync(new URL('../.github/workflows/pr-review.yml', import.meta.url), 'utf8')
+  const prompt = extractPrompt(real, { repository: 'k-b3r/x', number: 7, headSha: 'abc' })
+  assert.match(prompt, /^REPO: k-b3r\/x\nPR NUMBER: 7\nHEAD SHA: abc\n/)
+  assert.match(prompt, /\n {4}proof: insufficient sha=<HEAD SHA>/)
+  assert.doesNotMatch(prompt, /steps:|claude_args/)
 })
 
 test('extractPrompt throws when the workflow has no prompt block', () => {
