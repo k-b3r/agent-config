@@ -12,7 +12,8 @@
     "ci-report": "./scripts/ci-report.mjs",
     "review-seeds": "./scripts/review-seeds.mjs",
     "review-seed-gaps": "./scripts/review-seed-gaps.mjs",
-    "review-rate-limit": "./scripts/review-rate-limit.mjs"
+    "review-rate-limit": "./scripts/review-rate-limit.mjs",
+    "review-route": "./scripts/review-route.mjs"
   },
   "exports": {
     "./eslint": "./configs/eslint.mjs",
