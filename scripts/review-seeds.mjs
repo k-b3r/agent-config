@@ -38,7 +38,7 @@ const MIN_COVERS_LENGTH = 20
 const MAX_SUBJECT = 72
 const DEFAULT_JOBS = 4
 const RUN_TIMEOUT_MS = 600_000
-const PROMPT_INDENT = 12
+const PROMPT_INDENT = 8
 const ALLOWED_TOOLS = 'Bash(git diff:*),Bash(git show:*),Bash(git log:*),Read,Glob,Grep'
 const JUDGE_MODEL = process.env.REVIEW_JUDGE_MODEL ?? 'claude-haiku-5-5'
 const MAX_JUDGED_CHARS = 8000
@@ -54,16 +54,16 @@ export function extractModel(workflowYaml) {
   return match[1]
 }
 
-// The prompt block of the claude-code-action step, dedented, with the workflow
+// The REVIEW_PROMPT job env block of the review workflow, dedented, with the workflow
 // expressions filled in and standards paths pointed at this checkout.
 export function extractPrompt(workflowYaml, { repository = 'owner/repo', number = 0, agentConfigDir = ROOT, headSha = '0'.repeat(40) } = {}) {
-  const start = workflowYaml.indexOf('prompt: |\n')
-  const end = workflowYaml.indexOf('claude_args:', start)
-  if (start === -1 || end === -1) throw new Error('no prompt block found in the workflow')
+  const start = workflowYaml.indexOf('REVIEW_PROMPT: |\n')
+  if (start === -1) throw new Error('no prompt block found in the workflow')
   const indent = ' '.repeat(PROMPT_INDENT)
-  return workflowYaml
-    .slice(start + 'prompt: |\n'.length, end)
-    .split('\n')
+  const rest = workflowYaml.slice(start + 'REVIEW_PROMPT: |\n'.length).split('\n')
+  // The block ends at the first non-blank line indented less than the block.
+  const length = rest.findIndex((line) => line.trim() !== '' && !line.startsWith(indent))
+  return (length === -1 ? rest : rest.slice(0, length))
     .map((line) => (line.startsWith(indent) ? line.slice(PROMPT_INDENT) : line))
     .join('\n')
     .replaceAll('.agent-config/', `${agentConfigDir}/`)

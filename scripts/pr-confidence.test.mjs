@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { calibrationTable, carryProof, collectEvidence, hasRisksSection, markPending, openPrForSha, parseMarker, parseProof, proofVerdict, renderComment, renderFactors, renderPending, revertedPrs, scoreEvidence, setTierLabel, tickedRisks, TIER_LABELS, upsertComment, verifiedState } from './pr-confidence.mjs'
+import { calibrationTable, carryProof, collectEvidence, hasRisksSection, markPending, markReviewer, openPrForSha, parseMarker, parseProof, parseReviewer, proofVerdict, reviewerVerdict, renderComment, renderFactors, renderPending, revertedPrs, scoreEvidence, setTierLabel, tickedRisks, TIER_LABELS, upsertComment, verifiedState } from './pr-confidence.mjs'
 import { REVIEW_COVERED_STEP } from './pr-automation.mjs'
 
 const clean = {
@@ -418,4 +418,65 @@ test('carryProof repeats the verdict for the new head once, and never invents on
   assert.equal(carryProof({ repo: 'o/r', pr: 7, from: 'abc1234', to: 'def5678', gh: gh([posted[0].slice(5)]) }), false)
   assert.equal(carryProof({ repo: 'o/r', pr: 7, from: '1111111', to: 'def5678', gh: gh([]) }), false)
   assert.equal(posted.length, 1)
+})
+
+test('a critical PR reviewed by the fallback model is capped at medium whatever the score', () => {
+  const result = scoreEvidence({ ...clean, reviewer: 'deepseek-fallback' })
+  assert.deepEqual([result.tier, result.score, names(result)], ['medium', 100, ['reviewer']])
+  assert.match(result.factors[0].detail, /critical PR reviewed by the fallback model/)
+  assert.equal(scoreEvidence({ ...clean, reviewer: null }).tier, 'high')
+  assert.equal(scoreEvidence({ ...clean, reviewer: 'deepseek-fallback', labels: ['agent-changes-requested'] }).tier, 'low')
+})
+
+test('parseReviewer reads the marker line and nothing that merely mentions it', () => {
+  assert.deepEqual(parseReviewer('x\n\nreviewer: deepseek-fallback sha=ABC1234\n'), { reviewer: 'deepseek-fallback', sha: 'abc1234' })
+  assert.equal(parseReviewer('reviewer: deepseek-fallback'), null)
+  assert.equal(parseReviewer('the reviewer: deepseek-fallback sha=abc1234 ran'), null)
+  assert.equal(parseReviewer(null), null)
+})
+
+test('reviewerVerdict finds the fallback marker for the current head only', () => {
+  const marker = (sha) => `reviewer: deepseek-fallback sha=${sha}`
+  const read = (comments) => reviewerVerdict({ repo: 'o/r', pr: 7, sha: SHA, gh: fakeGh({ comments }) })
+  assert.equal(read([marker(SHA)]), 'deepseek-fallback')
+  assert.equal(read([marker('def5678')]), null)
+  assert.equal(read([]), null)
+  assert.equal(reviewerVerdict({ repo: 'o/r', pr: 7, sha: SHA, gh: () => { throw new Error('boom') } }), null)
+})
+
+test('collectEvidence carries the reviewer marker of the head commit', () => {
+  const comments = [`proof: sufficient sha=${SHA}`, `reviewer: deepseek-fallback sha=${SHA}`]
+  const evidence = collectEvidence({ repo: 'o/r', pr: 7, gh: fakeGh({ checkRuns: [], view, comments }) })
+  assert.equal(evidence.reviewer, 'deepseek-fallback')
+  assert.equal(collectEvidence({ repo: 'o/r', pr: 7, gh: fakeGh({ checkRuns: [], view, comments: [comments[0]] }) }).reviewer, null)
+})
+
+test('markReviewer posts the marker once per head, so a re-run does not repeat it', () => {
+  const posted = []
+  const gh = (comments) => (args) => {
+    if (args.includes('-f')) {
+      posted.push(args.at(-1))
+      return ''
+    }
+    return fakeGh({ comments })(args)
+  }
+  assert.equal(markReviewer({ repo: 'o/r', pr: 7, sha: SHA, gh: gh([]) }), true)
+  assert.match(posted[0], new RegExp(`^body=reviewer: deepseek-fallback sha=${SHA}$`))
+  assert.equal(markReviewer({ repo: 'o/r', pr: 7, sha: SHA, gh: gh([posted[0].slice(5)]) }), false)
+  assert.equal(posted.length, 1)
+})
+
+test('carryProof carries the fallback marker with the verdict, so a skipped re-review keeps the cap', () => {
+  const posted = []
+  const comments = ['proof: sufficient sha=abc1234', 'reviewer: deepseek-fallback sha=abc1234']
+  const gh = (args) => {
+    if (args.includes('-f')) {
+      posted.push(args.at(-1))
+      return ''
+    }
+    return fakeGh({ comments })(args)
+  }
+  assert.equal(carryProof({ repo: 'o/r', pr: 7, from: 'abc1234', to: 'def5678', gh }), true)
+  assert.match(posted[0], /^body=proof: sufficient sha=def5678\n\nreviewer: deepseek-fallback sha=def5678\n/)
+  assert.deepEqual(parseProof(posted[0].slice(5)), { status: 'sufficient', sha: 'def5678', claims: [] })
 })

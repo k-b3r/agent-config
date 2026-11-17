@@ -18,4 +18,5 @@ jobs:
     with:
       # Same value as pr-upkeep.yml's regenerate-paths, e.g. docs-site
       generated-paths: ''
+    # inherits CLAUDE_CODE_OAUTH_TOKEN and the optional OPENCODE_API_KEY (DeepSeek reviewer + fallback)
     secrets: inherit

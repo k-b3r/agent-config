@@ -32,7 +32,14 @@
 #       permissions: { contents: read, pull-requests: write, issues: write, id-token: write, actions: write }
 #       with:
 #         generated-paths: docs-site   # same value as pr-upkeep's regenerate-paths
-#       secrets: inherit
+#       secrets: inherit   # CLAUDE_CODE_OAUTH_TOKEN, and OPENCODE_API_KEY for the DeepSeek reviewer
+#
+# Reviewer model: `repo-checks review-tier` (run from the consumer's cwd and package.json) decides.
+# `deepseek` tier (most PRs): DeepSeek through opencode-go. `claude` tier (deleted file, migration,
+# destructive SQL, agentConfig.claudeReviewPaths, ticked risk box, label review-opus): Claude. When
+# Claude fails on its session limit or at start-up (see scripts/review-route.mjs), the same review
+# reruns on DeepSeek without a PR comment, and the PR gets the marker `reviewer: deepseek-fallback`
+# that caps its confidence at medium. Without OPENCODE_API_KEY every PR goes to Claude.
 
 name: pr-review
 
@@ -58,6 +65,14 @@ on:
           for risky or large diffs where the dearer review is worth it.
         type: string
         default: claude-opus-5-5
+      deepseek-model:
+        description: >-
+          Model of the cheap reviewer, run through the owner's opencode-go subscription (its
+          Anthropic-compatible endpoint) with the same prompt and tools. Reviews every PR that
+          `repo-checks review-tier` does not send to Claude, and stands in for Claude when
+          Claude hits its session limit or fails at start-up.
+        type: string
+        default: deepseek-v4.1-flash
       allowed-bots:
         description: >-
           Comma-separated bot accounts whose pushes still get a review (claude-code-action
@@ -68,6 +83,11 @@ on:
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN:
         required: true
+      OPENCODE_API_KEY:
+        description: >-
+          opencode-go API key for the DeepSeek reviewer. Optional: without it every PR is
+          reviewed by Claude, as before, and a Claude failure has no fallback.
+        required: false
 
 jobs:
   agent-review:
@@ -84,6 +104,119 @@ jobs:
     concurrency:
       group: agent-review-${{ github.event.pull_request.number }}
       cancel-in-progress: true
+    env:
+      # One copy of the prompt, read by every review step (extractPrompt in scripts/review-seeds.mjs
+      # finds it by this name).
+      REVIEW_PROMPT: |
+        REPO: ${{ github.repository }}
+        PR NUMBER: ${{ github.event.pull_request.number }}
+        HEAD SHA: ${{ github.event.pull_request.head.sha }}
+
+        Review this pull request's diff (`gh pr diff`).
+
+        Standards, in priority order (earlier wins on conflict):
+        1. CODING_STANDARDS.md and CLAUDE.md in this repo, if present
+        2. .agent-config/CODING_STANDARDS.md, .agent-config/standards/*.md (examples), and .agent-config/languages/*.md, if present
+
+        Look for: correctness bugs, violations of the standards, missing or weak tests
+        for changed behavior, security problems. Skip style nits that a formatter or
+        linter would catch; CI runs those separately.
+
+        Rule tags decide what you check:
+        - `review`, and the judgment half of `tool`+`review`: check every one against the diff.
+        - `tool`: skip when this repo's CI or lint config wires the check (the repo's
+          CODING_STANDARDS.md names it); otherwise treat it as `review`.
+        - `hint`: mention only when the diff makes the smell clearly worse.
+        - `process`: flag only when the diff itself shows the rule was broken.
+
+        Severity (decides `agent-changes-requested`):
+        - A violation of a `review` rule, or of a `tool` rule this repo doesn't wire,
+          by code this diff adds or changes is blocking. That includes the judgment
+          rules: a pass-through wrapper that hides nothing, or a comment that restates
+          the code instead of saying why, blocks like any bug does.
+        - `hint` findings, and taste that no tagged rule covers, are non-blocking.
+        - Code the diff doesn't touch is never blocking.
+
+        Stale docs: for every command, script name, CLI flag, setting key, env var or
+        file path the diff renames, removes or changes in behavior, grep README.md,
+        CONTEXT.md and the other top-level *.md for the old name. Each hit is a blocking
+        finding: name the file and line and say what it should now say, so the PR's
+        author can fix it. Never list a stale doc under non-blocking. Add `needs-human`
+        only when the doc and the diff conflict and you can't tell which is right.
+        Dated docs (plans, specs, reviews with a date in the name or path) are
+        snapshots; skip them.
+
+        Evidence: a comment that records a live observation (a date, "Confirmed live
+        ...", a measurement) is the only record of why a value was chosen. It is
+        blocking only when the diff deletes or weakens such a comment, or changes the
+        value it justifies, and leaves no dated observation behind for that behavior.
+        A new dated observation anywhere in the diff that covers the behavior the
+        value serves is enough: do not require the number itself to be re-measured
+        or a second comment on every constant. A value the diff adds with no earlier
+        evidence to lose is not an Evidence finding.
+
+        Commits: run `gh pr view --json commits` and judge each commit from its headline
+        and the diff. One logical change per commit, and a refactor (rename, move,
+        reformat) never shares a commit with a behavior change. A commit whose headline
+        joins two things ("X and Y"), or whose diff mixes unrelated changes or a
+        refactor with behavior, is blocking: name the commit and say how to split it.
+        Skip merge commits and bot commits such as "regenerate generated files".
+
+        Degrading: for every catch, retry or fallback the diff removes or narrows around
+        an external call (LLM, HTTP, Facebook, a batch), check what happens on failure.
+        If the run now crashes where it used to skip the item or stop cleanly with a
+        log, that is blocking, even when the PR says the crash is intended: a stated
+        intent is not a reason. Add `needs-human` so a person confirms the trade-off,
+        and name the callers that now see the throw. Tests changed to expect the crash
+        are part of the same finding.
+
+        Boundaries: a module owns its tables and internals. If the diff adds SQL or
+        code in one module that names a table, column or private helper owned by
+        another module (the one whose code writes that table or defines the helper),
+        and the owner does not export it for this use, that is blocking even when the
+        query is correct. Name the owning module and the exported function to call, or
+        to add there. An owner's exported SQL fragment (a LATERAL or CTE constant from
+        its index) is the intended way in and is fine.
+
+        Proof: for every claim the PR body makes (Intent, Changed / not changed, and each
+        item under an optional `## Agreed decisions` section), decide whether a reader can
+        check evidence for it:
+        - behavior change: a test in the diff that would fail without the change;
+        - bug fix: a test that reproduces the bug;
+        - any other claim: real command output pasted in a fenced block under
+          `## Verified`, or a screenshot;
+        - a docs-only or config-only PR: a short statement under `## Verified` that it
+          is docs or config only is enough.
+        Not proof: "tests pass", "verified manually" with no output, a claim with nothing
+        behind it. An unproven claim is not blocking by itself (it caps the PR's
+        confidence); name it. But an Agreed-decisions item that the diff contradicts or
+        leaves out is a blocking finding.
+
+        Output:
+        - Inline comments for specific problems (one comment per problem, say what
+          breaks and how to fix it).
+        - One summary comment via `gh pr comment` listing blocking issues, then
+          non-blocking suggestions. If there is nothing to say, say "No issues found."
+        - End that summary comment with the proof verdict as its last lines, exactly one of
+          (HEAD SHA above, in full; `pr-confidence` reads this line and ignores a verdict
+          for any other commit):
+            proof: sufficient sha=<HEAD SHA>
+          or
+            proof: insufficient sha=<HEAD SHA>
+            - <unproven claim, and what would prove it>
+          (one `- ` line per unproven claim, no other text after them).
+
+        Labels (use `gh pr edit --add-label` / `--remove-label`):
+        - Blocking issues found: add `agent-changes-requested`. None: remove it.
+        - Add `needs-human` when correctness depends on a judgment you can't verify
+          from the code: business rules, pricing or money, irreversible data changes
+          or migrations, security trade-offs, product intent, or a doc that conflicts
+          with the diff (see Stale docs). Say in the summary exactly what the human
+          must decide. Never remove `needs-human` or
+          `human-approved`; only a human does (the one exception, a `needs-human` the
+          gate added for a workflow change, is the gate's to drop, not yours). Don't re-add `needs-human` for a
+          decision a human already made on this PR (an "Approved via `/approve`"
+          or "Human decision:" comment covers it) unless new commits change it.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -166,9 +299,43 @@ jobs:
           path=${path%@*}
           node .agent-config/scripts/pr-automation.mjs workflow-gate unflag "$REPO" "$PR" "$path"
 
+      # Which model reviews. The tier comes from this checkout's agent-config scripts, so it cannot drift
+      # from this workflow; a failure to classify (no package.json, bad base) picks the stricter reviewer.
+      - name: Pick the reviewer
+        id: route
+        if: steps.diff.outputs.unchanged != 'true'
+        env:
+          BASE: ${{ github.event.pull_request.base.ref }}
+          REVIEW_PR_BODY: ${{ github.event.pull_request.body }}
+          REVIEW_PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          HAS_DEEPSEEK_KEY: ${{ secrets.OPENCODE_API_KEY != '' }}
+        run: |
+          if tier=$(node .agent-config/scripts/repo-checks.mjs review-tier "origin/$BASE" 2>/tmp/review-tier.log); then
+            :
+          else
+            tier=claude
+            echo "::warning::review-tier failed, reviewing with Claude: $(tail -n 3 /tmp/review-tier.log | tr '\n' ' ')"
+          fi
+          export REVIEW_TIER="$tier"
+          node .agent-config/scripts/review-route.mjs pick | tee -a "$GITHUB_OUTPUT"
+          {
+            echo "review tier: $tier"
+            sed 's/^/- /' /tmp/review-tier.log
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "tier=$tier" >> "$GITHUB_OUTPUT"
+
+      - name: Note the reviewer in the summary
+        if: steps.route.outputs.note != ''
+        env:
+          NOTE: ${{ steps.route.outputs.note }}
+        run: echo "reviewer note - $NOTE" >> "$GITHUB_STEP_SUMMARY"
+
       - uses: anthropics/claude-code-action@4d75e5f390ee76b2e09c1980ecc99ff3a2e088c8 # v1.0.275
         id: claude
-        if: steps.diff.outputs.unchanged != 'true'
+        if: steps.diff.outputs.unchanged != 'true' && steps.route.outputs.primary == 'claude'
+        # A claude-tier PR that can fall back must get to the decision step below; every other
+        # Claude failure still fails the job there ("Fail when no review completed").
+        continue-on-error: ${{ steps.route.outputs.can_fallback == 'true' }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # A pr-upkeep push that does need a review (merge conflicts resolved,
@@ -178,130 +345,71 @@ jobs:
           # k-b3r/buy-and-sell-ai#39 (run 37434980720): one uncovered upkeep
           # merge failed, so every later one was uncovered too.
           allowed_bots: ${{ inputs.allowed-bots }}
-          prompt: |
-            REPO: ${{ github.repository }}
-            PR NUMBER: ${{ github.event.pull_request.number }}
-            HEAD SHA: ${{ github.event.pull_request.head.sha }}
-
-            Review this pull request's diff (`gh pr diff`).
-
-            Standards, in priority order (earlier wins on conflict):
-            1. CODING_STANDARDS.md and CLAUDE.md in this repo, if present
-            2. .agent-config/CODING_STANDARDS.md, .agent-config/standards/*.md (examples), and .agent-config/languages/*.md, if present
-
-            Look for: correctness bugs, violations of the standards, missing or weak tests
-            for changed behavior, security problems. Skip style nits that a formatter or
-            linter would catch; CI runs those separately.
-
-            Rule tags decide what you check:
-            - `review`, and the judgment half of `tool`+`review`: check every one against the diff.
-            - `tool`: skip when this repo's CI or lint config wires the check (the repo's
-              CODING_STANDARDS.md names it); otherwise treat it as `review`.
-            - `hint`: mention only when the diff makes the smell clearly worse.
-            - `process`: flag only when the diff itself shows the rule was broken.
-
-            Severity (decides `agent-changes-requested`):
-            - A violation of a `review` rule, or of a `tool` rule this repo doesn't wire,
-              by code this diff adds or changes is blocking. That includes the judgment
-              rules: a pass-through wrapper that hides nothing, or a comment that restates
-              the code instead of saying why, blocks like any bug does.
-            - `hint` findings, and taste that no tagged rule covers, are non-blocking.
-            - Code the diff doesn't touch is never blocking.
-
-            Stale docs: for every command, script name, CLI flag, setting key, env var or
-            file path the diff renames, removes or changes in behavior, grep README.md,
-            CONTEXT.md and the other top-level *.md for the old name. Each hit is a blocking
-            finding: name the file and line and say what it should now say, so the PR's
-            author can fix it. Never list a stale doc under non-blocking. Add `needs-human`
-            only when the doc and the diff conflict and you can't tell which is right.
-            Dated docs (plans, specs, reviews with a date in the name or path) are
-            snapshots; skip them.
-
-            Evidence: a comment that records a live observation (a date, "Confirmed live
-            ...", a measurement) is the only record of why a value was chosen. It is
-            blocking only when the diff deletes or weakens such a comment, or changes the
-            value it justifies, and leaves no dated observation behind for that behavior.
-            A new dated observation anywhere in the diff that covers the behavior the
-            value serves is enough: do not require the number itself to be re-measured
-            or a second comment on every constant. A value the diff adds with no earlier
-            evidence to lose is not an Evidence finding.
-
-            Commits: run `gh pr view --json commits` and judge each commit from its headline
-            and the diff. One logical change per commit, and a refactor (rename, move,
-            reformat) never shares a commit with a behavior change. A commit whose headline
-            joins two things ("X and Y"), or whose diff mixes unrelated changes or a
-            refactor with behavior, is blocking: name the commit and say how to split it.
-            Skip merge commits and bot commits such as "regenerate generated files".
-
-            Degrading: for every catch, retry or fallback the diff removes or narrows around
-            an external call (LLM, HTTP, Facebook, a batch), check what happens on failure.
-            If the run now crashes where it used to skip the item or stop cleanly with a
-            log, that is blocking, even when the PR says the crash is intended: a stated
-            intent is not a reason. Add `needs-human` so a person confirms the trade-off,
-            and name the callers that now see the throw. Tests changed to expect the crash
-            are part of the same finding.
-
-            Boundaries: a module owns its tables and internals. If the diff adds SQL or
-            code in one module that names a table, column or private helper owned by
-            another module (the one whose code writes that table or defines the helper),
-            and the owner does not export it for this use, that is blocking even when the
-            query is correct. Name the owning module and the exported function to call, or
-            to add there. An owner's exported SQL fragment (a LATERAL or CTE constant from
-            its index) is the intended way in and is fine.
-
-            Proof: for every claim the PR body makes (Intent, Changed / not changed, and each
-            item under an optional `## Agreed decisions` section), decide whether a reader can
-            check evidence for it:
-            - behavior change: a test in the diff that would fail without the change;
-            - bug fix: a test that reproduces the bug;
-            - any other claim: real command output pasted in a fenced block under
-              `## Verified`, or a screenshot;
-            - a docs-only or config-only PR: a short statement under `## Verified` that it
-              is docs or config only is enough.
-            Not proof: "tests pass", "verified manually" with no output, a claim with nothing
-            behind it. An unproven claim is not blocking by itself (it caps the PR's
-            confidence); name it. But an Agreed-decisions item that the diff contradicts or
-            leaves out is a blocking finding.
-
-            Output:
-            - Inline comments for specific problems (one comment per problem, say what
-              breaks and how to fix it).
-            - One summary comment via `gh pr comment` listing blocking issues, then
-              non-blocking suggestions. If there is nothing to say, say "No issues found."
-            - End that summary comment with the proof verdict as its last lines, exactly one of
-              (HEAD SHA above, in full; `pr-confidence` reads this line and ignores a verdict
-              for any other commit):
-                proof: sufficient sha=<HEAD SHA>
-              or
-                proof: insufficient sha=<HEAD SHA>
-                - <unproven claim, and what would prove it>
-              (one `- ` line per unproven claim, no other text after them).
-
-            Labels (use `gh pr edit --add-label` / `--remove-label`):
-            - Blocking issues found: add `agent-changes-requested`. None: remove it.
-            - Add `needs-human` when correctness depends on a judgment you can't verify
-              from the code: business rules, pricing or money, irreversible data changes
-              or migrations, security trade-offs, product intent, or a doc that conflicts
-              with the diff (see Stale docs). Say in the summary exactly what the human
-              must decide. Never remove `needs-human` or
-              `human-approved`; only a human does (the one exception, a `needs-human` the
-              gate added for a workflow change, is the gate's to drop, not yours). Don't re-add `needs-human` for a
-              decision a human already made on this PR (an "Approved via `/approve`"
-              or "Human decision:" comment covers it) unless new commits change it.
+          prompt: ${{ env.REVIEW_PROMPT }}
           claude_args: |
             --model ${{ contains(github.event.pull_request.labels.*.name, 'review-opus') && inputs.opus-model || inputs.model }}
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh pr edit:*),Read,Glob,Grep"
 
+      # Silent fallback: a Claude review that died on the session limit or at start-up (and had not yet
+      # posted anything) reruns on DeepSeek. The marker goes first, so a head the fallback reviews can
+      # never reach confidence-high even if the job dies half way; it is idempotent per head commit.
+      - name: Decide on the DeepSeek fallback
+        id: fallback
+        if: always() && steps.claude.outcome == 'failure' && steps.route.outputs.can_fallback == 'true'
+        env:
+          EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
+        run: |
+          out=$(node .agent-config/scripts/review-route.mjs fallback "$EXECUTION_FILE")
+          echo "$out" >> "$GITHUB_OUTPUT"
+          echo "agent review: Claude failed (${out##*reason=})" >> "$GITHUB_STEP_SUMMARY"
+      - name: Mark the fallback review
+        if: steps.fallback.outputs.run == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          echo "agent review: rerunning on ${{ inputs.deepseek-model }} (fallback)" >> "$GITHUB_STEP_SUMMARY"
+          node .agent-config/scripts/pr-confidence.mjs mark-fallback "$REPO" "$PR" "$HEAD_SHA"
+
+      - uses: anthropics/claude-code-action@4d75e5f390ee76b2e09c1980ecc99ff3a2e088c8 # v1.0.275
+        id: deepseek
+        if: steps.diff.outputs.unchanged != 'true' && (steps.route.outputs.primary == 'deepseek' || steps.fallback.outputs.run == 'true')
+        # Same prompt and tools as the Claude step; Claude Code talks to opencode-go's Anthropic-compatible
+        # endpoint, which routes the model id below. Base URL without /v1/messages (Claude Code appends it).
+        env:
+          ANTHROPIC_BASE_URL: https://opencode.ai/inference/go/anthropic
+          ANTHROPIC_DEFAULT_SONNET_MODEL: ${{ inputs.deepseek-model }}
+          ANTHROPIC_DEFAULT_HAIKU_MODEL: ${{ inputs.deepseek-model }}
+          ANTHROPIC_DEFAULT_OPUS_MODEL: ${{ inputs.deepseek-model }}
+        with:
+          anthropic_api_key: ${{ secrets.OPENCODE_API_KEY }}
+          # Same reason as the Claude step.
+          allowed_bots: ${{ inputs.allowed-bots }}
+          prompt: ${{ env.REVIEW_PROMPT }}
+          claude_args: |
+            --model ${{ inputs.deepseek-model }}
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh pr edit:*),Read,Glob,Grep"
+
       # Telemetry for tuning the review prompt: the full transcript as an
-      # artifact, and turns / duration / cost in the step summary.
-      - name: Keep the review transcript
+      # artifact, and turns / duration / cost in the step summary. One file per
+      # reviewer: after a fallback both ran.
+      - name: Keep the Claude review transcript
         if: always() && steps.claude.outputs.execution_file != ''
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: agent-review-transcript
           path: ${{ steps.claude.outputs.execution_file }}
           retention-days: 7
-      - name: Summarize the review run
+      - name: Keep the DeepSeek review transcript
+        if: always() && steps.deepseek.outputs.execution_file != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: agent-review-transcript-deepseek
+          path: ${{ steps.deepseek.outputs.execution_file }}
+          retention-days: 7
+      - name: Summarize the Claude review run
         if: always() && steps.claude.outputs.execution_file != ''
         env:
           EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
@@ -310,12 +418,23 @@ jobs:
           jq -r '[.[] | select(.type == "result")] | last // empty
             | "agent review: \(.num_turns) turns, \(.duration_ms / 1000 | floor)s, $\(.total_cost_usd // "n/a"), model \($ENV.REVIEW_MODEL)"' \
             "$EXECUTION_FILE" >> "$GITHUB_STEP_SUMMARY" || echo "agent review: transcript unreadable" >> "$GITHUB_STEP_SUMMARY"
+      - name: Summarize the DeepSeek review run
+        if: always() && steps.deepseek.outputs.execution_file != ''
+        env:
+          EXECUTION_FILE: ${{ steps.deepseek.outputs.execution_file }}
+          REVIEW_MODEL: ${{ inputs.deepseek-model }}
+        run: |
+          jq -r '[.[] | select(.type == "result")] | last // empty
+            | "agent review: \(.num_turns) turns, \(.duration_ms / 1000 | floor)s, model \($ENV.REVIEW_MODEL) via opencode-go"' \
+            "$EXECUTION_FILE" >> "$GITHUB_STEP_SUMMARY" || echo "agent review: transcript unreadable" >> "$GITHUB_STEP_SUMMARY"
 
       # The CI Claude token's session limit fails the review in seconds with an
-      # error the action's log doesn't explain. Read the transcript and fail the job
-      # naming the limit and reset time; comment once per reset window, not per run.
+      # error the action's log doesn't explain. When a DeepSeek fallback took over
+      # and finished, nothing is left to say (the fallback is silent by design). Otherwise
+      # read the transcript and fail the job naming the limit and reset time; comment
+      # once per reset window, not per run.
       - name: Explain a Claude session-limit failure
-        if: always() && steps.claude.outcome == 'failure' && steps.claude.outputs.execution_file != ''
+        if: always() && steps.claude.outcome == 'failure' && steps.deepseek.outcome != 'success' && steps.claude.outputs.execution_file != ''
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -336,11 +455,19 @@ jobs:
           fi
           exit 1
 
+      # Claude's failure was hidden (continue-on-error) so the fallback could run: if no
+      # DeepSeek rerun finished the review, the job fails as it did before.
+      - name: Fail when no review completed
+        if: always() && steps.claude.outcome == 'failure' && steps.deepseek.outcome != 'success'
+        run: |
+          echo "::error::Claude review failed and no DeepSeek fallback completed it"
+          exit 1
+
       # The marker review-covered looks for on the next push (scripts/pr-automation.mjs
-      # REVIEW_COVERED_STEP; keep the names in sync). Runs only when Claude
-      # reviewed this diff or a covered review carried over.
+      # REVIEW_COVERED_STEP; keep the names in sync). Runs only when a reviewer
+      # (Claude or DeepSeek) reviewed this diff or a covered review carried over.
       - name: Mark the diff as reviewed
-        if: steps.diff.outputs.unchanged == 'true' || steps.claude.outcome == 'success'
+        if: steps.diff.outputs.unchanged == 'true' || steps.claude.outcome == 'success' || steps.deepseek.outcome == 'success'
         run: echo "review covers this diff"
 
       # The skipped re-review leaves the new head without a proof verdict; repeat the reviewed
