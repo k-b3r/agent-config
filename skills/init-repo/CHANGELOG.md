@@ -5,6 +5,10 @@ A repo wired by an earlier `/init-repo` never sees a later template change: the 
 Shared configs come in through the lockfile, so run `pnpm update @k-b3r/agent-config` to pick them up.
 The PR that changes a template adds its entry here.
 
+## 2026-11-16 proof earns confidence-high
+
+- `.github/pull_request_template.md`: replace the `## Verified` section with the new one and add the optional `## Agreed decisions` section before it (copy both from `templates/typescript/.github/pull_request_template.md`). The agent review now judges proof per claim and `confidence-high` needs a `proof: sufficient` verdict for the head commit; an empty `## Verified` costs 20 points.
+
 ## 2026-11-16 confidence label gates auto-merge
 
 - No consumer change: the reusable `auto-merge.yml` now merges an `automerge` PR only at `confidence-high` (no `needs-human`, unless `human-approved`) and leaves one comment otherwise. Keep calling it as before; the `pr-review` caller must stay in the `workflow_run` list so the label is set.

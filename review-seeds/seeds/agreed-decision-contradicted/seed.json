@@ -1,0 +1,8 @@
+{
+  "name": "agreed-decision-contradicted",
+  "rule": "an Agreed-decisions item the diff contradicts blocks",
+  "covers": "an Agreed-decisions item the diff contradicts blocks",
+  "expect": { "blocking": true },
+  "message": "reject negative prices in the pricing route",
+  "body": "## Intent\n\nA negative price made the discount route return a nonsense percentage.\n\n## Changed / not changed\n\n- Changed: the route rejects a negative price.\n- Not changed: the discount maths.\n\n## Risks\n\nNone.\n\n## Agreed decisions\n\n- [x] A negative price answers 422, not 400, so clients can tell it from a malformed number.\n\n## Verified\n\n```\n$ pnpm vitest run src/server/routes/pricing.test.ts\n ✓ discountRoute rejects a negative price with 400\n Tests  2 passed (2)\n```\n"
+}

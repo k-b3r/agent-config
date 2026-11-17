@@ -1,0 +1,8 @@
+{
+  "name": "proof-claim-without-evidence",
+  "rule": "a PR proves each claim it makes",
+  "covers": "A PR proves each claim it makes",
+  "expect": { "blocking": true },
+  "message": "reject negative prices in the pricing route",
+  "body": "## Intent\n\nA negative price made the discount route return a nonsense percentage.\n\n## Changed / not changed\n\n- Changed: the route rejects a negative price with 400.\n- Not changed: the discount maths.\n\n## Risks\n\nNone.\n\n## Verified\n\nVerified manually, it works. Tests pass.\n"
+}

@@ -46,6 +46,7 @@ Orchestrator side: `/dispatch-tickets`. Input from the orchestrator: ticket id, 
 
 - `git pull` (CI bots may have added commits), then merge `origin/main` if it moved. Push.
 - Mark the PR ready. Watch CI (`gh pr checks <pr> --watch`), fix what fails.
+- Not `confidence-high` after CI: read the confidence comment's `proof` row (the unproven claims), add the proof (a test, real command output under `## Verified`), push, let CI re-score. At most 3 rounds; then stop and say in the PR what could not be proven (a human reviews it).
 - Never add `automerge` or `human-approved`, never merge. The orchestrator reads your report and decides.
 
 ## 6. Report

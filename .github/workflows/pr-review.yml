@@ -181,6 +181,7 @@ jobs:
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
+            HEAD SHA: ${{ github.event.pull_request.head.sha }}
 
             Review this pull request's diff (`gh pr diff`).
 
@@ -248,11 +249,33 @@ jobs:
             to add there. An owner's exported SQL fragment (a LATERAL or CTE constant from
             its index) is the intended way in and is fine.
 
+            Proof: for every claim the PR body makes (Intent, Changed / not changed, and each
+            item under an optional `## Agreed decisions` section), decide whether a reader can
+            check evidence for it:
+            - behavior change: a test in the diff that would fail without the change;
+            - bug fix: a test that reproduces the bug;
+            - any other claim: real command output pasted in a fenced block under
+              `## Verified`, or a screenshot;
+            - a docs-only or config-only PR: a short statement under `## Verified` that it
+              is docs or config only is enough.
+            Not proof: "tests pass", "verified manually" with no output, a claim with nothing
+            behind it. An unproven claim is not blocking by itself (it caps the PR's
+            confidence); name it. But an Agreed-decisions item that the diff contradicts or
+            leaves out is a blocking finding.
+
             Output:
             - Inline comments for specific problems (one comment per problem, say what
               breaks and how to fix it).
             - One summary comment via `gh pr comment` listing blocking issues, then
               non-blocking suggestions. If there is nothing to say, say "No issues found."
+            - End that summary comment with the proof verdict as its last lines, exactly one of
+              (HEAD SHA above, in full; `pr-confidence` reads this line and ignores a verdict
+              for any other commit):
+                proof: sufficient sha=<HEAD SHA>
+              or
+                proof: insufficient sha=<HEAD SHA>
+                - <unproven claim, and what would prove it>
+              (one `- ` line per unproven claim, no other text after them).
 
             Labels (use `gh pr edit --add-label` / `--remove-label`):
             - Blocking issues found: add `agent-changes-requested`. None: remove it.
@@ -319,6 +342,19 @@ jobs:
       - name: Mark the diff as reviewed
         if: steps.diff.outputs.unchanged == 'true' || steps.claude.outcome == 'success'
         run: echo "review covers this diff"
+
+      # The skipped re-review leaves the new head without a proof verdict; repeat the reviewed
+      # commit's, or confidence would be capped at medium after every upkeep merge. Informational.
+      - name: Carry the proof verdict over
+        if: steps.diff.outputs.unchanged == 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
+        run: node .agent-config/scripts/pr-confidence.mjs carry-proof "$REPO" "$PR" "$BEFORE" "$AFTER"
 
       # claude-code-action skips (and still succeeds) when the PR changes the
       # workflow that runs it, so the gate would pass unreviewed code.

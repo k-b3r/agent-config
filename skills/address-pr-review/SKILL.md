@@ -64,6 +64,7 @@ For each **fix**, test first (red, green): a test that reproduces the finding, t
 `gh pr checks <pr> --watch`. The new commits re-run the review on the full diff.
 - New **blocking** finding: one more pass of steps 1-6.
 - New non-blocking findings: ticket or reject, don't fix in a loop. Stop after two passes and report.
+- Not `confidence-high`: read the confidence comment's `proof` row (unproven claims), add the proof (a test, real output under `## Verified`), push, let CI re-score. At most 3 rounds; then say in the PR what could not be proven and leave it to the human.
 
 Don't merge; report and leave it to the user:
 
