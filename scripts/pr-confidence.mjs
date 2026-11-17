@@ -3,11 +3,14 @@
 // model's own rating of itself. The label gates auto-merge: pr-automation merges an `automerge` PR only at confidence-high.
 // High is earned by proof: the agent review must judge the PR's proof sufficient for the CURRENT head commit
 // (its `proof: sufficient sha=<head>` line, see proofVerdict), else the tier is capped at medium.
+// A critical PR that only the DeepSeek fallback reviewed (marker line `reviewer: deepseek-fallback sha=<head>`,
+// posted by pr-review.yml, see reviewerVerdict) is capped at medium too.
 //   pr-confidence label <owner/repo> <pr-number>        set exactly one confidence-* label, print the factors
 //   pr-confidence label-sha <owner/repo> <sha>           the same for the open PR whose head is <sha> (none: exit 0)
 //   pr-confidence pending <owner/repo> <pr-number>       a push landed: drop the old tier, say it is being re-scored
 //   pr-confidence calibrate <owner/repo> [--limit <n>]   score recent merged PRs, compare tiers with reverts
 //   pr-confidence carry-proof <owner/repo> <pr> <from-sha> <to-sha>   a push left the diff unchanged: repeat the proof verdict for the new head
+//   pr-confidence mark-fallback <owner/repo> <pr> <sha>   the DeepSeek fallback reviewed <sha>: post the marker once
 // Factors and weights are in FACTORS below: each one names the fact it read, so the score can be argued with.
 // Besides the label, one comment (found by its marker, edited in place) carries the factor table.
 import { execFileSync } from 'node:child_process'
@@ -85,6 +88,10 @@ const FACTORS = [
             ? 'no agent review verdict "proof: sufficient" for the current head commit: capped at medium'
             : `the review judged the proof insufficient: capped at medium. Unproven: ${proof.claims.join('; ') || 'see the review summary'}`,
         },
+  ({ reviewer }) =>
+    reviewer === FALLBACK_REVIEWER
+      ? { name: 'reviewer', points: 0, cap: 'medium', detail: 'critical PR reviewed by the fallback model: capped at medium, a human decides' }
+      : null,
   ({ verified }) =>
     verified === 'missing' || verified === 'empty'
       ? { name: 'verified section', points: -20, detail: 'the PR body has no filled "## Verified" section: paste proof per claim (test names, command output, screenshot), or say "docs only" / "config only"' }
@@ -122,6 +129,7 @@ export function collectEvidence({ repo, pr, gh }) {
     reviewed: reviewCovered({ repo, sha: view.headRefOid, gh }),
     reviewedCommits: shas.filter((sha) => reviewCovered({ repo, sha, gh })).length,
     proof: proofVerdict({ repo, pr, sha: view.headRefOid, gh }),
+    reviewer: reviewerVerdict({ repo, pr, sha: view.headRefOid, gh }),
     verified: verifiedState(view.body),
     risks: tickedRisks(view.body),
     risksSection: hasRisksSection(view.body),
@@ -173,20 +181,51 @@ export function parseProof(body) {
   return { status: status.toLowerCase(), sha: sha.toLowerCase(), claims }
 }
 
-export function proofVerdict({ repo, pr, sha, gh }) {
-  let bodies
+// Bodies of the comments a bot wrote on the PR, or null when gh fails (a missing verdict, never a crash).
+function botComments({ repo, pr, gh }) {
   try {
-    bodies = gh(['api', '--paginate', `repos/${repo}/issues/${pr}/comments`, '--jq', '.[] | select(.user.type == "Bot") | .body | @json'])
+    return gh(['api', '--paginate', `repos/${repo}/issues/${pr}/comments`, '--jq', '.[] | select(.user.type == "Bot") | .body | @json'])
       .split('\n')
       .filter(Boolean)
       .map((line) => JSON.parse(line))
   } catch {
     return null
   }
+}
+
+const sameCommit = (a, b) => a.startsWith(b) || b.startsWith(a)
+
+export function proofVerdict({ repo, pr, sha, gh }) {
   const head = sha.toLowerCase()
-  const verdicts = bodies.map(parseProof).filter((v) => v && (head.startsWith(v.sha) || v.sha.startsWith(head)))
+  const verdicts = (botComments({ repo, pr, gh }) ?? []).map(parseProof).filter((v) => v && sameCommit(head, v.sha))
   const found = verdicts.at(-1)
   return found ? { status: found.status, claims: found.claims } : null
+}
+
+// The reviewer marker: `reviewer: deepseek-fallback sha=<head>`. pr-review.yml posts it as a separate bot comment
+// when Claude failed (session limit or start-up) on a claude-tier PR and DeepSeek reviewed it instead; the
+// model never writes it, so a model that forgets cannot hide the fallback.
+export const FALLBACK_REVIEWER = 'deepseek-fallback'
+const REVIEWER_LINE = /^reviewer: ([a-z-]+) sha=([0-9a-f]{7,40})[ \t]*$/im
+
+export function parseReviewer(body) {
+  const match = (body ?? '').split('\n').map((line) => line.match(REVIEWER_LINE)).find(Boolean)
+  return match ? { reviewer: match[1].toLowerCase(), sha: match[2].toLowerCase() } : null
+}
+
+// The fallback marker for exactly this commit, or null. A marker for an older commit does not apply: a new push is
+// reviewed afresh, by Claude when it can.
+export function reviewerVerdict({ repo, pr, sha, gh }) {
+  const head = sha.toLowerCase()
+  const found = (botComments({ repo, pr, gh }) ?? []).map(parseReviewer).find((m) => m?.reviewer === FALLBACK_REVIEWER && sameCommit(head, m.sha))
+  return found ? FALLBACK_REVIEWER : null
+}
+
+// Idempotent: a re-run of the review job on the same head posts nothing new.
+export function markReviewer({ repo, pr, sha, gh }) {
+  if (reviewerVerdict({ repo, pr, sha, gh })) return false
+  gh(['api', `repos/${repo}/issues/${pr}/comments`, '-f', `body=reviewer: ${FALLBACK_REVIEWER} sha=${sha}`])
+  return true
 }
 
 // A push that leaves the PR diff unchanged skips the re-review; the verdict of the reviewed commit still
@@ -194,7 +233,8 @@ export function proofVerdict({ repo, pr, sha, gh }) {
 export function carryProof({ repo, pr, from, to, gh }) {
   const verdict = proofVerdict({ repo, pr, sha: from, gh })
   if (!verdict || proofVerdict({ repo, pr, sha: to, gh })) return false
-  const body = [`proof: ${verdict.status} sha=${to}`, ...verdict.claims.map((c) => `- ${c}`), '', `_Carried over from ${from.slice(0, 7)}: this push left the PR diff unchanged._`].join('\n')
+  const marker = reviewerVerdict({ repo, pr, sha: from, gh }) ? [`reviewer: ${FALLBACK_REVIEWER} sha=${to}`, ''] : []
+  const body = [`proof: ${verdict.status} sha=${to}`, ...verdict.claims.map((c) => `- ${c}`), '', ...marker, `_Carried over from ${from.slice(0, 7)}: this push left the PR diff unchanged._`].join('\n')
   gh(['api', `repos/${repo}/issues/${pr}/comments`, '-f', `body=${body}`])
   return true
 }
@@ -330,6 +370,7 @@ const USAGE = [
   '       pr-confidence pending <owner/repo> <pr-number>',
   '       pr-confidence calibrate <owner/repo> [--limit <n>]',
   '       pr-confidence carry-proof <owner/repo> <pr-number> <from-sha> <to-sha>',
+  '       pr-confidence mark-fallback <owner/repo> <pr-number> <sha>',
 ].join('\n')
 
 function main([command, repo, ...rest]) {
@@ -353,6 +394,11 @@ function main([command, repo, ...rest]) {
   if (command === 'carry-proof' && repo && rest.length === 3) {
     const [pr, from, to] = rest
     console.log(carryProof({ repo, pr, from, to, gh }) ? `proof verdict carried to ${to}` : 'no proof verdict to carry')
+    return 0
+  }
+  if (command === 'mark-fallback' && repo && rest.length === 2) {
+    const [pr, sha] = rest
+    console.log(markReviewer({ repo, pr, sha, gh }) ? `fallback marker posted for ${sha}` : `fallback marker already present for ${sha}`)
     return 0
   }
   if (command === 'pending' && repo && rest.length === 1) {
