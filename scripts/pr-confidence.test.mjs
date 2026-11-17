@@ -124,6 +124,20 @@ test('collectEvidence reads facts: failing and pending checks, ticked risks, cov
   assert.deepEqual(evidence.labels, ['automerge'])
 })
 
+test('collectEvidence judges each check by its latest run, so a re-run that passed clears an earlier failure', () => {
+  // Seen on k-b3r/buy-and-sell#101, 2026-11-17: the review failed on a stale token, passed after a reopen on the
+  // same head, and the old failure kept the PR at low.
+  const checkRuns = [
+    { name: 'review / agent-review', status: 'completed', conclusion: 'failure', started_at: '2026-11-16T08:12:09Z' },
+    { name: 'review / agent-review', status: 'completed', conclusion: 'success', started_at: '2026-11-17T07:11:33Z' },
+    { name: 'review / agent-review', status: 'completed', conclusion: 'skipped', started_at: '2026-11-17T07:12:49Z' },
+    { name: 'ci / unit tests', status: 'completed', conclusion: 'success', started_at: '2026-11-16T08:00:00Z' },
+    { name: 'ci / unit tests', status: 'completed', conclusion: 'failure', started_at: '2026-11-17T07:00:00Z' },
+  ]
+  const evidence = collectEvidence({ repo: 'o/r', pr: 7, gh: fakeGh({ checkRuns, view }) })
+  assert.deepEqual(evidence.checks.failing, ['ci / unit tests'])
+})
+
 test('collectEvidence counts reviewed commits, not pushes, and marks an unreviewed head', () => {
   const gh = fakeGh({ checkRuns: [], view, coveredShas: ['a', 'b'], branchShas: ['a', 'b', 'c', SHA] })
   const evidence = collectEvidence({ repo: 'o/r', pr: 7, gh })
