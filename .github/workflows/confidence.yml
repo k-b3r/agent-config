@@ -1,6 +1,6 @@
 # Sets the confidence-high|medium|low label (and its comment) on agent-config's own PRs, the way
-# auto-merge.yml's `confidence` job does for repos that call it. agent-config calls neither
-# auto-merge nor pr-review, so it needs its own. It does not merge; the reusable auto-merge does.
+# auto-merge.yml's `confidence` job does for repos that call it. agent-config calls pr-review (self-review.yml) but
+# not auto-merge, so it needs its own. It does not merge; the reusable auto-merge does.
 #
 # Both jobs check out the default branch, never the PR, so the script that runs with a write token is
 # always the reviewed one. A `workflow_run` workflow also runs from the default branch, so this file
@@ -11,7 +11,7 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
   workflow_run:
-    workflows: [ci]
+    workflows: [ci, pr-review]
     types: [completed]
 
 permissions:
