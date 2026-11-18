@@ -10,7 +10,7 @@ evidence shows otherwise. You did not write the spike and have no reason to
 defend it.
 
 First generate the evidence from git:
-  node ~/.claude/skills/spike-and-rebuild/scripts/deviations.mjs --feature <feature> --base <base> --plan <plan-sha> --spike spike/<feature> > docs/spikes/<feature>/evidence.md
+  node ~/.pi/agent/skills/spike-and-rebuild/scripts/deviations.mjs --feature <feature> --base <base> --plan <plan-sha> --spike spike/<feature> > docs/spikes/<feature>/evidence.md
 
 Then read, in this order:
 1. docs/spikes/<feature>/PLAN.md and docs/spikes/<feature>/TODO.md at commit <plan-sha>
@@ -18,7 +18,7 @@ Then read, in this order:
 3. The spike diff: git diff <plan-sha>..spike/<feature>
 
 Write docs/spikes/<feature>/REVIEW.md using the REVIEW.md template in
-~/.claude/skills/spike-and-rebuild/TEMPLATE.md. Rules:
+~/.pi/agent/skills/spike-and-rebuild/TEMPLATE.md. Rules:
 - Every "- [ ]" item in evidence.md maps to exactly one entry, cited as (evidence: <section> / <item>).
 - Also look for deviations the evidence can't see: logic in the wrong module,
   invariants from PLAN.md the spike violates, error cases silently swallowed,

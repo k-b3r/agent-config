@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Regression suite for the agent review prompt in .github/workflows/pr-review.yml.
 // Replays seeded PRs (each breaking one standard, plus clean controls) through the prompt
-// offline with `claude -p`, and checks the verdict against what each seed should get.
+// offline with `pi -p` (REVIEW_AGENT=claude for `claude -p`), and checks the verdict against what each seed should get.
 //   review-seeds [--workflow <pr-review.yml>] [--only a,b] [--model <id>] [--repeat N]
 //                [--jobs N] [--out <dir>] [--validate] [--keep] [--no-attribute]
 //                [--seeds-dir <dir>] [--base-dir <dir>]
@@ -15,12 +15,12 @@
 // --workflow tests a prompt change before it merges (default: this repo's own file).
 // --seeds replays another list (a seed may set `base` to diff against something other than origin/main,
 // e.g. a merged PR's first parent, to check clean history for false positives); --out saves each review.
-// --model defaults to the workflow's pinned model. --repeat runs each seed N times; the review is probabilistic, so one run proves little.
-// A blocking seed with a `covers` rule also gets a haiku judge pass: the run misses unless the review's blocking findings
+// --model defaults to DeepSeek on pi, or the workflow's pinned model with REVIEW_AGENT=claude. --repeat runs each seed N times; the review is probabilistic, so one run proves little.
+// A blocking seed with a `covers` rule also gets a judge pass (DeepSeek on pi, Sonnet on claude; REVIEW_JUDGE_MODEL overrides): the run misses unless the review's blocking findings
 // cite that rule (a verdict alone can be right for the wrong reason). --no-attribute skips it, verdict only.
 // Exits 1 when a run misses its expectation, 2 when none missed but some runs gave no
-// verdict (usage limit hit, claude crashed): an error is not a miss, the review never ran.
-// Needs the `claude` CLI and the seed
+// verdict (usage limit hit, the agent crashed): an error is not a miss, the review never ran.
+// Needs the `pi` CLI (or `claude` with REVIEW_AGENT=claude) and the seed
 // branches fetched as origin/<branch>. Dry run only: nothing is posted anywhere.
 import { execFileSync, spawn } from 'node:child_process'
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
@@ -40,7 +40,6 @@ const DEFAULT_JOBS = 4
 const RUN_TIMEOUT_MS = 600_000
 const PROMPT_INDENT = 8
 const ALLOWED_TOOLS = 'Bash(git diff:*),Bash(git show:*),Bash(git log:*),Read,Glob,Grep'
-const JUDGE_MODEL = process.env.REVIEW_JUDGE_MODEL ?? 'claude-haiku-5-5'
 const MAX_JUDGED_CHARS = 8000
 const BLOCK_LABEL = 'agent-changes-requested'
 const HUMAN_LABEL = 'needs-human'
@@ -243,9 +242,11 @@ export function buildSeedRepo({ baseDir, seeds, root = mkdtempSync(join(tmpdir()
   return root
 }
 
-// REVIEW_AGENT=pi runs the same prompts through `pi -p` on a non-Anthropic model
-// (offline check only; CI still uses claude with the pinned model).
-const AGENT = process.env.REVIEW_AGENT === 'pi' ? 'pi' : 'claude'
+// pi is the default harness (DeepSeek, no Anthropic spend). REVIEW_AGENT=claude runs the same prompts
+// through `claude -p` with the workflow's pinned model, for a Claude baseline.
+const AGENT = process.env.REVIEW_AGENT === 'claude' ? 'claude' : 'pi'
+const PI_MODEL = 'opencode-go/deepseek-v4.1-flash'
+const JUDGE_MODEL = process.env.REVIEW_JUDGE_MODEL ?? (AGENT === 'pi' ? PI_MODEL : 'claude-sonnet-5-5')
 const PI_TOOLS = 'bash,read,grep,glob'
 
 function runClaude(promptText, { repo, model, tools = ALLOWED_TOOLS }) {
@@ -380,7 +381,7 @@ async function runSeeds(opts, seeds) {
   if (opts.out) mkdirSync(opts.out, { recursive: true })
   const workflow = readFileSync(opts.workflow, 'utf8')
   const prompt = extractPrompt(workflow, { agentConfigDir: standardsDirFor(opts.staged) })
-  opts.model ??= extractModel(workflow)
+  opts.model ??= AGENT === 'pi' ? PI_MODEL : extractModel(workflow)
   const tasks = seeds.flatMap((seed) =>
     Array.from({ length: opts.repeat }, (_, run) => async () => {
       const started = Date.now()
