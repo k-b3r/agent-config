@@ -1,6 +1,6 @@
 # agent-config
 
-Personal Claude Code setup: global instructions, general coding standards, own skills. CLI tools and Pi/Claude extensions live in the companion `terminal-config` repo.
+Personal agent setup (pi is the primary harness; the `~/.claude` links stay for Claude Code): global instructions, general coding standards, own skills. CLI tools and Pi/Claude extensions live in the companion `terminal-config` repo.
 
 ```
 AGENTS.md            -> ~/.claude/CLAUDE.md and ~/.pi/agent/AGENTS.md (global instructions; imports CODING_STANDARDS.md, TOOLS.md)

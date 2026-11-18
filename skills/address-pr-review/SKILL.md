@@ -7,7 +7,7 @@ description: Works through review findings on a GitHub PR end to end. Fetches un
 
 Input: a PR number (or URL). Fixes land as new commits on the PR's own branch, never a sub-PR.
 
-Helper (needs `gh`): `node ~/.claude/skills/address-pr-review/scripts/review-threads.mjs`
+Helper (needs `gh`): `node ~/.pi/agent/skills/address-pr-review/scripts/review-threads.mjs`
 - `list <pr> [--repo owner/name]`: JSON with `branch`, `labels`, review `summary`, unresolved `threads` (id, path, line, body, earlier replies)
 - `close <thread-id> "<reply>" [--keep-open]`: reply on a thread, then resolve it
 

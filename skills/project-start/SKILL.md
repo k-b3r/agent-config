@@ -7,7 +7,7 @@ description: Session orientation skill that reads git state, open PRs with CI st
 
 On invoke, gather context silently then output one structured brief. No questions, no preamble.
 
-CLAUDE.md files and auto-memory (`~/.claude/projects/<project>/memory/`) are already in context at session start. Use them for Key context; don't re-read them.
+AGENTS.md and CLAUDE.md files are already in context at session start. Use them for Key context; don't re-read them.
 
 ## Steps
 

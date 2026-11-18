@@ -5,6 +5,11 @@ A repo wired by an earlier `/init-repo` never sees a later template change: the 
 Shared configs come in through the lockfile, so run `pnpm update @k-b3r/agent-config` to pick them up.
 The PR that changes a template adds its entry here.
 
+## 2026-11-18 PR template: sixth risk box and How to revert
+
+- `.github/pull_request_template.md`: add the risk box "Removes, skips or weakens a test, check or threshold", a `## How to revert` section (per ticked box), a "Risks: say none" line, and a closing "what these checks would miss" prompt under Verified. Copy the new file over the old one if you have not edited it, else merge the pieces in.
+- `pr-confidence` takes 10 points off a PR that ticks a risk box and leaves `## How to revert` empty; `repo-checks review-tier` treats a ticked box with "weakens" in it as a reason for the Claude reviewer.
+
 ## 2026-11-17 DeepSeek reviewer and Claude fallback
 
 - Add the repo secret `OPENCODE_API_KEY` (the opencode-go key: `gh secret set OPENCODE_API_KEY`). The `pr-review.yml` caller needs no change when it uses `secrets: inherit`; one that lists secrets must pass `OPENCODE_API_KEY` too. Without the secret every PR is still reviewed by Claude. With it, PRs that `repo-checks review-tier` does not send to Claude get DeepSeek, and a Claude failure on the session limit or at start-up reruns on DeepSeek (that PR is capped at `confidence-medium`). Keep `agentConfig.claudeReviewPaths` right for the repo: it picks the PRs Claude reviews.

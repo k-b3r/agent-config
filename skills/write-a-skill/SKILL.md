@@ -1,13 +1,13 @@
 ---
 name: write-a-skill
-description: Writes a new agent skill, or reworks one, and proves it changes agent behavior. Checks the skill is warranted, records what an agent gets wrong without it, writes a short SKILL.md (plus tested scripts for deterministic steps), then verifies with headless `claude -p` runs that the skill gets loaded and followed. Use when user runs /write-a-skill, asks to "make a skill", "turn this into a skill", "write a skill for X", or when a workflow has repeated enough to deserve one.
+description: Writes a new agent skill, or reworks one, and proves it changes agent behavior. Checks the skill is warranted, records what an agent gets wrong without it, writes a short SKILL.md (plus tested scripts for deterministic steps), then verifies with headless `pi -p` runs that the skill gets loaded and followed. Use when user runs /write-a-skill, asks to "make a skill", "turn this into a skill", "write a skill for X", or when a workflow has repeated enough to deserve one.
 ---
 
 # Write a skill
 
 A skill is worth its tokens only if an agent behaves differently with it. So: baseline first, write second, verify last.
 
-Where it lives: your own skills in the agent-config checkout's `skills/<name>/` (`readlink -f ~/.claude/CLAUDE.md` shows where it is; symlinked into `~/.claude/skills` by `install.sh`); a repo-only skill in that repo's `.claude/skills/<name>/`. Changes go through a PR either way.
+Where it lives: your own skills in the agent-config checkout's `skills/<name>/` (`readlink -f ~/.pi/agent/AGENTS.md` shows where it is; symlinked into `~/.pi/agent/skills` by `install.sh`); a repo-only skill in that repo's `.pi/skills/<name>/`. Changes go through a PR either way.
 
 ## 1. Is it warranted?
 
@@ -16,7 +16,7 @@ Write one only when a workflow has repeated 3+ times or the agent needed the sam
 - A rule only one repo needs: that repo's `CODING_STANDARDS.md` or `CLAUDE.md`.
 - A one-off: nothing; just do it.
 
-Check for overlap first: `ls ~/.claude/skills` and the session's skill list. Extend an existing skill before adding a sibling.
+Check for overlap first: `ls ~/.pi/agent/skills` and the session's skill list. Extend an existing skill before adding a sibling.
 
 ## 2. Baseline
 
@@ -43,15 +43,15 @@ Note what goes wrong without the skill: from the session that prompted it (the c
 Pick a **marker**: an effect only the skill's body causes (a heading name, a first line, a file, a command) and a shell check that sees it. Then run 3+ times with a direct prompt and an indirect one:
 
 ```bash
-node ~/.claude/skills/write-a-skill/scripts/verify-skill.mjs <skill-dir> \
+node ~/.pi/agent/skills/write-a-skill/scripts/verify-skill.mjs <skill-dir> \
   --prompt "write release notes for v1.1" \
   --prompt "we're cutting 1.1, jot down what changed for the GitHub release" \
   --check "head -1 RELEASE_NOTES.md | grep -q 'rn-skill'" \
   --fixture <scratch repo with what the task needs> \
-  --allow "Bash(git log:*),Write,Read"
+  --allow "read,write,bash"
 ```
 
-It copies the skill in as `<name>-verify` (so an installed copy can't stand in) and prints `loaded n/N  check n/N` per prompt, then `PASS` or `FAIL`. Transcripts stay in the printed work dir.
+It copies the skill in as `<name>-verify` and loads only that copy (`--no-skills --skill`), so an installed one can't stand in. Pi has no Skill tool: "loaded" means the transcript shows a read of its `SKILL.md`. Default model `opencode-go/deepseek-v4.1-flash`; `--model` overrides. It prints `loaded n/N  check n/N` per prompt, then `PASS` or `FAIL`. Transcripts stay in the printed work dir.
 - Not loaded: the description doesn't match how people ask. Add their phrasing and rerun.
 - Loaded but check fails: read the transcript; the body is unclear or contradicts itself.
 - Runs are real sessions: keep runs and prompts few. A skill that needs network, GitHub or a tracker can't run in a scratch repo; verify those on the next real use and say so.

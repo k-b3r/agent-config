@@ -3,21 +3,22 @@ import { test } from 'node:test'
 import { renameSkill, skillLoaded, summarize } from './verify-skill.mjs'
 
 const line = (obj) => JSON.stringify(obj)
-const skillCall = (skill) =>
-  line({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Skill', input: { skill } }] } })
+const readCall = (path, toolName = 'read') => line({ type: 'tool_execution_start', toolCallId: 'c1', toolName, args: { path } })
 
-test('skillLoaded is true when the transcript has a Skill tool call for that skill', () => {
-  const transcript = [line({ type: 'system', tools: ['Skill', 'Bash'] }), skillCall('release-notes-verify')].join('\n')
+test('skillLoaded is true when the transcript has a read of that skill\'s SKILL.md', () => {
+  const transcript = [line({ type: 'agent_start' }), readCall('/tmp/run/.verify-skills/release-notes-verify/SKILL.md')].join('\n')
   assert.equal(skillLoaded(transcript, 'release-notes-verify'), true)
 })
 
-test('skillLoaded is false when only another skill was called, or the tool list merely names Skill', () => {
-  const transcript = [line({ type: 'system', tools: ['Skill'] }), skillCall('tdd')].join('\n')
-  assert.equal(skillLoaded(transcript, 'release-notes-verify'), false)
+test('skillLoaded is false for another skill, another file of the skill, or a non-read tool', () => {
+  assert.equal(skillLoaded(readCall('/x/.verify-skills/tdd/SKILL.md'), 'release-notes-verify'), false)
+  assert.equal(skillLoaded(readCall('/x/release-notes-verify/REFERENCE.md'), 'release-notes-verify'), false)
+  assert.equal(skillLoaded(readCall('/x/release-notes-verify/SKILL.md', 'write'), 'release-notes-verify'), false)
+  assert.equal(skillLoaded(line({ type: 'message_end', message: { content: '/x/release-notes-verify/SKILL.md' } }), 'release-notes-verify'), false)
 })
 
 test('skillLoaded skips lines that are not JSON, such as CLI warnings', () => {
-  const transcript = ['warning: something', skillCall('x')].join('\n')
+  const transcript = ['warning: something', readCall('/a/x/SKILL.md')].join('\n')
   assert.equal(skillLoaded(transcript, 'x'), true)
 })
 
