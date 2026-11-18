@@ -35,6 +35,7 @@ Pi does not expand `@` imports; its `standards-loader` extension adds the standa
 
 ## Git identity for personal projects
 - Personal projects use ONLY GitHub account `k-b3r`, git author name `k-b3r`, email `dev.kimbermudez@gmail.com`. Never `kimbermudez` as a name, and no other account or email. Applies to steward instances (`GIT_USER_NAME`), clones, commits and PRs.
+- The user also works on the `kimbermudez` account in other terminals, so the `gh` active account can flip under you. In any repo outside `labx*` / `lx-*`, never rely on the active account: prefix `gh` with `GH_TOKEN=$(gh auth token --user k-b3r)` (and do not `gh auth switch`, it changes the other terminals too).
 
 ## Git identity for LabX work (`labx*` / `lx-*` repos under `~/Develop/odi/`)
 - Use ONLY GitHub account `kimbermudez` for every `gh` and git action in these repos. It is the only account for labx* directories. Commit identity: `kimbermudez <kbermudez@labxchange360.com>`. The repo-local git identity is often the placeholder `t <t@t>`: pass `-c user.name=kimbermudez -c user.email=kbermudez@labxchange360.com` on commits.
