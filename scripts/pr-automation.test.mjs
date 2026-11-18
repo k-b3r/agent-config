@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { confidenceTier, gateComment, GATE_MARKER, prDiffUnchanged, mergeDecision, mergeIfReady, reviewCovered, reviewReusable, REVIEW_COVERED_STEP, sameChange, workflowGate } from './pr-automation.mjs'
+import { confidenceTier, gateComment, GATE_MARKER, prDiffUnchanged, mergeDecision, mergeIfReady, protectedGate, reviewCovered, reviewReusable, REVIEW_COVERED_STEP, sameChange, workflowGate } from './pr-automation.mjs'
 
 const SHA = 'abc123'
 const greenPr = {
@@ -389,4 +389,37 @@ test('mergeIfReady posts no comment on a PR without automerge', () => {
   const env = holdGh({ labels: ['confidence-medium'] })
   mergeIfReady({ repo: 'o/r', sha: SHA, gh: env.gh, report: () => {} })
   assert.equal(env.store.length, 0)
+})
+
+const protectedRun = (mode, opts) => {
+  const { gh, calls } = gateGh(opts)
+  const result = protectedGate({ mode, repo: 'o/r', pr: 7, gh })
+  return { result, edits: calls.filter((a) => a[1] === 'edit'), comments: calls.filter((a) => a[1] === 'comment') }
+}
+
+test('protectedGate flags a PR that changes the standards, agent files, PR template or a workflow', () => {
+  for (const file of ['CODING_STANDARDS.md', 'AGENTS.md', 'docs/CLAUDE.md', 'REVIEW.md', '.github/pull_request_template.md', '.github/workflows/ci.yml']) {
+    const run = protectedRun('flag', { files: ['a.ts', file] })
+    assert.equal(run.result, 'flagged', file)
+    assert.deepEqual(run.edits[0].slice(-2), ['--add-label', 'needs-human'])
+    assert.match(run.comments[0].at(-1), /^<!-- gate:needs-human-protected-paths:flagged -->/)
+    assert.match(run.comments[0].at(-1), new RegExp(file.replace(/[.]/g, '\\.')))
+  }
+})
+
+test('protectedGate leaves other files alone and comments once', () => {
+  const none = protectedRun('flag', { files: ['src/a.ts', 'README.md', 'docs/guide.md'] })
+  assert.deepEqual([none.result, none.edits.length, none.comments.length], ['none', 0, 0])
+  const again = protectedRun('flag', { files: ['REVIEW.md'], states: ['flagged'] })
+  assert.deepEqual([again.result, again.edits.length, again.comments.length], ['flagged', 1, 0])
+})
+
+test('protectedGate unflag drops only its own label, once the protected files left the diff', () => {
+  const dropped = protectedRun('unflag', { files: ['a.ts'], states: ['flagged'], labels: ['needs-human'] })
+  assert.equal(dropped.result, 'dropped')
+  assert.deepEqual(dropped.edits[0].slice(-2), ['--remove-label', 'needs-human'])
+  const foreign = protectedRun('unflag', { files: ['a.ts'], labels: ['needs-human'] })
+  assert.deepEqual([foreign.result, foreign.edits.length], ['none', 0])
+  const still = protectedRun('unflag', { files: ['AGENTS.md'], states: ['flagged'], labels: ['needs-human'] })
+  assert.equal(still.result, 'none')
 })
