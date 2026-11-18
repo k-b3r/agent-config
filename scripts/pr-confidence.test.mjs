@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { calibrationTable, carryProof, collectEvidence, hasRisksSection, markPending, markReviewer, openPrForSha, parseMarker, parseProof, parseReviewer, proofVerdict, reviewerVerdict, renderComment, renderFactors, renderPending, revertedPrs, scoreEvidence, setTierLabel, tickedRisks, TIER_LABELS, upsertComment, verifiedState } from './pr-confidence.mjs'
+import { calibrationTable, carryProof, collectEvidence, hasRisksSection, markPending, markReviewer, openPrForSha, parseMarker, parseProof, parseReviewer, proofVerdict, revertState, reviewerVerdict, renderComment, renderFactors, renderPending, revertedPrs, scoreEvidence, setTierLabel, tickedRisks, TIER_LABELS, upsertComment, verifiedState } from './pr-confidence.mjs'
 import { REVIEW_COVERED_STEP } from './pr-automation.mjs'
 
 const clean = {
@@ -479,4 +479,20 @@ test('carryProof carries the fallback marker with the verdict, so a skipped re-r
   assert.equal(carryProof({ repo: 'o/r', pr: 7, from: 'abc1234', to: 'def5678', gh }), true)
   assert.match(posted[0], /^body=proof: sufficient sha=def5678\n\nreviewer: deepseek-fallback sha=def5678\n/)
   assert.deepEqual(parseProof(posted[0].slice(5)), { status: 'sufficient', sha: 'def5678', claims: [] })
+})
+
+test('revertState tells a missing, untouched and filled How to revert section apart', () => {
+  assert.equal(revertState('## Risks\n\nx'), 'missing')
+  assert.equal(revertState(null), 'missing')
+  assert.equal(revertState('## How to revert\n\nPer ticked box: what can go wrong and how to roll back. Skip when nothing is ticked.\n'), 'empty')
+  assert.equal(revertState('## How to revert\n\n\n## Verified\n\nx'), 'empty')
+  assert.equal(revertState('## How to revert\n\nRevert the merge commit; no data is changed.\n'), 'filled')
+})
+
+test('a ticked risk box with no revert plan loses 10 points on top of the box', () => {
+  const ticked = { ...clean, risks: ['Touches infra, CI or secrets'] }
+  const bare = scoreEvidence({ ...ticked, revert: 'empty' })
+  assert.deepEqual(names(bare), ['risk boxes', 'how to revert'])
+  assert.deepEqual(names(scoreEvidence({ ...ticked, revert: 'filled' })), ['risk boxes'])
+  assert.deepEqual(names(scoreEvidence({ ...clean, revert: 'empty' })), [])
 })
