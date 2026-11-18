@@ -34,7 +34,7 @@ Tags (what CI can check): `tool` = deterministic check, blocks the PR once the r
 - `tool` A PR that changes the rules it is judged by gets `needs-human`: `CODING_STANDARDS.md`, `AGENTS.md` or `CLAUDE.md`, `REVIEW.md`, the PR template and `.github/workflows/`. The agent review reads those files from the base branch, never from the PR. _(`pr-review` gate; treat as `review` until wired)_
 - `process` When the review labels a PR `needs-human`, stop and get the human decision; never add `human-approved` yourself (`/resolve-needs-human`).
 - `process` Review findings are fixed on the PR's own branch, one commit per finding (`/address-pr-review`).
-- `process` When a skill and these standards disagree, the standards win. Known cases: `tdd` (here unit tests sit beside the module and integration tests cover real I/O flows only; the one exception is contract tests first under `/spike-and-rebuild`) and `improve-codebase-architecture` (its glossary uses "module" for any unit; here a module is a feature folder).
+- `process` When a skill and these standards disagree, the standards win. Known cases: `diagnose` (stop after 3 attempts, regression test always), `tdd` (here unit tests sit beside the module and integration tests cover real I/O flows only; the one exception is contract tests first under `/spike-and-rebuild`) and `improve-codebase-architecture` (its glossary uses "module" for any unit; here a module is a feature folder).
 - `process` Anything found outside the task's scope (bug, smell, debt) becomes a ticket in the project's own tracker board the moment it's seen, linked from the PR (the one exception is the small touched-file smell fix under Refactoring); notes and memory are not a backlog. Confirm the connector is on the right workspace before any tracker write (a "not found" often means the wrong one); if the board is unreachable, queue the call in `TRACKER_OUTBOX.md` (in `.git/info/exclude`), tell the user, and never write to another board. Small tidy-ups (never a bug a user could hit) may wait in the held-findings list (`/ticket-held-findings`).
 
 ## Architecture
@@ -145,6 +145,7 @@ Read the matching file before writing code in that language:
 
 - `process` Diagnose with real data before deciding. For fuzzy classification, prefer a per-item model pass over brittle heuristics.
 - `process` When stuck after 3 attempts: stop, write down what failed, ask.
+- `process` A hard bug or performance regression follows the `diagnose` skill (feedback loop first, ranked hypotheses, one probe at a time). Two standards win over it: its "refuse to give up" ends at the 3-attempt stop above, and its regression test is never optional (see Testing).
 
 ## Version Control
 
