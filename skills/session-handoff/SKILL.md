@@ -1,6 +1,6 @@
 ---
 name: session-handoff
-description: Rewrites the repo's SESSION_RESUME.md handoff doc so a fresh session can pick up the work, then opens a new Claude session in a Herdr pane with the continue prompt typed but not sent, so the user starts it by pressing Enter. Use when user runs /session-handoff, says "update the handoff", "update SESSION_RESUME", "write the resume doc", "hand off to a new session", "continue in a fresh session", or context is getting long and work should move to a new agent.
+description: Rewrites the repo's SESSION_RESUME.md handoff doc so a fresh session can pick up the work, then opens a new pi session in a Herdr pane with the continue prompt typed but not sent, so the user starts it by pressing Enter. Use when user runs /session-handoff, says "update the handoff", "update SESSION_RESUME", "write the resume doc", "hand off to a new session", "continue in a fresh session", or context is getting long and work should move to a new agent.
 ---
 
 # Session handoff
@@ -52,7 +52,7 @@ name="resume-$(date +%H%M%S)"
 width=$(herdr pane layout --pane "$HERDR_PANE_ID" | jq '.result.layout.panes[]|select(.pane_id==env.HERDR_PANE_ID).rect.width')
 dir=$([ "$width" -ge 160 ] && echo right || echo down)
 pane=$(herdr pane split --current --direction "$dir" --cwd "$root" --no-focus | jq -r .result.pane.pane_id)
-herdr agent start "$name" --kind claude --pane "$pane" --timeout 60000
+herdr agent start "$name" --kind pi --pane "$pane" --timeout 60000
 ```
 
 - `agent_not_ready` (blocked at startup, usually the folder-trust dialog): never answer it. Tell the user to answer it in the new pane, then `herdr agent wait "$name" --until idle --timeout 300000`.
@@ -78,4 +78,4 @@ Still running: <background agents of this session, or "none">
 Background agents stop when this session closes (transcripts and pushed branches survive), so name every one still running.
 
 Not in Herdr: replace the second line with the command for the user to run in a new terminal in the root from step 1:
-`claude "Read SESSION_RESUME.md in full and continue from its Next steps. Ask me about anything under Waiting on user."`
+`pi "Read SESSION_RESUME.md in full and continue from its Next steps. Ask me about anything under Waiting on user."`

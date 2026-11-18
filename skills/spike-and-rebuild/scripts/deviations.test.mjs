@@ -77,7 +77,7 @@ test('renderReport marks every evidence item for the reviewer and says none expl
   assert.match(report, /- \[ \] `src\/a.ts:3` SPIKE-HACK: `\/\/ SPIKE-HACK: fake data`/)
 })
 
-// REVIEW_PROMPT.md runs `node ~/.claude/skills/spike-and-rebuild/scripts/deviations.mjs`,
+// REVIEW_PROMPT.md runs `node ~/.pi/agent/skills/spike-and-rebuild/scripts/deviations.mjs`,
 // a path through a symlinked skill directory. Called without arguments it must fail
 // loudly; the bare argv[1] comparison made it exit 0 and print nothing, so the
 // redirect to evidence.md wrote an empty file.

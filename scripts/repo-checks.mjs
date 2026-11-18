@@ -25,7 +25,7 @@
 //                            it.todo passes); patterns: agentConfig.skipPatterns
 //   mutation-targets <base>  prints the changed source files under agentConfig.mutationPaths (not in `all`;
 //                            input for the mutation report job)
-//   audit                    the repo wires every shared check (fails on what's missing)
+//   audit                    the repo wires every shared check (fails on what's missing; warns on an unprotected public default branch)
 //   all <base>               everything above
 // Per-repo settings live in package.json "agentConfig" (see DEFAULTS).
 // commitlint was skipped: its parser expects a `type:` prefix these repos don't use.
@@ -55,7 +55,7 @@ const DEFAULT_MIGRATION_PATHS = ['**/migrations/**', '**/migration/**', 'drizzle
 // that quotes these words is not an irreversible write, so those paths are skipped in `reviewTier`.
 const DESTRUCTIVE_SQL =
   /\bdelete\s+from\b|\bupdate\s+[\w.]+\s+set\b|\balter\s+table\b|\bdrop\s+(?:table|schema|index|view|column|database|type|constraint)\b|\btruncate\s+(?:table\s+)?[\w.]+/i
-const RISK_BOX = /\b(?:money|payment|pricing|billing|auth|permission|credentials?|secrets?|user data|personal data|migration|deletes? data|infra|deployment)\b/i
+const RISK_BOX = /\b(?:money|payment|pricing|billing|auth|permission|credentials?|secrets?|user data|personal data|migration|deletes? data|infra|deployment|weakens?)\b/i
 
 const DEFAULTS = {
   sourceDirs: ['src', 'server'],
@@ -73,7 +73,11 @@ const DEFAULTS = {
 
 // Unanchored: Claude Code's footer starts with an emoji, and hooks see the
 // trailer inline in a `git commit -m` command. Shared with hooks/guard.mjs.
-const ATTRIBUTION = /co-authored-by:[^\n]*\b(claude|anthropic)\b|generated with \[?claude/i
+const AI_TOOLS = 'claude|anthropic|openai|chatgpt|gpt-?\\d*|copilot|gemini|codex|cursor|deepseek|aider|devin|windsurf|opencode|pi-coding-agent'
+const ATTRIBUTION = new RegExp(
+  `co-authored-by:[^\\n]*\\b(${AI_TOOLS})\\b|assisted-by:|generated (?:with|by) \\[?(${AI_TOOLS})\\b|🤖 generated`,
+  'i',
+)
 
 export const hasAiAttribution = (text) => ATTRIBUTION.test(text)
 
@@ -386,6 +390,13 @@ export function changedContractTests(nameStatusZ) {
     .map(({ status, paths }) => `${status} ${paths[0]}`)
 }
 
+// Public repos can have branch protection for free; a private free-plan repo cannot, so only a public
+// one is warned. protectedBranch: true, false, or null when it could not be read (no warning then).
+export function protectionWarning(visibility, protectedBranch) {
+  if (visibility !== 'public' || protectedBranch !== false) return null
+  return 'the default branch has no branch protection: enable it on this public repo (required status checks, no direct push)'
+}
+
 export function mutationTargets(nameStatusZ, globs) {
   return parseNameStatus(nameStatusZ)
     .filter(({ status }) => status !== 'D')
@@ -490,6 +501,23 @@ export function auditWiring(repo) {
 
 function git(...args) {
   return execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+}
+
+// [visibility, protected?] from the GitHub CLI; [null, null] when gh is missing, offline or not logged in.
+function readProtection() {
+  const gh = (...args) => execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
+  try {
+    const { visibility, nameWithOwner, defaultBranchRef } = JSON.parse(gh('repo', 'view', '--json', 'visibility,nameWithOwner,defaultBranchRef'))
+    if (visibility !== 'PUBLIC') return [visibility.toLowerCase(), null]
+    try {
+      gh('api', `repos/${nameWithOwner}/branches/${defaultBranchRef.name}/protection`)
+      return ['public', true]
+    } catch (error) {
+      return ['public', /Branch not protected|404/.test(String(error.stderr)) ? false : null]
+    }
+  } catch {
+    return [null, null]
+  }
 }
 
 const trackedAt = (ref) => git('ls-tree', '-r', '-z', '--name-only', ref).split('\0').filter(Boolean)
@@ -599,13 +627,19 @@ const COMMANDS = {
     const movedNote = movedTotal ? `, ${movedTotal} moved lines not counted` : ''
     return report('diff-size', problems, `${lines} changed lines versus ${base}${movedNote}, limit ${config.maxDiffLines}`)
   },
+  // Per commit, not over the whole PR: a contract test added in one commit and edited in a later one
+  // shows as a plain add in the cumulative diff. Merge commits are skipped (they bring other PRs' files).
   'contracts-unmodified'(base) {
     if (process.env.ALLOW_CONTRACT_CHANGES === 'true') {
       return report('contracts-unmodified', [], 'skipped (label contract-change-approved)')
     }
-    const changed = changedContractTests(git('diff', '--name-status', '-z', '-M', `${base}...HEAD`))
-    const problems = changed.map((entry) => `${entry}: contract tests are never edited; fix the contract comment and have its author update the test, or label contract-change-approved`)
-    return report('contracts-unmodified', problems, `no contract test changed versus ${base}`)
+    const shas = git('rev-list', '--no-merges', '--reverse', `${base}..HEAD`).split('\n').filter(Boolean)
+    const problems = shas.flatMap((sha) =>
+      changedContractTests(git('diff-tree', '--no-commit-id', '--name-status', '-r', '-z', '-M', '--root', sha)).map(
+        (entry) => `${sha.slice(0, 7)} ${entry}: contract tests are never edited; fix the contract comment and have its author update the test, or label contract-change-approved`,
+      ),
+    )
+    return report('contracts-unmodified', problems, `no contract test changed in any commit versus ${base}`)
   },
   'skip-only'(base, config) {
     const patch = git('-c', 'core.quotepath=off', 'diff', '-U0', '--no-prefix', `${base}...HEAD`)
@@ -624,7 +658,10 @@ const COMMANDS = {
     const repo = Object.fromEntries(
       trackedAt('HEAD').map((path) => [path, WANTED.test(path) ? readFileSync(path, 'utf8') : '']),
     )
-    return report('audit', auditWiring(repo), 'every shared check is wired')
+    const code = report('audit', auditWiring(repo), 'every shared check is wired')
+    const warning = protectionWarning(...readProtection())
+    if (warning) console.error(`warning: ${warning}`)
+    return code
   },
 }
 

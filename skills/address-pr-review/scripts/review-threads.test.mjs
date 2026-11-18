@@ -67,7 +67,7 @@ test('summarizeReview reports branch and labels so a needs-human PR can stop the
   assert.equal(result.summary, null)
 })
 
-test('the script runs when invoked through a symlink, as ~/.claude/skills links it', () => {
+test('the script runs when invoked through a symlink, as ~/.pi/agent/skills links it', () => {
   const dir = mkdtempSync(join(tmpdir(), 'review-threads-'))
   const link = join(dir, 'review-threads.mjs')
   symlinkSync(fileURLToPath(new URL('./review-threads.mjs', import.meta.url)), link)

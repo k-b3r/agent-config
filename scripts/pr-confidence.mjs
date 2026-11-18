@@ -92,6 +92,10 @@ const FACTORS = [
     reviewer === FALLBACK_REVIEWER
       ? { name: 'reviewer', points: 0, cap: 'medium', detail: 'critical PR reviewed by the fallback model: capped at medium, a human decides' }
       : null,
+  ({ risks, revert }) =>
+    risks.length && (revert === 'missing' || revert === 'empty')
+      ? { name: 'how to revert', points: -10, detail: 'a risk box is ticked but "## How to revert" says nothing: write what can go wrong and how to roll back' }
+      : null,
   ({ verified }) =>
     verified === 'missing' || verified === 'empty'
       ? { name: 'verified section', points: -20, detail: 'the PR body has no filled "## Verified" section: paste proof per claim (test names, command output, screenshot), or say "docs only" / "config only"' }
@@ -131,6 +135,7 @@ export function collectEvidence({ repo, pr, gh }) {
     proof: proofVerdict({ repo, pr, sha: view.headRefOid, gh }),
     reviewer: reviewerVerdict({ repo, pr, sha: view.headRefOid, gh }),
     verified: verifiedState(view.body),
+    revert: revertState(view.body),
     risks: tickedRisks(view.body),
     risksSection: hasRisksSection(view.body),
     linesChanged: view.additions + view.deletions,
@@ -146,6 +151,14 @@ export const hasRisksSection = (body) => risksSectionOf(body) !== undefined
 export function tickedRisks(body) {
   const section = risksSectionOf(body) ?? ''
   return [...section.matchAll(/^- \[[xX]\] (.+)$/gm)].map((m) => m[1].trim())
+}
+
+// The "How to revert" section of the PR body: 'filled' when it holds words beyond the template's own prompt.
+export function revertState(body) {
+  const part = (body ?? '').split(/^## /m).find((p) => /^How to revert\b/i.test(p))
+  if (part === undefined) return 'missing'
+  const text = part.replace(/^How to revert[^\n]*\n/i, '').replace(/<!--[\s\S]*?-->/g, '').trim()
+  return text && !/^(Per ticked box:|n\/a|none|tbd|todo|-)/i.test(text) ? 'filled' : 'empty'
 }
 
 // The proof section of the PR body: 'missing' (no section), 'empty' (nothing, "not run", or the template's

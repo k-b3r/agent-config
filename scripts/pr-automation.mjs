@@ -235,26 +235,50 @@ export function reviewReusable({ repo, sha, pr, gh }) {
 export const WORKFLOW_MARKER = 'gate:needs-human-workflow-changed'
 
 export function workflowGate({ mode, repo, pr, path, gh }) {
-  const inDiff = gh(['pr', 'diff', String(pr), '--repo', repo, '--name-only']).split('\n').includes(path)
+  return pathGate({
+    mode, repo, pr, gh, marker: WORKFLOW_MARKER,
+    hits: (files) => files.filter((file) => file === path),
+    flagText: () => `Agent review skipped: this PR changes \`${path}\`, and the review action only runs a workflow identical to the default branch's. A human reviews this one.`,
+    dropText: () => `This PR no longer changes \`${path}\`: removed the \`needs-human\` the gate added for it. The review runs again.`,
+  })
+}
+
+// A PR that changes the rules it is judged by needs a human (CODING_STANDARDS.md, Workflow). The review
+// reads those files from the base branch, so a PR cannot loosen its own judge; the gate makes sure a
+// person looks at the change itself. Same label bookkeeping as workflowGate, own marker.
+export const PROTECTED_MARKER = 'gate:needs-human-protected-paths'
+export const PROTECTED_PATH = /(^|\/)(CODING_STANDARDS|AGENTS|CLAUDE|REVIEW)\.md$|^\.github\/pull_request_template\.md$|^\.github\/workflows\//
+
+export function protectedGate({ mode, repo, pr, gh }) {
+  const list = (hits) => hits.slice(0, 5).map((file) => `\`${file}\``).join(', ') + (hits.length > 5 ? `, and ${hits.length - 5} more` : '')
+  return pathGate({
+    mode, repo, pr, gh, marker: PROTECTED_MARKER,
+    hits: (files) => files.filter((file) => PROTECTED_PATH.test(file)),
+    flagText: (hits) => `This PR changes the rules it is judged by (${list(hits)}). The review reads them from the base branch, and a human decides this change.`,
+    dropText: () => 'This PR no longer changes the rules it is judged by: removed the `needs-human` the gate added for it.',
+  })
+}
+
+function pathGate({ mode, repo, pr, gh, marker, hits, flagText, dropText }) {
+  const hit = hits(gh(['pr', 'diff', String(pr), '--repo', repo, '--name-only']).split('\n').filter(Boolean))
+  const inDiff = hit.length > 0
   const states = gh([
     'api', '--paginate', `repos/${repo}/issues/${pr}/comments`,
-    '--jq', `.[] | .body | capture("<!-- ${WORKFLOW_MARKER}:(?<s>[a-z]+) -->")? | .s`,
+    '--jq', `.[] | .body | capture("<!-- ${marker}:(?<s>[a-z]+) -->")? | .s`,
   ]).split('\n').filter(Boolean)
   const flagged = states.at(-1) === 'flagged'
   const comment = (state, text) =>
-    gh(['pr', 'comment', String(pr), '--repo', repo, '--body', `<!-- ${WORKFLOW_MARKER}:${state} -->\n${text}`])
+    gh(['pr', 'comment', String(pr), '--repo', repo, '--body', `<!-- ${marker}:${state} -->\n${text}`])
   if (mode === 'flag' && inDiff) {
     gh(['pr', 'edit', String(pr), '--repo', repo, '--add-label', 'needs-human'])
-    if (!flagged) {
-      comment('flagged', `Agent review skipped: this PR changes \`${path}\`, and the review action only runs a workflow identical to the default branch's. A human reviews this one.`)
-    }
+    if (!flagged) comment('flagged', flagText(hit))
     return 'flagged'
   }
   if (mode === 'unflag' && !inDiff && flagged) {
     const labels = JSON.parse(gh(['api', `repos/${repo}/issues/${pr}/labels`]))
     if (!labels.some((label) => label.name === 'needs-human')) return 'none'
     gh(['pr', 'edit', String(pr), '--repo', repo, '--remove-label', 'needs-human'])
-    comment('dropped', `This PR no longer changes \`${path}\`: removed the \`needs-human\` the gate added for it. The review runs again.`)
+    comment('dropped', dropText())
     return 'dropped'
   }
   return 'none'
@@ -266,6 +290,7 @@ const USAGE = [
   '       pr-automation review-covered <owner/repo> <sha>',
   '       pr-automation review-reusable <owner/repo> <sha> <pr-number>',
   '       pr-automation workflow-gate <flag|unflag> <owner/repo> <pr-number> <workflow-path>',
+  '       pr-automation protected-gate <flag|unflag> <owner/repo> <pr-number>',
 ].join('\n')
 
 function main([command, repo, ...rest]) {
@@ -273,6 +298,10 @@ function main([command, repo, ...rest]) {
   if (command === 'workflow-gate' && rest.length === 3 && ['flag', 'unflag'].includes(repo)) {
     const [target, pr, path] = rest
     console.log(workflowGate({ mode: repo, repo: target, pr, path, gh }))
+    return 0
+  }
+  if (command === 'protected-gate' && rest.length === 2 && ['flag', 'unflag'].includes(repo)) {
+    console.log(protectedGate({ mode: repo, repo: rest[0], pr: rest[1], gh }))
     return 0
   }
   if (command === 'diff-unchanged' && repo && rest.length >= 3) {

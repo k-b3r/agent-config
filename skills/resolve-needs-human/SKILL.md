@@ -21,7 +21,7 @@ Drop PRs that already have `human-approved` (decided, `/approve` just hasn't cle
 ## 2. Per PR, one at a time
 
 Gather (silently):
-- `node ~/.claude/skills/address-pr-review/scripts/review-threads.mjs list <pr>`: labels, review summary, unresolved threads
+- `node ~/.pi/agent/skills/address-pr-review/scripts/review-threads.mjs list <pr>`: labels, review summary, unresolved threads
 - `gh pr view <pr> --json body,files,statusCheckRollup,mergeable` and `gh pr diff <pr>`
 - Linked ticket (from title or body) if the tracker is reachable. "Not found": check the connector's workspace before concluding the ticket is missing.
 - Decisions already recorded elsewhere: the ticket, `SESSION_RESUME.md`, earlier `Human decision:` comments
