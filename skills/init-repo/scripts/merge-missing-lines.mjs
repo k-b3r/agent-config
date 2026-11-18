@@ -52,5 +52,5 @@ function main([templatePath, targetPath]) {
   return 0
 }
 
-// realpath: ~/.claude/skills symlinks here, so argv[1] is the link, not this file.
+// realpath: ~/.pi/agent/skills symlinks here, so argv[1] is the link, not this file.
 if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) process.exit(main(process.argv.slice(2)))
