@@ -55,7 +55,7 @@ const DEFAULT_MIGRATION_PATHS = ['**/migrations/**', '**/migration/**', 'drizzle
 // that quotes these words is not an irreversible write, so those paths are skipped in `reviewTier`.
 const DESTRUCTIVE_SQL =
   /\bdelete\s+from\b|\bupdate\s+[\w.]+\s+set\b|\balter\s+table\b|\bdrop\s+(?:table|schema|index|view|column|database|type|constraint)\b|\btruncate\s+(?:table\s+)?[\w.]+/i
-const RISK_BOX = /\b(?:money|payment|pricing|billing|auth|permission|credentials?|secrets?|user data|personal data|migration|deletes? data|infra|deployment)\b/i
+const RISK_BOX = /\b(?:money|payment|pricing|billing|auth|permission|credentials?|secrets?|user data|personal data|migration|deletes? data|infra|deployment|weakens?)\b/i
 
 const DEFAULTS = {
   sourceDirs: ['src', 'server'],
