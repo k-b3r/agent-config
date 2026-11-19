@@ -16,7 +16,7 @@
 import { execFileSync } from 'node:child_process'
 import { appendFileSync, realpathSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { reviewCovered } from './pr-automation.mjs'
+import { currentRuns, reviewCovered } from './pr-automation.mjs'
 
 export const TIER_LABELS = {
   pending: ['confidence-pending', 'BFBFBF', 'A push landed: the evidence is being re-scored'],
@@ -123,7 +123,8 @@ export function collectEvidence({ repo, pr, gh }) {
     gh(['pr', 'view', String(pr), '--repo', repo, '--json', 'additions,deletions,files,labels,body,headRefOid,headRefName']),
   )
   const runs = JSON.parse(gh(['api', `repos/${repo}/commits/${view.headRefOid}/check-runs?per_page=100`])).check_runs
-  const others = runs.filter((run) => !OWN_CHECK.test(run.name))
+  // A check re-run on the same head leaves its old runs behind: judge each name by its latest real run.
+  const others = currentRuns(runs.filter((run) => !OWN_CHECK.test(run.name)))
   const failing = others.filter((r) => r.status === 'completed' && !OK_CONCLUSIONS.has(r.conclusion)).map((r) => r.name)
   const pending = others.filter((r) => r.status !== 'completed').map((r) => r.name)
   const shas = reviewedShas({ repo, branch: view.headRefName, gh })
