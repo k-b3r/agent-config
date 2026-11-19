@@ -20,6 +20,16 @@ test('pickReviewer runs Claude for a claude-tier PR and allows the DeepSeek fall
   assert.match(noKey.note, /no fallback/)
 })
 
+test('pickReviewer reviews every tier on DeepSeek when the caller has no Claude token', () => {
+  for (const tier of ['deepseek', 'claude', '']) {
+    const route = pickReviewer({ tier, hasDeepseekKey: true, hasClaudeToken: false })
+    assert.deepEqual([route.primary, route.canFallback], ['deepseek', false])
+    assert.match(route.note, /CLAUDE_CODE_OAUTH_TOKEN/)
+  }
+  // Neither secret: nothing can review, so it stays on Claude and fails loudly as before.
+  assert.equal(pickReviewer({ tier: 'deepseek', hasDeepseekKey: false, hasClaudeToken: false }).primary, 'claude')
+})
+
 test('pickReviewer treats an unknown or empty tier as claude, the safe side', () => {
   assert.equal(pickReviewer({ tier: '', hasDeepseekKey: true }).primary, 'claude')
   assert.equal(pickReviewer({ tier: 'weird', hasDeepseekKey: true }).primary, 'claude')

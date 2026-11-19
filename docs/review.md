@@ -14,6 +14,7 @@ Two reviewers, picked by the diff, not by either model. `repo-checks review-tier
 | deepseek | missing | Claude (note in the step summary) | job fails |
 | claude | set | Claude | session limit or start-up error before any tool call or post: rerun on DeepSeek, no PR comment (step summary line), marker `reviewer: deepseek-fallback sha=<head>`; any other error fails the job |
 | claude | missing | Claude | job fails (rate-limit comment as before) |
+| any | set, and no `CLAUDE_CODE_OAUTH_TOKEN` | DeepSeek (note in the step summary; a repo with no Claude subscription, e.g. agent-config itself) | job fails, gate blocked |
 
 DeepSeek runs through the same `claude-code-action`, prompt and tools, pointed at opencode-go's Anthropic-compatible endpoint (`ANTHROPIC_BASE_URL=https://opencode.ai/inference/go/anthropic`, key in `OPENCODE_API_KEY`). The fallback is decided by `review-route fallback` from the failed transcript (`fallbackDecision`); it never reruns once Claude has commented or edited a label, so a review is not posted twice. A claude-tier PR that the fallback reviewed is capped at `confidence-medium` (`pr-confidence`, factor `reviewer`), so a human decides; a push that leaves the diff unchanged carries the marker with the proof verdict. If DeepSeek also fails, the job fails and the gate stays blocked; a rate-limit comment is posted as before.
 
