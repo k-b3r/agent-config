@@ -1,0 +1,24 @@
+# Named pr-review on purpose: scripts/pr-confidence.mjs finds a commit's review runs by that workflow name.
+name: pr-review
+
+# agent-config reviews its own PRs with its own reusable review (the same one every other repo calls).
+# Public repo, so the runs are free. The reusable workflow is called by local path: a PR that changes it
+# is flagged `needs-human` by the review's own gate instead of being reviewed by a changed copy.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
+  issue_comment:
+    types: [created]
+
+jobs:
+  review:
+    uses: ./.github/workflows/pr-review.yml
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: write
+    with:
+      generated-paths: ''
+    secrets: inherit

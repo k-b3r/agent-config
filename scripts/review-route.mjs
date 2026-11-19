@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Which model reviews a PR, and whether a failed Claude review reruns on DeepSeek:
-//   review-route pick                     env REVIEW_TIER (repo-checks review-tier), HAS_DEEPSEEK_KEY ("true" or empty)
+//   review-route pick                     env REVIEW_TIER (repo-checks review-tier), HAS_DEEPSEEK_KEY and HAS_CLAUDE_TOKEN ("true" or empty)
 //   review-route fallback <execution-file>  decides from the failed Claude transcript; "" when none
 // Both print `key=value` lines for $GITHUB_OUTPUT. Policy (owner, 2026-11-17): DeepSeek reviews everything
 // the tier does not send to Claude; a Claude review that dies on the session limit or at start-up reruns
@@ -9,10 +9,13 @@ import { readFileSync, realpathSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describeRateLimit } from './review-rate-limit.mjs'
 
+const NO_CLAUDE = 'CLAUDE_CODE_OAUTH_TOKEN is not set in the caller: this PR is reviewed by DeepSeek, whatever its tier'
 const NO_KEY = 'OPENCODE_API_KEY is not set in the caller: this PR is reviewed by Claude'
 
 // `tier` is repo-checks' answer ('claude' | 'deepseek'); anything else is treated as claude (the stricter reviewer).
-export function pickReviewer({ tier, hasDeepseekKey }) {
+// A caller without a Claude token (a solo repo that only has the DeepSeek key) reviews everything on DeepSeek.
+export function pickReviewer({ tier, hasDeepseekKey, hasClaudeToken = true }) {
+  if (!hasClaudeToken && hasDeepseekKey) return { primary: 'deepseek', canFallback: false, note: NO_CLAUDE }
   if (tier === 'deepseek') {
     return hasDeepseekKey
       ? { primary: 'deepseek', canFallback: false, note: '' }
@@ -72,7 +75,7 @@ function readTranscript(file) {
 if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const [command, file] = process.argv.slice(2)
   if (command === 'pick') {
-    const route = pickReviewer({ tier: process.env.REVIEW_TIER ?? '', hasDeepseekKey: process.env.HAS_DEEPSEEK_KEY === 'true' })
+    const route = pickReviewer({ tier: process.env.REVIEW_TIER ?? '', hasDeepseekKey: process.env.HAS_DEEPSEEK_KEY === 'true', hasClaudeToken: process.env.HAS_CLAUDE_TOKEN !== 'false' })
     console.log(`primary=${route.primary}\ncan_fallback=${route.canFallback}\nnote=${route.note}`)
   } else if (command === 'fallback') {
     const decision = fallbackDecision(readTranscript(file))

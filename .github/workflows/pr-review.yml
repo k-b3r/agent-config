@@ -39,7 +39,7 @@
 # destructive SQL, agentConfig.claudeReviewPaths, ticked risk box, label review-opus): Claude. When
 # Claude fails on its session limit or at start-up (see scripts/review-route.mjs), the same review
 # reruns on DeepSeek without a PR comment, and the PR gets the marker `reviewer: deepseek-fallback`
-# that caps its confidence at medium. Without OPENCODE_API_KEY every PR goes to Claude.
+# that caps its confidence at medium. Without OPENCODE_API_KEY every PR goes to Claude; without CLAUDE_CODE_OAUTH_TOKEN every PR goes to DeepSeek.
 
 name: pr-review
 
@@ -82,7 +82,10 @@ on:
         default: k-b3r-ci
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN:
-        required: true
+        description: >-
+          Claude Code OAuth token. Optional: without it every PR is reviewed by DeepSeek (needs
+          OPENCODE_API_KEY), whatever its tier, and there is no Claude review.
+        required: false
       OPENCODE_API_KEY:
         description: >-
           opencode-go API key for the DeepSeek reviewer. Optional: without it every PR is
@@ -313,6 +316,7 @@ jobs:
           REVIEW_PR_BODY: ${{ github.event.pull_request.body }}
           REVIEW_PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
           HAS_DEEPSEEK_KEY: ${{ secrets.OPENCODE_API_KEY != '' }}
+          HAS_CLAUDE_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
         run: |
           if tier=$(node .agent-config/scripts/repo-checks.mjs review-tier "origin/$BASE" 2>/tmp/review-tier.log); then
             :
