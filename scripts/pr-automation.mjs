@@ -37,7 +37,7 @@ const SELF_CHECK = /auto-merge|(^|\/ )confidence$/
 // Checks re-run on the same commit (label events skip the gate, a human
 // re-runs a failed job): judge each name by its newest run that actually ran,
 // falling back to the newest skipped one when it never ran.
-function currentRuns(checks) {
+export function currentRuns(checks) {
   const byName = new Map()
   const rank = (check) => [check.conclusion !== 'skipped', check.started_at ?? '']
   for (const check of checks) {
