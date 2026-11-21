@@ -30,8 +30,12 @@ Source of truth for Claude Code and pi. `install.sh` links this file to `~/.clau
 Pi does not expand `@` imports; its `standards-loader` extension adds the standards and `TOOLS.md` at session start inside a git repo. Claude Code expands the imports.
 @CODING_STANDARDS.md
 
+## New agent sessions (Herdr)
+- Always pi: `herdr agent start <name> --kind pi ...`, or `pi "<prompt>"` outside Herdr. Handoffs and resumes too, even when the next steps touch LabX Linear: that pi session opens its own Claude pane for the ticket work (below).
+- Claude Code is a helper pane, never the main session: LabX Linear (below), `init-context`, `write-a-skill` verification.
+
 ## LabX Linear
-- When the cwd is a `labx*` / `lx-*` repo (under `~/Develop/odi/`) and you need a Linear ticket (`CRM-*`, `LX360-*`), read the `labx-linear` skill first. pi's Linear MCP cannot see the LabX workspace; fetch through Claude Code in a Herdr pane.
+- In a `labx*` / `lx-*` repo (under `~/Develop/odi/`) every Linear read or write (`CRM-*`, `LX360-*`, `LAB5-*`, any other key) goes through Claude Code in a Herdr pane: read the `labx-linear` skill first. Never use pi's Linear tools there: they see only the Buy and Sell workspace, so reads return "not found" and writes land on the wrong board.
 
 ## Git identity for personal projects
 - Personal projects use ONLY GitHub account `k-b3r`, git author name `k-b3r`, email `dev.kimbermudez@gmail.com`. Never `kimbermudez` as a name, and no other account or email. Applies to steward instances (`GIT_USER_NAME`), clones, commits and PRs.

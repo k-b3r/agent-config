@@ -11,7 +11,7 @@ Two parts: rewrite the doc, then open the next session. The user approves the ne
 
 **Root:** the worktree of the branch the work is on (where its commits and PR live), or the session's own cwd when no branch is in progress. Doc and new pane both go there. Read the current doc first if it exists.
 
-- **Local only.** Unless git already tracks it, make sure `SESSION_RESUME.md` is in `.git/info/exclude` (`git rev-parse --git-path info/exclude`; append only if missing; Claude Code asks approval for that file, don't route around it). Never commit it.
+- **Local only.** Unless git already tracks it, make sure `SESSION_RESUME.md` is in `.git/info/exclude` (`git rev-parse --git-path info/exclude`; append only if missing; the agent may ask approval for that file, don't route around it). Never commit it.
 - **Rewrite, don't append.** Done items, strikethroughs and notes that git, PRs or the tracker already record go. Keep only what the next session can't rediscover.
 - **Check before writing.** Every PR, CI, branch and worktree state in the doc comes from a live look (`git status`, `git worktree list`, `gh pr list`/`gh pr checks`), not memory.
 - **Absolute dates**, never "today" or "yesterday". **Absolute paths** for worktrees and other repos; a relative path resolves against whatever cwd the next session has.
@@ -44,6 +44,8 @@ Local handoff, in `.git/info/exclude`; do not commit. Last updated: <YYYY-MM-DD>
 
 ## 2. Open the next session (Herdr)
 
+The agent is pi (`--kind pi`). Use another kind only if the user names it, even when the next steps involve LabX Linear: the pi session opens its own Claude pane for that (`labx-linear` skill).
+
 `test "${HERDR_ENV:-}" = 1` fails: skip to step 3's fallback.
 
 ```bash
@@ -55,7 +57,7 @@ pane=$(herdr pane split --current --direction "$dir" --cwd "$root" --no-focus | 
 herdr agent start "$name" --kind pi --pane "$pane" --timeout 60000
 ```
 
-- `agent_not_ready` (blocked at startup, usually the folder-trust dialog): never answer it. Tell the user to answer it in the new pane, then `herdr agent wait "$name" --until idle --timeout 300000`.
+- `agent_not_ready` (blocked at startup, for example a trust or login dialog): never answer it. Tell the user to answer it in the new pane, then `herdr agent wait "$name" --until idle --timeout 300000`.
 - Once idle, type the prompt without Enter:
 
 ```bash
