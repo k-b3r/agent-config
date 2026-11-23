@@ -338,7 +338,7 @@ jobs:
           NOTE: ${{ steps.route.outputs.note }}
         run: echo "reviewer note - $NOTE" >> "$GITHUB_STEP_SUMMARY"
 
-      - uses: anthropics/claude-code-action@4d75e5f390ee76b2e09c1980ecc99ff3a2e088c8 # v1.0.275
+      - uses: anthropics/claude-code-action@c84e279f859e2591391e95bd309286eb111c345f # v1.0.284
         id: claude
         if: steps.diff.outputs.unchanged != 'true' && steps.route.outputs.primary == 'claude'
         # A claude-tier PR that can fall back must get to the decision step below; every other
@@ -381,7 +381,7 @@ jobs:
           echo "agent review: rerunning on ${{ inputs.deepseek-model }} (fallback)" >> "$GITHUB_STEP_SUMMARY"
           node .agent-config/scripts/pr-confidence.mjs mark-fallback "$REPO" "$PR" "$HEAD_SHA"
 
-      - uses: anthropics/claude-code-action@4d75e5f390ee76b2e09c1980ecc99ff3a2e088c8 # v1.0.275
+      - uses: anthropics/claude-code-action@c84e279f859e2591391e95bd309286eb111c345f # v1.0.284
         id: deepseek
         if: steps.diff.outputs.unchanged != 'true' && (steps.route.outputs.primary == 'deepseek' || steps.fallback.outputs.run == 'true')
         # Same prompt and tools as the Claude step; Claude Code talks to opencode-go's Anthropic-compatible
